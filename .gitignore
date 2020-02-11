@@ -1,2 +1,29 @@
-results/
+perfecto_actions/results/
+._DS_Store
 .DS_Store
+._.DS_Store
+bin/
+dist/
+lib/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# virtualenv
+venv/
+ENV/
+build/
+*.egg-info/
+.installed.cfg
+*.egg
+*.err
+*.log
+*.out
+sdist/
+
+# PyInstaller
+*.manifest
+*.spec
+
+Include/

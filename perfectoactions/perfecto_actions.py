@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """device health check"""
 import urllib.request
 import os
@@ -14,7 +16,6 @@ import webbrowser
 import matplotlib.pyplot as plt
 import io
 import base64
-import cython 
 import pylab as pl
 import time
 import sys
@@ -323,8 +324,8 @@ def prepare_html():
     file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'results', 'Final_Summary.txt')
     try:
         f= open(file,"r")
-    except Exception as e:
-        raise Exception("Oops!" , e  ,"occured." + 'No devices found/ Error in fetching devices!')
+    except FileNotFoundError as e:
+        raise Exception( 'No devices found matching conditions: '+GET_DEVICE_PARAMETERS)
     result = f.read()
     f.close() 
     results = result.split("\n")
@@ -560,6 +561,8 @@ def prepare_html():
     i = 0
     results.sort()
     for i in range(len(results)):
+        results[i]= re.sub('Results\=$','',results[i])
+        results[i]= re.sub('[,]+','',results[i])
         if "Available" in results[i]:
             print(colored(results[i], "green"))
         else:
@@ -567,8 +570,7 @@ def prepare_html():
         i = i + 1     
     print('Results: file://' + os.path.realpath('results/output.html'))
     
-
-if __name__ == '__main__':
+def main(args):
     freeze_support()    
     #create results path
     directory = 'results'
@@ -577,10 +579,11 @@ if __name__ == '__main__':
     else:
         shutil.rmtree(directory)
         os.makedirs(directory)
- 
-#    shutil.copyfile('df_style.css','results/df_style.css')
     get_list("list", "connected", "true", "red", "Busy")     
     get_list("list", "disconnected", "", "red",  "Disconnected")
     get_list("list", "unavailable", "", "red", "Un-available")
     get_list("list", "connected", "false", "green", "Available")
     prepare_html()
+    
+if __name__ == '__main__':
+    main(sys.argv)
