@@ -6,13 +6,32 @@ Created on Fri Feb  7 16:56:12 2020
 @author: genesisthomas
 """
 
+import sys
 from setuptools import setup, find_packages
-
+OPTIONS = {}
+mainscript = 'perfecto/perfectoactions.py'
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+if sys.platform == 'darwin': 
+    extra_options = dict(
+        setup_requires=['py2app'],
+        app=[mainscript],
+        options={'py2app': OPTIONS},
+    )
+elif sys.platform == 'win32':
+    extra_options = dict( 
+        setup_requires=['py2exe'], 
+        app=[mainscript],
+    ) 
+else:
+    extra_options = dict(
+    # Normally unix-like platforms will use "setup.py install" # and install the main script as such 
+        scripts=[mainscript],
+)
 setup(
      name='perfectoactions',
-     version='0.0.6',
+     version='0.0.15',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
      description="A Perfecto device actions execution + reporter package",
@@ -22,16 +41,15 @@ setup(
      keywords = ['Perfecto', 'appium', 'selenium', 'testing', 'api', 'automation'],
      url="https://github.com/PerfectoMobileSA/Device_actions_reporter",
      install_requires=[
-            'configparser','termcolor', 'pandas','matplotlib'
+            'requests','configparser','termcolor', 'pandas','matplotlib'
       ],
      packages=find_packages(),
-     data_files={'perfectoactions/df_style.css' , 'perfectoactions/Config.ini' , \
-            'perfectoactions/img/mobile.png' , 'perfectoactions/img/mobile2.png' ,\
-            'perfectoactions/img/search.png'},
-    include_package_data=True,
+     include_package_data=True,
      classifiers=[
          'Programming Language :: Python :: 3',
          'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
          'Operating System :: OS Independent'
      ],
+     entry_points={"console_scripts": ["perfectoactions=perfecto.perfectoactions:main"]},
+     **extra_options
  )

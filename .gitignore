@@ -1,9 +1,13 @@
-perfecto_actions/results/
+perfecto/results/
+perfecto/output/
+
 ._DS_Store
 .DS_Store
 ._.DS_Store
 bin/
 dist/
+
+
 lib/
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -27,3 +31,4 @@ sdist/
 *.spec
 
 Include/
+.ipynb_checkpoints/
