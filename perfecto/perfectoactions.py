@@ -8,10 +8,9 @@ import urllib.error
 from xml.dom import minidom
 import json
 import re
-import configparser
 from termcolor import colored
 import shutil
-import pandas as pd
+import pandas
 import webbrowser
 import matplotlib.pyplot as plt
 import io
@@ -19,11 +18,9 @@ import base64
 import pylab as pl
 import time
 import datetime
-import sys
 import traceback
 import argparse
 from multiprocessing import freeze_support, Pool, Process
-from distutils.dir_util import copy_tree
 import ssl
 import tempfile
 import platform
@@ -31,22 +28,23 @@ import platform
 # PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 PROJECT_ROOT = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
 
-START_EXECUTION = False
-GET_NETWORK_SETTINGS = False
-REBOOT = False
-CLEANUP = False
-CLOUDNAME = ""
-TOKEN = ""
-DEVICE_LIST_PARAMETERS  = ""
-
-        
+   
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
+os.environ["START_EXECUTION"] = "False"
+os.environ["GET_NETWORK_SETTINGS"] = "False"
+os.environ["REBOOT"] = "False"
+os.environ["CLEANUP"] = "False"
+CLOUDNAME = ""
+TOKEN = ""
+os.environ["DEVICE_LIST_PARAMETERS"]  = ""
 
 def send_request(url):
     """send request"""
 #     print("Submitting", url)
-    if DEVICE_LIST_PARAMETERS == "All devices":
+    global DEVICE_LIST_PARAMETERS
+    DEVICE_LIST_PARAMETERS = os.environ['DEVICE_LIST_PARAMETERS']
+    if "All devices" in DEVICE_LIST_PARAMETERS:
         response = urllib.request.urlopen(url)
     else:
         response = urllib.request.urlopen(url.replace(" ", "%20"))
@@ -76,13 +74,16 @@ def send_request2(url):
 
 def get_url(resource, resource_id, operation):
     """get url """
+    global CLOUDNAME
+    CLOUDNAME = os.environ['CLOUDNAME']
     url = "https://" + CLOUDNAME + ".perfectomobile.com/services/" + resource
     if resource_id != "":
         url += "/" + resource_id
+    TOKEN = os.environ['TOKEN']
     if "eyJhb" in TOKEN:
         query = urllib.parse.urlencode({"operation": operation, "securityToken": TOKEN})
     else:
-        if not ":" in TOKEN:
+        if ":" not in TOKEN:
             raise Exception("Please pass your perfecto credentials in the format user:password as your second parameter!" )
         else:
             user = TOKEN.split(":")[0]
@@ -127,11 +128,12 @@ def get_device_list_response(resource, command, status, in_use):
     url += "&status=" + status
     if in_use != "":
         url += "&inUse=" + in_use
+    global DEVICE_LIST_PARAMETERS
+    DEVICE_LIST_PARAMETERS = os.environ['DEVICE_LIST_PARAMETERS']
     if  len(DEVICE_LIST_PARAMETERS.split(":")) >= 2:
         for item in DEVICE_LIST_PARAMETERS.split(";"):
             if ":" in item:
                 url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
-    print(url)
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
@@ -183,24 +185,33 @@ def perform_actions(deviceid_color):
         except:
             operator = "NA"
             phoneNumber ="NA"
+        global GET_NETWORK_SETTINGS
+        GET_NETWORK_SETTINGS = os.environ['GET_NETWORK_SETTINGS']
+        print("testing" + GET_NETWORK_SETTINGS)
         if "green"  in color:
-            if START_EXECUTION:
+            global START_EXECUTION
+            START_EXECUTION = os.environ['START_EXECUTION']
+            if "True" in START_EXECUTION:
                 #Get execution id
                 EXEC_ID = start_execution()
                 #open device:
                 print("opening: " + model)
                 device_command(EXEC_ID, device_id, "open")
-                if CLEANUP:
+                global CLEANUP
+                CLEANUP = os.environ['CLEANUP']
+                if "True" in CLEANUP:
                     if not "iOS" in osDevice: 
                         print("cleaning up: " + model)
                         status += "cleanup:" + exec_command(EXEC_ID, device_id, "device", "clean")
                         status += ";"
                     else:
                         status +="cleanup:NA;"
-                if REBOOT:
+                global REBOOT
+                REBOOT = os.environ['REBOOT']
+                if "True" in REBOOT:
                     print("rebooting: " + model)
                     status += "reboot:" + exec_command(EXEC_ID, device_id, "device", "reboot")
-                if GET_NETWORK_SETTINGS:
+                if "True" in GET_NETWORK_SETTINGS:
                     print("getting network status of : " + model)
                     networkstatus = exec_command(EXEC_ID, device_id, "network.settings", "get").replace("{","").replace("}","")
                 #Close device
@@ -210,7 +221,7 @@ def perform_actions(deviceid_color):
         else:
             networkstatus = ",,"
 
-        if GET_NETWORK_SETTINGS:
+        if "True" in GET_NETWORK_SETTINGS:
                 final_string =  "status=" + desc + ", deviceId='" + device_id + "', model=" + str(model) + ", version=" + str(osVersion) + ", operator="+ \
                 str(operator) + ", phoneNumber=" + str(phoneNumber) + ", " + str(networkstatus) + ", " + str(status)
         else:
@@ -224,8 +235,8 @@ def perform_actions(deviceid_color):
     except Exception as e:
         raise Exception("Oops!" , e )
         
-        if not os.path.isfile(PROJECT_ROOT + '/results/' + device_id + '.txt'):
-            if GET_NETWORK_SETTINGS:
+        if not os.path.isfile(os.path.join(PROJECT_ROOT, 'results', device_id + '.txt')):
+            if "True" in GET_NETWORK_SETTINGS:
                 final_string =  "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,"
             else:
                 final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,"
@@ -256,7 +267,7 @@ def get_list(get_dev_list):
             chunksize = 3
             pool = Pool(processes=agents)
             try:
-                print("Found " + str(len(device_list)) + " device count with status: " + desc)
+                print("Found " + str(len(device_list)) + " devices with status: " + desc)
                 output = pool.map(perform_actions, device_list, chunksize)
                 pool.close()  
                 pool.join()
@@ -332,40 +343,40 @@ def prepare_html():
                 fetch_details(i, 9, result, action_results)
                 new_list.append(result)
                 i = i + 1
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_colwidth', 100)
-    pd.set_option('colheader_justify', 'center') 
-    if GET_NETWORK_SETTINGS or REBOOT or CLEANUP:
+    pandas.set_option('display.max_columns', None)
+    pandas.set_option('display.max_colwidth', 100)
+    pandas.set_option('colheader_justify', 'center') 
+    if "True" in GET_NETWORK_SETTINGS or "True" in  REBOOT or "True" in CLEANUP:
         new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
     else:
         new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber}
-    df = pd.DataFrame(new_dict)
+    df = pandas.DataFrame(new_dict)
     df = df.sort_values(by ='Model')
     df = df.sort_values(by ='Status')
     df.reset_index(drop=True, inplace=True)
     pl.figure()
     pl.suptitle("Device Models")
     df['Model'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64( PROJECT_ROOT + '/results/model.png')
+    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','model.png'))
     model = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
     pl.figure()
     pl.suptitle("Device Status")
     df['Status'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(PROJECT_ROOT + '/results/status.png')
+    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','status.png'))
     barh = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
     pl.figure()
     pl.suptitle("OS Versions")
     df['OS Version'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(PROJECT_ROOT + '/results/version.png')
+    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','version.png'))
     version = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
     pl.figure()
     pl.suptitle("SIM Operators")
     df['Operator'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(PROJECT_ROOT + '/results/operator.png')
+    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','operator.png'))
     operator = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
     df = df.sort_values(by ='Model')
     df = df.sort_values(by ='Status')
-    df.to_csv(PROJECT_ROOT + '/results/output.csv', index=False)
+    df.to_csv(os.path.join(PROJECT_ROOT , 'results','output.csv'), index=False)
     current_time = datetime.datetime.now().strftime("%c")
     
     #Futuristic:
@@ -379,7 +390,7 @@ def prepare_html():
 #     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
 #     dfs['Operator'] = le.fit_transform(dfs['Operator'])
 #     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
-#     if GET_NETWORK_SETTINGS or REBOOT or CLEANUP:
+#     if  "True" in GET_NETWORK_SETTINGS or  "True" in REBOOT or  "True" in CLEANUP:
 #         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
 #         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
 #         dfs['Data'] = le.fit_transform(dfs['Data'])
@@ -751,9 +762,9 @@ def prepare_html():
           margin-left: auto;
           margin-right: auto;
           margin-top:5%;
-          width: 70%;
+          width: 60%;
           height: auto;
-          top: 60%;
+          top: 30%;
         }}
 
         #slideshow {{
@@ -782,7 +793,7 @@ def prepare_html():
           right: 1%;
           bottom: 10%;
           width: 95%;
-          height: 80%;
+          height: 70%;
         }}
 
         /* Number text (1/3 etc) */
@@ -823,19 +834,19 @@ def prepare_html():
         <div class="container" align="center" id="slideshow" >
           <div class="mySlides">
             <div class="numbertext">4 / 4</div>
-            ''' + barh + ''' alt="Device Status" style="width:90%;">
+            ''' + barh + ''' alt="Device Status" style="width:6s0%;">
           </div>     
           <div class="mySlides">
             <div class="numbertext">1 / 4</div>
-          ''' + model + ''' alt="Model" style="width:90%;">
+          ''' + model + ''' alt="Model" style="width:60%;">
           </div>
           <div class="mySlides">
           <div class="numbertext">2 / 4</div>
-          ''' + version + ''' alt="Version" style="width:90%;">
+          ''' + version + ''' alt="Version" style="width:60%;">
           </div>          
           <div class="mySlides">
           <div class="numbertext">3 / 4</div>
-          ''' + operator + ''' alt="Operator" style="width:90%;">
+          ''' + operator + ''' alt="Operator" style="width:60%;">
           </div>       
           </div>
         </div>
@@ -867,16 +878,60 @@ def prepare_html():
     plt.close('all')
     print('Results: file://' + os.path.join(PROJECT_ROOT,'output','result.html'))
     
-def get_parser():
+
+def create_dir(directory, delete):
     """
-    get's the argument parser
+    create Dir
     """
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    else:
+        if delete:
+            shutil.rmtree(directory)
+            os.makedirs(directory)
+            
+def main():
+    """
+    Runs the perfecto actions and reports
+    """
+     
+    #create results path and files
+    create_dir(os.path.join(PROJECT_ROOT , 'results'),True)
+    create_dir(os.path.join(PROJECT_ROOT , 'output'), False)
+    get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected"]#, \
+#                    "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
+#    for li in get_dev_list:
+#        get_list(str(li))
+    try:
+        procs = []
+        for li in get_dev_list:
+            proc = Process(target=get_list, args=(str(li),))
+            procs.append(proc)
+            proc.start()
+        for proc in procs:
+            proc.join()
+        for proc in procs:
+            proc.terminate()
+    except Exception:
+        proc.terminate()
+        print(traceback.format_exc())
+    prepare_html()
+    #Keeps refreshing page with expected arguments with a sleep of provided seconds   
+    if args["refresh"]:
+        if int(args["refresh"]) >= 0:
+            time.sleep(int(args["refresh"]))
+        main()
+
+if __name__ == '__main__':
+    start_time = time.time()
+    """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
+    if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+        ssl._create_default_https_context = ssl._create_unverified_context
     parser = argparse.ArgumentParser(description="Perfecto Actions Reporter")
     parser.add_argument(
         "-c",
         "--cloud_name",
         metavar="cloud_name",
-        type=str,
         help="Perfecto cloud name. (E.g. demo)",
     )
     parser.add_argument(
@@ -884,7 +939,7 @@ def get_parser():
         "--security_token",
         metavar="security_token",
         type=str,
-        help="Perfecto Security Token/ Pass your Perfecto's username and password in user@password format",
+        help="Perfecto Security Token/ Pass your Perfecto's username and password in user:password format",
     )
     parser.add_argument(
         "-d",
@@ -910,91 +965,41 @@ def get_parser():
         help="Refreshes the page with latest device status as per provided interval in seconds",
         nargs="?"
     )
-    return parser
-
-def create_dir(directory, delete):
-    """
-    create Dir
-    """
-    print(directory)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    else:
-        if delete:
-            shutil.rmtree(directory)
-            os.makedirs(directory)
-            
-def main():
-    """
-    Runs the perfecto actions and reports
-    """
-    """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
-    if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
-        ssl._create_default_https_context = ssl._create_unverified_context
-    args = vars(get_parser().parse_args())
+    args = vars(parser.parse_args())
     if not args["cloud_name"]:
-        parser.Exception("cloud_name parameter is empty")
         parser.print_help()
-        return
+        parser.error("cloud_name parameter is empty")
+        exit
     if not args["security_token"]:
-        parser.Exception("security_token parameter is empty")
         parser.print_help()
-        return
-    global CLOUDNAME
+        parser.error("security_token parameter is empty")
+        exit
+    
     CLOUDNAME = args["cloud_name"]
-    global TOKEN
-    TOKEN = args["security_token"]
-    global DEVICE_LIST_PARAMETERS
+    os.environ["CLOUDNAME"] = args["cloud_name"]
+    os.environ["TOKEN"] = args["security_token"]
     if args["device_list_parameters"]:
         DEVICE_LIST_PARAMETERS = args["device_list_parameters"]
     else:
         DEVICE_LIST_PARAMETERS = "All devices"
+    os.environ["DEVICE_LIST_PARAMETERS"] = DEVICE_LIST_PARAMETERS
+    GET_NETWORK_SETTINGS = "False"
+    REBOOT = "False"
+    CLEANUP = "False"
+    START_EXECUTION = "False"
     if args["actions"]:
-        global GET_NETWORK_SETTINGS
         if "get_network_settings:true" in args["actions"]:
-            GET_NETWORK_SETTINGS = True
-        else:
-            GET_NETWORK_SETTINGS = False
-        global REBOOT
+            GET_NETWORK_SETTINGS = "True"
         if "reboot:true" in args["actions"]:
-            REBOOT = True
-        else:
-            REBOOT = False
-        global CLEANUP
+            REBOOT = "True"
         if "cleanup:true" in args["actions"]:
-            CLEANUP = True
-        else:
-            CLEANUP = False
-    if GET_NETWORK_SETTINGS or REBOOT or CLEANUP:
-        global START_EXECUTION
-        START_EXECUTION = True
-    freeze_support()    
-    #create results path and files
-    create_dir(PROJECT_ROOT + '/results',True)
-    create_dir(PROJECT_ROOT + '/output', False)
-    get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
-                    "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
-    try:
-        procs = []
-        for li in get_dev_list:
-            proc = Process(target=get_list, args=(str(li),))
-            procs.append(proc)
-            proc.start()
-        for proc in procs:
-            proc.join()
-        for proc in procs:
-            proc.terminate()
-    except Exception:
-        proc.terminate()
-        print(traceback.format_exc())
-    prepare_html()
-    #Keeps refreshing page with expected arguments with a sleep of provided seconds   
-    if args["refresh"]:
-        if int(args["refresh"]) >= 0:
-            time.sleep(int(args["refresh"]))
-        main()
-
-if __name__ == '__main__':
-    start_time = time.time()
+            CLEANUP = "True"
+    os.environ["GET_NETWORK_SETTINGS"] = GET_NETWORK_SETTINGS 
+    os.environ["CLEANUP"] = CLEANUP 
+    os.environ["REBOOT"] = REBOOT
+    if "True" in GET_NETWORK_SETTINGS or "True" in REBOOT or "True" in CLEANUP:
+        START_EXECUTION = "True"
+    os.environ["START_EXECUTION"] = str(START_EXECUTION)
+    freeze_support()
     main()
     print("--- Completed in : %s seconds ---" % (time.time() - start_time))
