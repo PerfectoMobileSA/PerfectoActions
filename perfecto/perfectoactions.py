@@ -188,7 +188,6 @@ def perform_actions(deviceid_color):
             phoneNumber ="NA"
         global GET_NETWORK_SETTINGS
         GET_NETWORK_SETTINGS = os.environ['GET_NETWORK_SETTINGS']
-        print("testing" + GET_NETWORK_SETTINGS)
         if "green"  in color:
             global START_EXECUTION
             START_EXECUTION = os.environ['START_EXECUTION']
@@ -520,8 +519,8 @@ def prepare_html():
             }}
            
             .mySlides:hover {{
-                -webkit-transform:scale(2.5);
-                transform:scale(2.5);
+                -webkit-transform:scale(2);
+                transform:scale(2);
             }}
     
             #myInput {{
@@ -612,6 +611,7 @@ def prepare_html():
             table.mystyle thead {{
               background: #333333;
               font-size: 13px;
+              position:relative;
               border-bottom: 1px solid #DBDB40;
               border-left: 1px solid #D8DB40;
               border-right: 1px solid #D8DB40;
@@ -738,7 +738,7 @@ def prepare_html():
             #slideshow > div {{
               position: relative;
               margin-top: 10%;
-              top: 20%;
+              top: 10%;
               left: 1%;
               right: 1%;
               bottom: 10%;
@@ -791,7 +791,6 @@ def prepare_html():
         with open(os.path.join(PROJECT_ROOT,'output','result.html'), 'w') as f:
             f.write(html_string.format(table=df.to_html(classes='mystyle', index=False)))
         time.sleep(3)
-        print("Report ready!")
         webbrowser.open('file://' + os.path.join(PROJECT_ROOT,'output','result.html'), new=0) 
         plt.close('all')
         print('Results: file://' + os.path.join(PROJECT_ROOT,'output','result.html'))
@@ -818,21 +817,21 @@ def main():
     create_dir(os.path.join(PROJECT_ROOT , 'output'), False)
     get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
                     "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
-    for li in get_dev_list:
-        get_list(str(li))
-#    try:
-#        procs = []
-#        for li in get_dev_list:
-#            proc = Process(target=get_list, args=(str(li),))
-#            procs.append(proc)
-#            proc.start()
-#        for proc in procs:
-#            proc.join()
-#        for proc in procs:
-#            proc.terminate()
-#    except Exception:
-#        proc.terminate()
-#        print(traceback.format_exc())
+#     for li in get_dev_list:
+#         get_list(str(li))
+    try:
+       procs = []
+       for li in get_dev_list:
+           proc = Process(target=get_list, args=(str(li),))
+           procs.append(proc)
+           proc.start()
+       for proc in procs:
+           proc.join()
+       for proc in procs:
+           proc.terminate()
+    except Exception:
+       proc.terminate()
+       print(traceback.format_exc())
     prepare_html()
     #Keeps refreshing page with expected arguments with a sleep of provided seconds   
     if args["refresh"]:
