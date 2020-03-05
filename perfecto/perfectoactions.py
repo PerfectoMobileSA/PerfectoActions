@@ -38,6 +38,7 @@ os.environ["CLEANUP"] = "False"
 CLOUDNAME = ""
 TOKEN = ""
 os.environ["DEVICE_LIST_PARAMETERS"]  = ""
+os.environ["PREPARE_ACTIONS_HTML"] = "true"
 
 def send_request(url):
     """send request"""
@@ -292,7 +293,21 @@ def fig_to_base64(fig):
                 bbox_inches='tight')
     img.seek(0)
     return base64.b64encode(img.getvalue())
-     
+
+def print_results(results):
+    """ print_results """
+    i = 0
+    results.sort()
+    for i in range(len(results)):
+        results[i]= re.sub('Results\=$','',results[i])
+        results[i]= re.sub('[,]+','',results[i])
+        if results[i]:
+            if "Available" in results[i]:
+                print(colored(results[i], "green"))
+            else:
+                print(colored(results[i], "red"))
+        i = i + 1  
+        
 def prepare_html():
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
@@ -308,575 +323,478 @@ def prepare_html():
     file = os.path.join(PROJECT_ROOT, 'results', 'Final_Summary.txt')
     try:
         f= open(file,"r")
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         raise Exception( 'No devices found matching conditions: ' + DEVICE_LIST_PARAMETERS)
     result = f.read()
     f.close() 
-    results = result.split("\n")
-    #export to CSV
-    new_dict = {}
-    deviceids = []
-    status = []
-    model = []
-    osVersion = []
-    operator = []
-    phonenumber = []
-    airplanemode = []
-    wifi = []
-    data = []
-    action_results = []
-    for result in results:
-        if len(result) > 0:
-            new_result = result.split(",")
-            new_list = []
-            i = 0
-            for result in new_result:
-                fetch_details(i, 0, result, status)
-                fetch_details(i, 1, result, deviceids)
-                fetch_details(i, 2, result, model)
-                fetch_details(i, 3, result, osVersion)
-                fetch_details(i, 4, result, operator)
-                fetch_details(i, 5, result, phonenumber)
-                fetch_details(i, 6, result, airplanemode)
-                fetch_details(i, 7, result, wifi)
-                fetch_details(i, 8, result, data)
-                fetch_details(i, 9, result, action_results)
-                new_list.append(result)
-                i = i + 1
-    pandas.set_option('display.max_columns', None)
-    pandas.set_option('display.max_colwidth', 100)
-    pandas.set_option('colheader_justify', 'center') 
-    if "True" in GET_NETWORK_SETTINGS or "True" in  REBOOT or "True" in CLEANUP:
-        new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
-    else:
-        new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber}
-    df = pandas.DataFrame(new_dict)
-    df = df.sort_values(by ='Model')
-    df = df.sort_values(by ='Status')
-    df.reset_index(drop=True, inplace=True)
-    pl.figure()
-    pl.suptitle("Device Models")
-    df['Model'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','model.png'))
-    model = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-    pl.figure()
-    pl.suptitle("Device Status")
-    df['Status'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','status.png'))
-    barh = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-    pl.figure()
-    pl.suptitle("OS Versions")
-    df['OS Version'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','version.png'))
-    version = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-    pl.figure()
-    pl.suptitle("SIM Operators")
-    df['Operator'].value_counts().plot(kind='barh', stacked=True)
-    encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','operator.png'))
-    operator = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-    df = df.sort_values(by ='Model')
-    df = df.sort_values(by ='Status')
-    df.to_csv(os.path.join(PROJECT_ROOT , 'results','output.csv'), index=False)
-    current_time = datetime.datetime.now().strftime("%c")
-    
-    #Futuristic:
-#     le = preprocessing.LabelEncoder()
-#     #convert the categorical columns into numeric
-#     dfs = df.copy()
-#     encoded_value = le.fit_transform(dfs['Device Id'])
-#     dfs['Device Id'] = le.fit_transform(dfs['Device Id'])
-#     dfs['Status'] = le.fit_transform(dfs['Status'])
-#     dfs['Model'] = le.fit_transform(dfs['Model'])
-#     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
-#     dfs['Operator'] = le.fit_transform(dfs['Operator'])
-#     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
-#     if  "True" in GET_NETWORK_SETTINGS or  "True" in REBOOT or  "True" in CLEANUP:
-#         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
-#         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
-#         dfs['Data'] = le.fit_transform(dfs['Data'])
-#         dfs['Results'] = le.fit_transform(dfs['Results'])
-#     print(dfs)
-#     cols = [col for col in dfs.columns if col not in ['Status','Phone number', 'OS Version', 'Model', 'Operator']]
-#     data = dfs[cols]
-#     target = dfs['Status']
-#     print(data)
-#     print(target)
-    
-    html_string = '''
-    <html lang="en">
-      <head>
-	  <meta name="viewport" content="width=device-width, initial-scale=1">
-       <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-        <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-		     <head><title>''' + CLOUDNAME.upper() + ''' Device Status Report @ ''' + current_time + '''</title>
-      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-        <script>
-        $(document).ready(function(){{
-          $("#myInput").on("keyup", function() {{
-            var value = $(this).val().toLowerCase();
-            $("tbody tr").filter(function() {{
-              $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+    print_results(result.split("\n"))
+    if "true" in os.environ["PREPARE_ACTIONS_HTML"]:
+        results = result.split("\n")
+        #export to CSV
+        new_dict = {}
+        deviceids = []
+        status = []
+        model = []
+        osVersion = []
+        operator = []
+        phonenumber = []
+        airplanemode = []
+        wifi = []
+        data = []
+        action_results = []
+        for result in results:
+            if len(result) > 0:
+                new_result = result.split(",")
+                new_list = []
+                i = 0
+                for result in new_result:
+                    fetch_details(i, 0, result, status)
+                    fetch_details(i, 1, result, deviceids)
+                    fetch_details(i, 2, result, model)
+                    fetch_details(i, 3, result, osVersion)
+                    fetch_details(i, 4, result, operator)
+                    fetch_details(i, 5, result, phonenumber)
+                    fetch_details(i, 6, result, airplanemode)
+                    fetch_details(i, 7, result, wifi)
+                    fetch_details(i, 8, result, data)
+                    fetch_details(i, 9, result, action_results)
+                    new_list.append(result)
+                    i = i + 1
+        pandas.set_option('display.max_columns', None)
+        pandas.set_option('display.max_colwidth', 100)
+        pandas.set_option('colheader_justify', 'center') 
+        if "True" in GET_NETWORK_SETTINGS or "True" in  REBOOT or "True" in CLEANUP:
+            new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
+        else:
+            new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber}
+        df = pandas.DataFrame(new_dict)
+        df = df.sort_values(by ='Model')
+        df = df.sort_values(by ='Status')
+        df.reset_index(drop=True, inplace=True)
+        pl.figure()
+        pl.suptitle("Device Models")
+        df['Model'].value_counts().plot(kind='barh', stacked=True)
+        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','model.png'))
+        model = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        pl.figure()
+        pl.suptitle("Device Status")
+        df['Status'].value_counts().plot(kind='barh', stacked=True)
+        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','status.png'))
+        barh = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        pl.figure()
+        pl.suptitle("OS Versions")
+        df['OS Version'].value_counts().plot(kind='barh', stacked=True)
+        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','version.png'))
+        version = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        pl.figure()
+        pl.suptitle("SIM Operators")
+        df['Operator'].value_counts().plot(kind='barh', stacked=True)
+        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','operator.png'))
+        operator = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        df = df.sort_values(by ='Model')
+        df = df.sort_values(by ='Status')
+        df.to_csv(os.path.join(PROJECT_ROOT , 'results','output.csv'), index=False)
+        current_time = datetime.datetime.now().strftime("%c")
+        
+        #Futuristic:
+    #     le = preprocessing.LabelEncoder()
+    #     #convert the categorical columns into numeric
+    #     dfs = df.copy()
+    #     encoded_value = le.fit_transform(dfs['Device Id'])
+    #     dfs['Device Id'] = le.fit_transform(dfs['Device Id'])
+    #     dfs['Status'] = le.fit_transform(dfs['Status'])
+    #     dfs['Model'] = le.fit_transform(dfs['Model'])
+    #     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
+    #     dfs['Operator'] = le.fit_transform(dfs['Operator'])
+    #     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
+    #     if  "True" in GET_NETWORK_SETTINGS or  "True" in REBOOT or  "True" in CLEANUP:
+    #         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
+    #         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
+    #         dfs['Data'] = le.fit_transform(dfs['Data'])
+    #         dfs['Results'] = le.fit_transform(dfs['Results'])
+    #     print(dfs)
+    #     cols = [col for col in dfs.columns if col not in ['Status','Phone number', 'OS Version', 'Model', 'Operator']]
+    #     data = dfs[cols]
+    #     target = dfs['Status']
+    #     print(data)
+    #     print(target)
+        
+        html_string = '''
+        <html lang="en">
+          <head>
+    	  <meta name="viewport" content="width=device-width, initial-scale=1">
+           <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
+    		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    		     <head><title>''' + CLOUDNAME.upper() + ''' Device Status Report @ ''' + current_time + '''</title>
+          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+            <script>
+            $(document).ready(function(){{
+              $("#myInput").on("keyup", function() {{
+                var value = $(this).val().toLowerCase();
+                $("tbody tr").filter(function() {{
+                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+                }});
+              }});
             }});
-          }});
-        }});
-        </script>
-		<script type="text/javascript">
-	           $(document).ready(function(){{
-               $("#slideshow > div:gt(0)").hide();
-
-               setInterval(function() {{
-                 $('#slideshow > div:first')
-                   .fadeOut(500)
-                   .next()
-                   .fadeIn(500)
-                   .end()
-                   .appendTo('#slideshow');
-               }}, 4000);
-                   var InfiniteRotator =
-                     {{
-                         init: function()
-                         {{
-                             //initial fade-in time (in milliseconds)
-                             var initialFadeIn = 1000;
-                             //interval between items (in milliseconds)
-                             var itemInterval = 4000;
-                             //cross-fade time (in milliseconds)
-                             var fadeTime = 400;
-                             //count number of items
-                             var numberOfItems = $('#slideshow').length;
-                             //set current item
-                             var currentItem = 0;
-                             //show first item
-                             $('#slideshow').eq(currentItem).fadeIn(initialFadeIn);
-                             //loop through the items
-                             var infiniteLoop = setInterval(function(){{
-                                 $('#slideshow').eq(currentItem).fadeOut(fadeTime);
-                                 if(currentItem == numberOfItems -1){{
-                                     currentItem = 0;
-                                 }}else{{
-                                     currentItem++;
+            </script>
+    		<script type="text/javascript">
+    	           $(document).ready(function(){{
+                   $("#slideshow > div:gt(0)").show();
+    				$("tbody tr:contains('Disconnected')").css('background-color','#fcc');
+    				$("tbody tr:contains('ERROR')").css('background-color','#fcc');
+    				$("tbody tr:contains('Un-available')").css('background-color','#fcc');
+    				$("tbody tr:contains('Busy')").css('background-color','#fcc');
+                    var table = document.getElementsByTagName("table")[0];
+    				var rowCount = table.rows.length;
+    				for (var i = 0; i < rowCount; i++) {{
+    					if ( i >=1){{
+                        available_column_number = 0;
+                        device_id_column_number = 1;
+    						if (table.rows[i].cells[available_column_number].innerHTML == "Available") {{
+                                for(j = 0; j < table.rows[0].cells.length; j++) {{
+    								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
+                                        if(j=table.rows[0].cells.length){{
+                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.includes("failed")) {{
+                                                        table.rows[i].cells[j].style.color = '#660001';
+                                                        table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
+                                                }}
+    							}}
                                  }}
-                                 $('#slideshow').eq(currentItem).fadeIn(fadeTime);
-                             }}, itemInterval);
-                         }}
-                     }};
-                     InfiniteRotator.init();
-				$("tbody tr:contains('Disconnected')").css('background-color','#fcc');
-				$("tbody tr:contains('ERROR')").css('background-color','#fcc');
-				$("tbody tr:contains('Un-available')").css('background-color','#fcc');
-				$("tbody tr:contains('Busy')").css('background-color','#fcc');
-                var table = document.getElementsByTagName("table")[0];
-				var rowCount = table.rows.length;
-				for (var i = 0; i < rowCount; i++) {{
-					if ( i >=1){{
-                    available_column_number = 0;
-                    device_id_column_number = 1;
-						if (table.rows[i].cells[available_column_number].innerHTML == "Available") {{
-                            for(j = 0; j < table.rows[0].cells.length; j++) {{
-								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
-                                    if(j=table.rows[0].cells.length){{
-                                            if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.includes("failed")) {{
-                                                    table.rows[i].cells[j].style.color = '#660001';
-                                                    table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-                                            }}
-							}}
-                             }}
-							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
-							var url = 'https://''' + CLOUDNAME.upper() + '''.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
-							var row = $('<tr></tr>')
-							var link = document.createElement("a");
-							link.href = url;
-							link.innerHTML = txt;
-							link.target = "_blank";
-							table.rows[i].cells[device_id_column_number].innerHTML = "";
-							table.rows[i].cells[device_id_column_number].append(link);
-						}}else{{
-							for(j = 0; j < table.rows[0].cells.length; j++) {{
-								table.rows[i].cells[j].style.color = '#660001';
-                                     table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-							}}
-						}}
-					}}
-				}}
-             }});
-             function myFunction() {{
-              var x = document.getElementById("myTopnav");
-              if (x.className === "topnav") {{
-                x.className += " responsive";
-              }} else {{
-                x.className = "topnav";
+    							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
+    							var url = 'https://''' + CLOUDNAME.upper() + '''.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
+    							var row = $('<tr></tr>')
+    							var link = document.createElement("a");
+    							link.href = url;
+    							link.innerHTML = txt;
+    							link.target = "_blank";
+    							table.rows[i].cells[device_id_column_number].innerHTML = "";
+    							table.rows[i].cells[device_id_column_number].append(link);
+    						}}else{{
+    							for(j = 0; j < table.rows[0].cells.length; j++) {{
+    								table.rows[i].cells[j].style.color = '#660001';
+                                         table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
+    							}}
+    						}}
+    					}}
+    				}}
+                 }});
+                 function myFunction() {{
+                  var x = document.getElementById("myTopnav");
+                  if (x.className === "topnav") {{
+                    x.className += " responsive";
+                  }} else {{
+                    x.className = "topnav";
+                  }}
+                }}
+    		</script>
+            
+    		<meta name="viewport" content="width=device-width, initial-scale=1">
+            </head>
+             <style>
+    
+            html {{
+              height:100%;
+            }}
+    
+            .mystyle {{
+                font-size: 12pt;
+                font-family: "Trebuchet MS", Helvetica, sans-serif;
+                border-collapse: collapse;
+                border: 2px solid black;
+                margin-right: 5%;
+                margin-left: 5%;
+                box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+            }}
+            
+            .mystyle body {{
+              font-family: "Trebuchet MS", Helvetica, sans-serif;
+                table-layout: auto;
+                width: 100%;
+                margin:0;
+                position:relative;
+            }}
+    
+            .mySlides{{
+              transition:transform 0.25s ease;
+            }}
+           
+            .mySlides:hover {{
+                -webkit-transform:scale(2.5);
+                transform:scale(2.5);
+            }}
+    
+            #myInput {{
+              background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
+              background-position: 2px 4px;
+              background-repeat: no-repeat;
+              background-size: 25px 30px;
+              width: 40%;
+              height:4%;
+              font-weight: bold;
+              font-size: 12px;
+              padding: 11px 20px 12px 40px;
+              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+              transition:transform 0.25s ease;
+            }}
+           
+            #myInput:hover {{
+                -webkit-transform:scale(1.5);
+                transform:scale(1.5);
+            }}
+    
+            body {{
+              background-color: #ffffff;
+              background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
+              height: 100%;
+              top: 70%;
+              background-repeat:  repeat;
+              background-position: right;
+              background-size:  contain;
+              background-attachment: initial;
+              opacity:.93;
+            }}
+    
+            .bg {{
+              background-image: linear-gradient(to bottom, #666699 40%,  #09f 50%, #09a 10%, #09f 10% ) ;
+              bottom:0;
+              left:-50%;
+              opacity:.4;
+              position:absolute;
+              right:-50%;
+              top:0%;
+              z-index:-1;
+              bottom: 55%;
+            }}
+    
+            h1 {{
+              font-family:monospace;
+            }}
+    
+            @keyframes slide {{
+              0% {{
+                transform:translateX(-25%);
+              }}
+              100% {{
+                transform:translateX(25%);
               }}
             }}
-		</script>
-        
-		<meta name="viewport" content="width=device-width, initial-scale=1">
-        </head>
-         <style>
-
-        html {{
-          height:100%;
-        }}
-
-        .mystyle {{
-            font-size: 12pt;
-            font-family: "Trebuchet MS", Helvetica, sans-serif;
-            border-collapse: collapse;
-            border: 2px solid black;
-            margin-right: 5%;
-            margin-left: 5%;
-            box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-        }}
-        .mystyle body {{
-          font-family: "Trebuchet MS", Helvetica, sans-serif;
-            table-layout: auto;
-            width: 100%;
-            margin:0;
-            position:relative;
-        }}
-
-        .mySlides{{
-          width: 100%;
-          height: auto;
-          display: none;
-          transition:transform 0.25s ease;
-        }}
-       
-        .mySlides:hover {{
-            -webkit-transform:scale(1.5);
-            transform:scale(1.5);
-        }}
-
-        #myInput {{
-          background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
-          background-position: 2px 4px;
-          background-repeat: no-repeat;
-          background-size: 25px 30px;
-          width: 40%;
-          height:4%;
-          font-weight: bold;
-          font-size: 12px;
-          padding: 11px 20px 12px 40px;
-          box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-          transition:transform 0.25s ease;
-        }}
-       
-        #myInput:hover {{
-            -webkit-transform:scale(1.5);
-            transform:scale(1.5);
-        }}
-
-        body {{
-          background-color: #ffffff;
-          background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
-          height: 100%;
-          top: 70%;
-          background-repeat:  repeat;
-          background-position: right;
-          background-size:  contain;
-          background-attachment: initial;
-          opacity:.93;
-        }}
-
-        .bg {{
-          animation:slide 3s ease-in-out infinite alternate;
-          background-image: linear-gradient(-60deg, #32C 30%, #fffdd0 30%, #6c3 20%,  #09f 10%) ;
-          bottom:0;
-          left:-50%;
-          opacity:.5;
-          position:absolute;
-          right:-50%;
-          top:0%;
-          z-index:-1;
-          bottom: 74%;
-        }}
-
-        .bg2 {{
-          animation-direction:alternate-reverse;
-          animation-duration:5s;
-          background-image: url('https://www.perfecto.io/sites/perfecto.io/files/image/2019-05/image-home-page-testing-lab-large.png');
-          background-repeat: no-repeat;
-          background-size: 10%;
-          top: 2%;
-          margin-left: 2%;
-          margin-top: 2%;
-        }}
-
-        .bg3 {{
-          animation-duration:56;
-          background-image: url('https://www.perfecto.io/sites/perfecto.io/files/image/2019-06/image-home-page-mobile-lab.png');
-          background-repeat: no-repeat;
-          background-size: 10%;
-          margin-left: 2%;
-          margin-top: 3%;
-        }}
-
-        h1 {{
-          font-family:monospace;
-        }}
-
-        @keyframes slide {{
-          0% {{
-            transform:translateX(-25%);
-          }}
-          100% {{
-            transform:translateX(25%);
-          }}
-        }}
-
-        .mystyle table {{
-            table-layout: auto;
-            width: 100%;
-            height: 100%;
-            position:relative;
-            border-collapse: collapse;
-            transition:transform 0.25s ease;
-        }}
-       
-        td:hover {{
-            -webkit-transform:scale(1.15);
-            transform:scale(1.15);
-        }}
-
-        tr:hover {{background-color:grey;}}
-
-        .mystyle td {{
-            font-weight: bold;
-            font-size: 13px;
-            position:relative;
-          padding: 5px;
-            width:10%;
-            color: #00664d;
-          border-left: 1px solid #333;
-          border-right: 1px solid #333;
-          background: #fffff1;
-          text-align: center;
-        }}
-
-        table.mystyle thead {{
-          background: #333333;
-          font-size: 13px;
-          border-bottom: 1px solid #DBDB40;
-          border-left: 1px solid #D8DB40;
-          border-right: 1px solid #D8DB40;
-          border-top: 1px solid black;
-        }}
-
-        table.mystyle thead th {{
-          font-size: 17px;
-          color: white;
-          text-align: center;
-          transition:transform 0.25s ease;
-        }}
-       
-        table.mystyle thead th:hover {{
-            -webkit-transform:scale(1.15);
-            transform:scale(1.15);
-        }}
-
-        table.mystyle thead th:first-child {{
-          border-left: none;
-          width:1%;
-        }}
-
-        .topnav {{
-          overflow: hidden;
-          background-color: #333;
-          opacity: 0.7;
-          background-image: linear-gradient(to right,  #bfee90, #013220, #333333 , #333333);
-        }}
-
-        .topnav a {{
-          float: right;
-          display: block;
-          color: #333333;
-          text-align: center;
-          padding: 12px 15px;
-          text-decoration: none;
-          font-size: 12px;
-          position: relative;
-          border-left: 1px solid #6c3;
-          border-right: 1px solid #6c3;
-          transition:transform 0.25s ease;
-        }}
-       
-        .topnav a:hover {{
-            -webkit-transform:scale(1.15);
-            transform:scale(1.15);
-        }}
-
-        .topnav a.active {{
-          background-color: #333333;
-          color: #b8ff7a;
-          font-weight: lighter;
-        }}
-
-        .topnav .icon {{
-          display: none;
-        }}
-
-        @media screen and (max-width: 600px) {{
-          .topnav a:not(:first-child) {{display: none;}}
-          .topnav a.icon {{
-            color: #DBDB40;
-            float: right;
-            display: block;
-          }}
-        }}
-
-        @media screen and (max-width: 600px) {{
-          .topnav.responsive {{position: relative;}}
-          .topnav.responsive .icon {{
-            position: absolute;
-            right: 0;
-            top: 0;
-          }}
-          .topnav.responsive a {{
-            float: none;
-            display: block;
-            text-align: left;
-          }}
-        }}
-
-        footer {{
-          display: block;
-          font-size: 12px;
-        }}
-
-        * {{
-          box-sizing: border-box;
-        }}
-
-        img {{
-          vertical-align: middle;
-        }}
-
-        /* Position the image container */
-        .container {{
-          position: relative;
-        }}
-
-        /* Hide the images by default */
-        .mySlides {{
-          display: none;
-          margin-left: auto;
-          margin-right: auto;
-          margin-top:5%;
-          width: 60%;
-          height: auto;
-          top: 30%;
-        }}
-
-        #slideshow {{
-          margin:10% auto;
-          position: relative;
-          margin-top:5%;
-          width: 60%;
-          height: 72%;
-          box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-        }}
-
-        #ps{{
-          height: 10%;
-          margin-top: 0%;
-          margin-bottom: 90%;
-          background-position: center;
-          background-repeat: no-repeat;
-          background-blend-mode: saturation;
-        }}
-
-        #slideshow > div {{
-          position: relative;
-          margin-top: 10%;
-          top: 20%;
-          left: 1%;
-          right: 1%;
-          bottom: 10%;
-          width: 95%;
-          height: 70%;
-        }}
-
-        /* Number text (1/3 etc) */
-        .numbertext {{
-          color: #f2f2f2;
-          font-size: 12px;
-          position: relative;
-          margin-left: 2%;
-          top: 0;
-          color: #333;
-        }}
-
-        </style>
-      <div class="bg"></div>
-    	<div class="bg bg2"></div>
-    	<div class="bg bg3"></div>
-    	<div>
-      <body bgcolor="#FFFFED">
-	  	<div class="topnav" id="myTopnav">
-		  <a href="result.html" class="active">Home</a>
-		  <a href="https://''' + CLOUDNAME.upper() + '''.perfectomobile.com" target="_blank" class="active">''' + CLOUDNAME.upper() + ''' Cloud</a>
-          <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
-          <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
-		  <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
-		  <a href="javascript:void(0);" aria-label="first link" class="icon" onclick="myFunction()">
-			<i class="fa fa-bars"></i>
-		  </a>
-		</div>
-       
-        <div style="text-align: center">
-        <h1> <font color=#333 ><b>''' + CLOUDNAME.upper() + ''' </h1><h2>Cloud's Device Status Report @ ''' + current_time + '''</font></h2></b>
-         <a href="https://perfecto.io/" target="_blank" class="site-logo"><img src="https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg" alt="Perfecto support"></a>
-         </br></br>
-		 <input id="myInput" aria-label="search" type="text" placeholder="Search.."><br></p>
-         <div style="overflow-x:auto;">
-         {table}
-         <p align="center" style="font-size:12px;font-family: "Trebuchet MS", Helvetica, sans-serif;" >Device query parameters: <i>''' + DEVICE_LIST_PARAMETERS + ''' </i></p> <br>
-        <div class="container" align="center" id="slideshow" >
-          <div class="mySlides">
-            <div class="numbertext">4 / 4</div>
-            ''' + barh + ''' alt="Device Status" style="width:6s0%;">
-          </div>     
-          <div class="mySlides">
-            <div class="numbertext">1 / 4</div>
-          ''' + model + ''' alt="Model" style="width:60%;">
-          </div>
-          <div class="mySlides">
-          <div class="numbertext">2 / 4</div>
-          ''' + version + ''' alt="Version" style="width:60%;">
-          </div>          
-          <div class="mySlides">
-          <div class="numbertext">3 / 4</div>
-          ''' + operator + ''' alt="Operator" style="width:60%;">
-          </div>       
-          </div>
-        </div>
-          <footer>
-          <p>Best viewed in Chrome/Safari.</p>
-          </footer>
-      </body>
-      </div>
-    </html>
-    '''
     
-    # OUTPUT AN HTML FILE
-    with open(os.path.join(PROJECT_ROOT,'output','result.html'), 'w') as f:
-        f.write(html_string.format(table=df.to_html(classes='mystyle', index=False)))
-    time.sleep(3)
-    print("Report ready!")
-    webbrowser.open('file://' + os.path.join(PROJECT_ROOT,'output','result.html'), new=0)
-    i = 0
-    results.sort()
-    for i in range(len(results)):
-        results[i]= re.sub('Results\=$','',results[i])
-        results[i]= re.sub('[,]+','',results[i])
-        if results[i]:
-            if "Available" in results[i]:
-                print(colored(results[i], "green"))
-            else:
-                print(colored(results[i], "red"))
-        i = i + 1   
-    plt.close('all')
-    print('Results: file://' + os.path.join(PROJECT_ROOT,'output','result.html'))
+            .mystyle table {{
+                table-layout: auto;
+                width: 100%;
+                height: 100%;
+                position:relative;
+                border-collapse: collapse;
+                transition:transform 0.25s ease;
+            }}
+           
+            td:hover {{
+                -webkit-transform:scale(1.15);
+                transform:scale(1.15);
+            }}
+    
+            tr:hover {{background-color:grey;}}
+    
+            .mystyle td {{
+                font-weight: bold;
+                font-size: 13px;
+                position:relative;
+                padding: 5px;
+                width:10%;
+                color: black;
+              border-left: 1px solid #333;
+              border-right: 1px solid #333;
+              background: #fffffa;
+              text-align: center;
+            }}
+    
+            table.mystyle thead {{
+              background: #333333;
+              font-size: 13px;
+              border-bottom: 1px solid #DBDB40;
+              border-left: 1px solid #D8DB40;
+              border-right: 1px solid #D8DB40;
+              border-top: 1px solid black;
+            }}
+    
+            table.mystyle thead th {{
+              font-size: 17px;
+              color: white;
+              text-align: center;
+              transition:transform 0.25s ease;
+            }}
+           
+            table.mystyle thead th:hover {{
+                -webkit-transform:scale(1.15);
+                transform:scale(1.15);
+            }}
+    
+            table.mystyle thead th:first-child {{
+              border-left: none;
+              width:1%;
+            }}
+    
+            .topnav {{
+              overflow: hidden;
+              background-color: #333;
+              opacity: 0.7;
+              background-image: linear-gradient(to right,  #bfee90, #013220, #333333 , #333333);
+            }}
+    
+            .topnav a {{
+              float: right;
+              display: block;
+              color: #333333;
+              text-align: center;
+              padding: 12px 15px;
+              text-decoration: none;
+              font-size: 12px;
+              position: relative;
+              border-left: 1px solid #6c3;
+              border-right: 1px solid #6c3;
+              transition:transform 0.25s ease;
+            }}
+           
+            .topnav a:hover {{
+                -webkit-transform:scale(1.15);
+                transform:scale(1.15);
+            }}
+    
+            .topnav a.active {{
+              background-color: #333333;
+              color: #b8ff7a;
+              font-weight: lighter;
+            }}
+    
+            .topnav .icon {{
+              display: none;
+            }}
+    
+            @media screen and (max-width: 600px) {{
+              .topnav a:not(:first-child) {{display: none;}}
+              .topnav a.icon {{
+                color: #DBDB40;
+                float: right;
+                display: block;
+              }}
+            }}
+    
+            @media screen and (max-width: 600px) {{
+              .topnav.responsive {{position: relative;}}
+              .topnav.responsive .icon {{
+                position: absolute;
+                right: 0;
+                top: 0;
+              }}
+              .topnav.responsive a {{
+                float: none;
+                display: block;
+                text-align: left;
+              }}
+            }}
+    
+            footer {{
+              display: block;
+              font-size: 12px;
+            }}
+    
+            * {{
+              box-sizing: border-box;
+            }}
+    
+            img {{
+              vertical-align: middle;
+            }}
+    
+            /* Position the image container */
+            .container {{
+              position: relative;
+            }}
+    
+            /* Hide the images by default */
+            .mySlides {{
+              width: 60%;
+            }}
+    
+            #slideshow {{
+              margin:1% auto;
+              position: relative;
+              margin-top:5%;
+              width: 60%;
+              height: 72%;
+              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+            }}
+    
+            #ps{{
+              height: 10%;
+              margin-top: 0%;
+              margin-bottom: 90%;
+              background-position: center;
+              background-repeat: no-repeat;
+              background-blend-mode: saturation;
+            }}
+    
+            #slideshow > div {{
+              position: relative;
+              margin-top: 10%;
+              top: 20%;
+              left: 1%;
+              right: 1%;
+              bottom: 10%;
+              width: 95%;
+            }}
+            </style>
+          <div class="bg"></div>
+        	<div>
+          <body bgcolor="#FFFFED">
+    	  	<div class="topnav" id="myTopnav">
+    		  <a href="result.html" class="active">Home</a>
+    		  <a href="https://''' + CLOUDNAME.upper() + '''.perfectomobile.com" target="_blank" class="active">''' + CLOUDNAME.upper() + ''' Cloud</a>
+              <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
+              <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
+    		  <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
+    		  <a href="javascript:void(0);" aria-label="first link" class="icon" onclick="myFunction()">
+    			<i class="fa fa-bars"></i>
+    		  </a>
+    		</div>
+           
+            <div style="text-align: center">
+            <h1> <font color=#333 ><b>''' + CLOUDNAME.upper() + ''' </h1><a href="https://''' + CLOUDNAME.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
+            <img src="https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg" alt="Perfecto support"></a>
+            <h2>Cloud's Device Status Report @ ''' + current_time + '''</font></h2></b>
+            </br></br>
+    		 <input id="myInput" aria-label="search" type="text" placeholder="Search.."><br></p>
+             <div style="overflow-x:auto;">
+             {table}
+             <p align="center" style="font-size:12px;font-family: "Trebuchet MS", Helvetica, sans-serif;" >Device query parameters: <i>''' + DEVICE_LIST_PARAMETERS + ''' </i></p> <br>
+            <div class="container" align="center" id="slideshow" >
+              <div class="mySlides">
+                ''' + barh + ''' alt="Device Status" style="width:30%;">
+              ''' + model + ''' alt="Model" style="width:30%;">
+              </div>
+              <div class="mySlides">
+              ''' + version + ''' alt="Version" style="width:30%;">
+              ''' + operator + ''' alt="Operator" style="width:30%;">
+              </div>       
+              </div>
+            </div>
+              <footer>
+              <p>Best viewed in Chrome/Safari.</p>
+              </footer>
+          </body>
+          </div>
+        </html>
+        '''
+        
+        # OUTPUT AN HTML FILE
+        with open(os.path.join(PROJECT_ROOT,'output','result.html'), 'w') as f:
+            f.write(html_string.format(table=df.to_html(classes='mystyle', index=False)))
+        time.sleep(3)
+        print("Report ready!")
+        webbrowser.open('file://' + os.path.join(PROJECT_ROOT,'output','result.html'), new=0) 
+        plt.close('all')
+        print('Results: file://' + os.path.join(PROJECT_ROOT,'output','result.html'))
     
 
 def create_dir(directory, delete):
@@ -898,23 +816,23 @@ def main():
     #create results path and files
     create_dir(os.path.join(PROJECT_ROOT , 'results'),True)
     create_dir(os.path.join(PROJECT_ROOT , 'output'), False)
-    get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected"]#, \
-#                    "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
-#    for li in get_dev_list:
-#        get_list(str(li))
-    try:
-        procs = []
-        for li in get_dev_list:
-            proc = Process(target=get_list, args=(str(li),))
-            procs.append(proc)
-            proc.start()
-        for proc in procs:
-            proc.join()
-        for proc in procs:
-            proc.terminate()
-    except Exception:
-        proc.terminate()
-        print(traceback.format_exc())
+    get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
+                    "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
+    for li in get_dev_list:
+        get_list(str(li))
+#    try:
+#        procs = []
+#        for li in get_dev_list:
+#            proc = Process(target=get_list, args=(str(li),))
+#            procs.append(proc)
+#            proc.start()
+#        for proc in procs:
+#            proc.join()
+#        for proc in procs:
+#            proc.terminate()
+#    except Exception:
+#        proc.terminate()
+#        print(traceback.format_exc())
     prepare_html()
     #Keeps refreshing page with expected arguments with a sleep of provided seconds   
     if args["refresh"]:
@@ -965,6 +883,14 @@ if __name__ == '__main__':
         help="Refreshes the page with latest device status as per provided interval in seconds",
         nargs="?"
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        metavar="output in html",
+        help="output in html. Values: true/false",
+        nargs="?"
+    )
     args = vars(parser.parse_args())
     if not args["cloud_name"]:
         parser.print_help()
@@ -1000,6 +926,9 @@ if __name__ == '__main__':
     if "True" in GET_NETWORK_SETTINGS or "True" in REBOOT or "True" in CLEANUP:
         START_EXECUTION = "True"
     os.environ["START_EXECUTION"] = str(START_EXECUTION)
+    if args['output']:
+        if "false" in args['output']:
+            os.environ["PREPARE_ACTIONS_HTML"] = "false" 
     freeze_support()
     main()
     print("--- Completed in : %s seconds ---" % (time.time() - start_time))
