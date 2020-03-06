@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-
-"""device health check"""
 import urllib.request
 import os
 import urllib.parse
@@ -24,28 +22,17 @@ from multiprocessing import freeze_support, Pool, Process
 import ssl
 import tempfile
 import platform
+from colorama import init
 """ Microsoft Visual C++ required, cython required for pandas installation, """
-# PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
-PROJECT_ROOT = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
-
-   
+TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
-os.environ["START_EXECUTION"] = "False"
-os.environ["GET_NETWORK_SETTINGS"] = "False"
-os.environ["REBOOT"] = "False"
-os.environ["CLEANUP"] = "False"
-CLOUDNAME = ""
-TOKEN = ""
-os.environ["DEVICE_LIST_PARAMETERS"]  = ""
-os.environ["PREPARE_ACTIONS_HTML"] = "true"
 
 def send_request(url):
     """send request"""
 #     print("Submitting", url)
-    global DEVICE_LIST_PARAMETERS
-    DEVICE_LIST_PARAMETERS = os.environ['DEVICE_LIST_PARAMETERS']
-    if "All devices" in DEVICE_LIST_PARAMETERS:
+    device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
+    if "All devices" in device_list_parameters or "All available devices" in device_list_parameters:
         response = urllib.request.urlopen(url)
     else:
         response = urllib.request.urlopen(url.replace(" ", "%20"))
@@ -75,20 +62,19 @@ def send_request2(url):
 
 def get_url(resource, resource_id, operation):
     """get url """
-    global CLOUDNAME
-    CLOUDNAME = os.environ['CLOUDNAME']
-    url = "https://" + CLOUDNAME + ".perfectomobile.com/services/" + resource
+    cloudname = os.environ['CLOUDNAME']
+    url = "https://" + cloudname + ".perfectomobile.com/services/" + resource
     if resource_id != "":
         url += "/" + resource_id
-    TOKEN = os.environ['TOKEN']
-    if "eyJhb" in TOKEN:
-        query = urllib.parse.urlencode({"operation": operation, "securityToken": TOKEN})
+    token = os.environ['TOKEN']
+    if "eyJhb" in token:
+        query = urllib.parse.urlencode({"operation": operation, "securityToken": token})
     else:
-        if ":" not in TOKEN:
+        if ":" not in token:
             raise Exception("Please pass your perfecto credentials in the format user:password as your second parameter!" )
         else:
-            user = TOKEN.split(":")[0]
-            pwd = TOKEN.split(":")[1]
+            user = token.split(":")[0]
+            pwd = token.split(":")[1]
             query = urllib.parse.urlencode({"operation": operation, "user": user, "password": pwd})
     url += "?" + query
     return url
@@ -116,7 +102,7 @@ def end_execution(exec_id):
     url = get_url("executions/"+ str(exec_id), "", "end")
     send_request_with_json_response(url)
 
-def start_execution():
+def start_exec():
     """start execution"""
     url = get_url("executions", "", "start")
     response = send_request2(url)
@@ -129,10 +115,8 @@ def get_device_list_response(resource, command, status, in_use):
     url += "&status=" + status
     if in_use != "":
         url += "&inUse=" + in_use
-    global DEVICE_LIST_PARAMETERS
-    DEVICE_LIST_PARAMETERS = os.environ['DEVICE_LIST_PARAMETERS']
-    if  len(DEVICE_LIST_PARAMETERS.split(":")) >= 2:
-        for item in DEVICE_LIST_PARAMETERS.split(";"):
+    if  len(os.environ["DEVICE_LIST_PARAMETERS"].split(":")) >= 2:
+        for item in os.environ["DEVICE_LIST_PARAMETERS"].split(";"):
             if ":" in item:
                 url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
     xmldoc = send_request_with_xml_response(url)
@@ -160,12 +144,13 @@ def exec_command(exec_id, device_id, cmd, subcmd):
 
 def perform_actions(deviceid_color):
     """perform_actions"""
+    get_network_settings = os.environ['GET_NETWORK_SETTINGS']
     deviceid_color = str(deviceid_color)
     device_id = deviceid_color.split("||",1)[0]
     color = deviceid_color.split("||",1)[1];
     desc = deviceid_color.split("||",2)[2]
     fileName = device_id + '.txt'
-    file = os.path.join(PROJECT_ROOT, 'results', fileName)
+    file = os.path.join(TEMP_DIR, 'results', fileName)
     try:
         status = "Results="
                 #update dictionary
@@ -186,34 +171,32 @@ def perform_actions(deviceid_color):
         except:
             operator = "NA"
             phoneNumber ="NA"
-        global GET_NETWORK_SETTINGS
-        GET_NETWORK_SETTINGS = os.environ['GET_NETWORK_SETTINGS']
         if "green"  in color:
-            global START_EXECUTION
-            START_EXECUTION = os.environ['START_EXECUTION']
-            if "True" in START_EXECUTION:
+            start_execution = os.environ['START_EXECUTION']
+            if "true" in start_execution.lower():
                 #Get execution id
-                EXEC_ID = start_execution()
+                EXEC_ID = start_exec()
                 #open device:
-                print("opening: " + model)
+                print("opening: " + model + ", device id: " + device_id)
                 device_command(EXEC_ID, device_id, "open")
-                global CLEANUP
-                CLEANUP = os.environ['CLEANUP']
-                if "True" in CLEANUP:
+                cleanup = os.environ['CLEANUP']
+                if "True" in cleanup:
                     if not "iOS" in osDevice: 
-                        print("cleaning up: " + model)
-                        status += "cleanup:" + exec_command(EXEC_ID, device_id, "device", "clean")
+                        print("cleaning up: " + model + ", device id: " + device_id)
+                        status += "clean:" + exec_command(EXEC_ID, device_id, "device", "clean")
                         status += ";"
                     else:
-                        status +="cleanup:NA;"
-                global REBOOT
-                REBOOT = os.environ['REBOOT']
-                if "True" in REBOOT:
-                    print("rebooting: " + model)
+                        status +="clean:NA;"
+                reboot = os.environ['REBOOT']
+                if "True" in reboot:
+                    print("rebooting: " + model+ ", device id: " + device_id)
                     status += "reboot:" + exec_command(EXEC_ID, device_id, "device", "reboot")
-                if "True" in GET_NETWORK_SETTINGS:
-                    print("getting network status of : " + model)
+                    status += ";"
+                if "True" in get_network_settings:
+                    print("getting network status of : " + model + ", device id: " + device_id)
                     networkstatus = exec_command(EXEC_ID, device_id, "network.settings", "get").replace("{","").replace("}","")
+                    status += "NW:OK"
+                    status += ";"
                 #Close device
                 device_command(EXEC_ID, device_id, "close")
                 #End execution
@@ -221,7 +204,7 @@ def perform_actions(deviceid_color):
         else:
             networkstatus = ",,"
 
-        if "True" in GET_NETWORK_SETTINGS:
+        if "True" in get_network_settings:
                 final_string =  "status=" + desc + ", deviceId='" + device_id + "', model=" + str(model) + ", version=" + str(osVersion) + ", operator="+ \
                 str(operator) + ", phoneNumber=" + str(phoneNumber) + ", " + str(networkstatus) + ", " + str(status)
         else:
@@ -235,8 +218,8 @@ def perform_actions(deviceid_color):
     except Exception as e:
         raise Exception("Oops!" , e )
         
-        if not os.path.isfile(os.path.join(PROJECT_ROOT, 'results', device_id + '.txt')):
-            if "True" in GET_NETWORK_SETTINGS:
+        if not os.path.isfile(os.path.join(TEMP_DIR, 'results', device_id + '.txt')):
+            if "True" in get_network_settings:
                 final_string =  "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,"
             else:
                 final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,"
@@ -249,26 +232,27 @@ def get_list(get_dev_list):
     """get_list"""
     # Verifies each device id based on statuses
     i = 0
-    command = get_dev_list.split(";")[0]
-    status = get_dev_list.split(";")[1]
-    in_use = get_dev_list.split(";")[2]
-    color = get_dev_list.split(";")[3]
-    desc = get_dev_list.split(";")[4]
+    split = get_dev_list.split(";")
+    command = split[0]
+    status = split[1]
+    in_use = split[2]
+    color = split[3]
+    desc = split[4]
     RESPONSE = get_device_list_response(RESOURCE_TYPE, command, status, in_use)
     DEVICE_IDS = get_device_ids(RESPONSE)
     device_list = []
     if get_handset_count(RESPONSE) > 0:
-         for i in range(get_handset_count(RESPONSE)):
+        for i in range(get_handset_count(RESPONSE)):
             device_id = DEVICE_IDS[i].firstChild.data
             device_list.append(device_id + "||" + color + "||" + desc)
             device_list = [x for x in device_list if x != 0]
-         if len(device_list) > 0:
+        if len(device_list) > 0:
             agents = get_handset_count(RESPONSE)
-            chunksize = 3
+            print(agents)
             pool = Pool(processes=agents)
             try:
                 print("Found " + str(len(device_list)) + " devices with status: " + desc)
-                output = pool.map(perform_actions, device_list, chunksize)
+                output = pool.map(perform_actions, device_list)
                 pool.close()  
                 pool.join()
             except Exception:
@@ -311,19 +295,19 @@ def prepare_html():
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
     #copies all device status to final summary
-    for r, d, f in os.walk(os.path.join(PROJECT_ROOT , 'results')):
+    for r, d, f in os.walk(os.path.join(TEMP_DIR , 'results')):
         for file in f:
             if ".txt" in file:
                 with open(os.path.join(r, file)) as f:
                     with open(os.path.join(r, "Final_Summary.txt"), "a") as f1:
                         for line in f:
+                            f1.write(line)
                             f1.write("\n")
-                            f1.write(line)                        
-    file = os.path.join(PROJECT_ROOT, 'results', 'Final_Summary.txt')
+    file = os.path.join(TEMP_DIR, 'results', 'Final_Summary.txt')
     try:
         f= open(file,"r")
     except FileNotFoundError:
-        raise Exception( 'No devices found matching conditions: ' + DEVICE_LIST_PARAMETERS)
+        raise Exception( 'No devices found/ Re-check your arguments')
     result = f.read()
     f.close() 
     print_results(result.split("\n"))
@@ -362,7 +346,10 @@ def prepare_html():
         pandas.set_option('display.max_columns', None)
         pandas.set_option('display.max_colwidth', 100)
         pandas.set_option('colheader_justify', 'center') 
-        if "True" in GET_NETWORK_SETTINGS or "True" in  REBOOT or "True" in CLEANUP:
+        get_network_settings = os.environ['GET_NETWORK_SETTINGS']
+        reboot = os.environ['REBOOT']
+        cleanup = os.environ['CLEANUP']
+        if "True" in get_network_settings or "True" in  reboot or "True" in cleanup:
             new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
         else:
             new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber}
@@ -373,28 +360,28 @@ def prepare_html():
         pl.figure()
         pl.suptitle("Device Models")
         df['Model'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','model.png'))
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','model.png'))
         model = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
         pl.figure()
         pl.suptitle("Device Status")
         df['Status'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','status.png'))
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','status.png'))
         barh = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
         pl.figure()
         pl.suptitle("OS Versions")
         df['OS Version'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','version.png'))
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','version.png'))
         version = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
         pl.figure()
         pl.suptitle("SIM Operators")
         df['Operator'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(PROJECT_ROOT, 'results','operator.png'))
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','operator.png'))
         operator = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
         df = df.sort_values(by ='Model')
         df = df.sort_values(by ='Status')
-        df.to_csv(os.path.join(PROJECT_ROOT , 'results','output.csv'), index=False)
+        df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
         current_time = datetime.datetime.now().strftime("%c")
-        
+        device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
         #Futuristic:
     #     le = preprocessing.LabelEncoder()
     #     #convert the categorical columns into numeric
@@ -406,7 +393,7 @@ def prepare_html():
     #     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
     #     dfs['Operator'] = le.fit_transform(dfs['Operator'])
     #     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
-    #     if  "True" in GET_NETWORK_SETTINGS or  "True" in REBOOT or  "True" in CLEANUP:
+    #     if  "True" in get_network_settings or  "True" in reboot or  "True" in cleanup:
     #         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
     #         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
     #         dfs['Data'] = le.fit_transform(dfs['Data'])
@@ -418,6 +405,7 @@ def prepare_html():
     #     print(data)
     #     print(target)
         
+        cloudname = os.environ['CLOUDNAME']
         html_string = '''
         <html lang="en">
           <head>
@@ -425,7 +413,7 @@ def prepare_html():
            <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
     		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
             <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title>''' + CLOUDNAME.upper() + ''' Device Status Report @ ''' + current_time + '''</title>
+    		     <head><title>''' + cloudname.upper() + ''' Device Status Report @ ''' + current_time + '''</title>
           <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
             <script>
             $(document).ready(function(){{
@@ -461,7 +449,7 @@ def prepare_html():
     							}}
                                  }}
     							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
-    							var url = 'https://''' + CLOUDNAME.upper() + '''.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
+    							var url = 'https://''' + cloudname.upper() + '''.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
     							var row = $('<tr></tr>')
     							var link = document.createElement("a");
     							link.href = url;
@@ -555,7 +543,7 @@ def prepare_html():
             }}
     
             .bg {{
-              background-image: linear-gradient(to bottom, #666699 40%,  #09f 50%, #09a 10%, #09f 10% ) ;
+                background-image: linear-gradient(to bottom left, #666699 40%,  #09f 50%, #add8e6 6%, #09f 5% ) ;
               bottom:0;
               left:-50%;
               opacity:.4;
@@ -563,7 +551,7 @@ def prepare_html():
               right:-50%;
               top:0%;
               z-index:-1;
-              bottom: 55%;
+              bottom: 52%;
             }}
     
             h1 {{
@@ -596,7 +584,6 @@ def prepare_html():
             tr:hover {{background-color:grey;}}
     
             .mystyle td {{
-                font-weight: bold;
                 font-size: 13px;
                 position:relative;
                 padding: 5px;
@@ -605,7 +592,7 @@ def prepare_html():
               border-left: 1px solid #333;
               border-right: 1px solid #333;
               background: #fffffa;
-              text-align: center;
+              text-align: justify;
             }}
     
             table.mystyle thead {{
@@ -619,6 +606,7 @@ def prepare_html():
             }}
     
             table.mystyle thead th {{
+              line-height: 140%;
               font-size: 17px;
               color: white;
               text-align: center;
@@ -639,7 +627,7 @@ def prepare_html():
               overflow: hidden;
               background-color: #333;
               opacity: 0.7;
-              background-image: linear-gradient(to right,  #bfee90, #013220, #333333 , #333333);
+              background-image: linear-gradient(to right,  #666699, #013220, #333333 , #333333);
             }}
     
             .topnav a {{
@@ -750,7 +738,7 @@ def prepare_html():
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
     		  <a href="result.html" class="active">Home</a>
-    		  <a href="https://''' + CLOUDNAME.upper() + '''.perfectomobile.com" target="_blank" class="active">''' + CLOUDNAME.upper() + ''' Cloud</a>
+    		  <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="active">''' + cloudname.upper() + ''' Cloud</a>
               <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
               <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
     		  <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
@@ -760,14 +748,13 @@ def prepare_html():
     		</div>
            
             <div style="text-align: center">
-            <h1> <font color=#333 ><b>''' + CLOUDNAME.upper() + ''' </h1><a href="https://''' + CLOUDNAME.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
+            <h1> <font color=#333 ><b>''' + cloudname.upper() + ''' </h1><a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
             <img src="https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg" alt="Perfecto support"></a>
             <h2>Cloud's Device Status Report @ ''' + current_time + '''</font></h2></b>
-            </br></br>
     		 <input id="myInput" aria-label="search" type="text" placeholder="Search.."><br></p>
              <div style="overflow-x:auto;">
              {table}
-             <p align="center" style="font-size:12px;font-family: "Trebuchet MS", Helvetica, sans-serif;" >Device query parameters: <i>''' + DEVICE_LIST_PARAMETERS + ''' </i></p> <br>
+             <p align="center" style="font-size:12px;font-family: "Trebuchet MS", Helvetica, sans-serif;" >Device query parameters: ''' + device_list_parameters + ''' </p> <br>
             <div class="container" align="center" id="slideshow" >
               <div class="mySlides">
                 ''' + barh + ''' alt="Device Status" style="width:30%;">
@@ -788,146 +775,168 @@ def prepare_html():
         '''
         
         # OUTPUT AN HTML FILE
-        with open(os.path.join(PROJECT_ROOT,'output','result.html'), 'w') as f:
+        with open(os.path.join(TEMP_DIR,'output','result.html'), 'w') as f:
             f.write(html_string.format(table=df.to_html(classes='mystyle', index=False)))
         time.sleep(3)
-        webbrowser.open('file://' + os.path.join(PROJECT_ROOT,'output','result.html'), new=0) 
+        webbrowser.open('file://' + os.path.join(TEMP_DIR,'output','result.html'), new=0) 
         plt.close('all')
-        print('Results: file://' + os.path.join(PROJECT_ROOT,'output','result.html'))
+        print('Results: file://' + os.path.join(TEMP_DIR,'output','result.html'))
     
 
 def create_dir(directory, delete):
     """
     create Dir
     """
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    else:
-        if delete:
-            shutil.rmtree(directory)
+    try:
+        if not os.path.exists(directory):
             os.makedirs(directory)
-            
+        else:
+            if delete:
+                shutil.rmtree(directory)
+                os.makedirs(directory)
+    except Exception as e:
+        print(colored(e, "red"))
+
+    
 def main():
     """
     Runs the perfecto actions and reports
     """
-     
-    #create results path and files
-    create_dir(os.path.join(PROJECT_ROOT , 'results'),True)
-    create_dir(os.path.join(PROJECT_ROOT , 'output'), False)
-    get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
-                    "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
-#     for li in get_dev_list:
-#         get_list(str(li))
     try:
-       procs = []
-       for li in get_dev_list:
-           proc = Process(target=get_list, args=(str(li),))
-           procs.append(proc)
-           proc.start()
-       for proc in procs:
-           proc.join()
-       for proc in procs:
-           proc.terminate()
-    except Exception:
-       proc.terminate()
-       print(traceback.format_exc())
-    prepare_html()
-    #Keeps refreshing page with expected arguments with a sleep of provided seconds   
-    if args["refresh"]:
-        if int(args["refresh"]) >= 0:
-            time.sleep(int(args["refresh"]))
-        main()
+        start_time = time.time()
+        freeze_support() 
+        init()
+    #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
+        if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+            ssl._create_default_https_context = ssl._create_unverified_context
+        parser = argparse.ArgumentParser(description="Perfecto Actions Reporter")
+        parser.add_argument(
+            "-c",
+            "--cloud_name",
+            metavar="cloud_name",
+            help="Perfecto cloud name. (E.g. demo)",
+        )
+        parser.add_argument(
+            "-s",
+            "--security_token",
+            metavar="security_token",
+            type=str,
+            help="Perfecto Security Token/ Pass your Perfecto's username and password in user:password format",
+        )
+        parser.add_argument(
+            "-d",
+            "--device_list_parameters",
+            metavar="device_list_parameters",
+            type=str,
+            help="Perfecto get device list API parameters to limit device list. Support all API capabilities which selects devices based on reg ex/strings,  Leave it empty to select all devices",
+            nargs="?"
+        )
+        parser.add_argument(
+            "-t",
+            "--device_status",
+            type=str,
+            metavar="Different types of Device Connection status",
+            help="Different types of Device Connection status. Values: all. This will showcase all the device status like Available, Disconnected, un-available & Busy. Note: Only Available devices will be shown by default",
+            nargs="?"
+        )
+        parser.add_argument(
+            "-a",
+            "--actions",
+            metavar="actions",
+            type=str,
+            help="Perfecto actions seperated by semi-colon. E.g. reboot:true;cleanup:true;get_network_settings:true",
+            nargs="?"
+        )
+        parser.add_argument(
+            "-r",
+            "--refresh",
+            type=str,
+            metavar="refresh",
+            help="Refreshes the page with latest device status as per provided interval in seconds",
+            nargs="?"
+        )
+        parser.add_argument(
+            "-o",
+            "--output",
+            type=str,
+            metavar="output in html",
+            help="output in html. Values: true/false. Default is true",
+            nargs="?"
+        )
+        args = vars(parser.parse_args())
+        if not args["cloud_name"]:
+            parser.print_help()
+            parser.error("cloud_name parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo")
+            exit
+        if not args["security_token"]:
+            parser.print_help()
+            parser.error("security_token parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo -s <<TOKEN>> || perfectoactions -c demo -s <<user>>:<<password>>")
+            exit
+        os.environ['CLOUDNAME'] = args["cloud_name"]
+        os.environ['TOKEN'] = args["security_token"]
+        if args["device_list_parameters"]:
+            device_list_parameters = args["device_list_parameters"]
+        else:
+            device_list_parameters = "All devices"
+        os.environ['DEVICE_LIST_PARAMETERS'] = device_list_parameters
+        print(os.environ['DEVICE_LIST_PARAMETERS'])
+        os.environ['GET_NETWORK_SETTINGS'] = "False"
+        reboot = "False"
+        cleanup = "False"
+        start_execution = "False"
+        if args["actions"]:
+            if "get_network_settings:true" in args["actions"]:
+                os.environ['GET_NETWORK_SETTINGS'] = "True"
+            if "reboot:true" in args["actions"]:
+                reboot = "True"
+            if "cleanup:true" in args["actions"]:
+                cleanup = "True"
+        os.environ["CLEANUP"] = cleanup 
+        os.environ["REBOOT"] = reboot
+        if "True" in os.environ['GET_NETWORK_SETTINGS'] or "True" in reboot or "True" in cleanup:
+            start_execution = "True"
+        os.environ["START_EXECUTION"] = start_execution
+        os.environ["PREPARE_ACTIONS_HTML"] = "true"
+        if args["output"]:
+            if "false" in str(args["output"]).lower():
+                os.environ["PREPARE_ACTIONS_HTML"] = "false" 
+        os.environ["perfecto_actions_refresh"] = "false"
+        if args["refresh"]:
+            if int(args["refresh"]) >= 0:
+                os.environ["perfecto_actions_refresh"] = args["refresh"]
+        #create results path and files
+        create_dir(os.path.join(TEMP_DIR , 'results'), True)
+        create_dir(os.path.join(TEMP_DIR , 'output'), False)
+        if args["device_status"]:
+            get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
+                        "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
+            try:
+               procs = []
+               for li in get_dev_list:
+                   proc = Process(target=get_list, args=(str(li),))
+                   procs.append(proc)
+                   proc.start()
+               for proc in procs:
+                   proc.join()
+               for proc in procs:
+                   proc.terminate()
+            except Exception:
+               proc.terminate()
+               print(traceback.format_exc())
+        else:
+            if not args["device_list_parameters"]:
+                os.environ['DEVICE_LIST_PARAMETERS'] = "All Available Devices"
+            get_list("list;connected;false;green;Available")
+            
+        prepare_html()
+        print("--- Completed in : %s seconds ---" % (time.time() - start_time))
+        #Keeps refreshing page with expected arguments with a sleep of provided seconds   
+        while "false" not in os.environ["perfecto_actions_refresh"]:
+            print(str(int(os.environ["perfecto_actions_refresh"])))
+            time.sleep(int(os.environ["perfecto_actions_refresh"]))
+            main()
+    except Exception as e:
+        raise Exception("Oops!" , e )
 
 if __name__ == '__main__':
-    start_time = time.time()
-    """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
-    if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
-        ssl._create_default_https_context = ssl._create_unverified_context
-    parser = argparse.ArgumentParser(description="Perfecto Actions Reporter")
-    parser.add_argument(
-        "-c",
-        "--cloud_name",
-        metavar="cloud_name",
-        help="Perfecto cloud name. (E.g. demo)",
-    )
-    parser.add_argument(
-        "-s",
-        "--security_token",
-        metavar="security_token",
-        type=str,
-        help="Perfecto Security Token/ Pass your Perfecto's username and password in user:password format",
-    )
-    parser.add_argument(
-        "-d",
-        "--device_list_parameters",
-        metavar="device_list_parameters",
-        type=str,
-        help="Perfecto get device list API parameters to limit device list. Support all API capabilities which selects devices based on reg ex/strings, Leave it empty to select all devices",
-        nargs="?"
-    )
-    parser.add_argument(
-        "-a",
-        "--actions",
-        metavar="actions",
-        type=str,
-        help="Perfecto actions seperated by semi-colon. E.g. reboot:true;cleanup:true;get_network_settings:true",
-        nargs="?"
-    )
-    parser.add_argument(
-        "-r",
-        "--refresh",
-        type=str,
-        metavar="refresh",
-        help="Refreshes the page with latest device status as per provided interval in seconds",
-        nargs="?"
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        metavar="output in html",
-        help="output in html. Values: true/false",
-        nargs="?"
-    )
-    args = vars(parser.parse_args())
-    if not args["cloud_name"]:
-        parser.print_help()
-        parser.error("cloud_name parameter is empty")
-        exit
-    if not args["security_token"]:
-        parser.print_help()
-        parser.error("security_token parameter is empty")
-        exit
-    
-    CLOUDNAME = args["cloud_name"]
-    os.environ["CLOUDNAME"] = args["cloud_name"]
-    os.environ["TOKEN"] = args["security_token"]
-    if args["device_list_parameters"]:
-        DEVICE_LIST_PARAMETERS = args["device_list_parameters"]
-    else:
-        DEVICE_LIST_PARAMETERS = "All devices"
-    os.environ["DEVICE_LIST_PARAMETERS"] = DEVICE_LIST_PARAMETERS
-    GET_NETWORK_SETTINGS = "False"
-    REBOOT = "False"
-    CLEANUP = "False"
-    START_EXECUTION = "False"
-    if args["actions"]:
-        if "get_network_settings:true" in args["actions"]:
-            GET_NETWORK_SETTINGS = "True"
-        if "reboot:true" in args["actions"]:
-            REBOOT = "True"
-        if "cleanup:true" in args["actions"]:
-            CLEANUP = "True"
-    os.environ["GET_NETWORK_SETTINGS"] = GET_NETWORK_SETTINGS 
-    os.environ["CLEANUP"] = CLEANUP 
-    os.environ["REBOOT"] = REBOOT
-    if "True" in GET_NETWORK_SETTINGS or "True" in REBOOT or "True" in CLEANUP:
-        START_EXECUTION = "True"
-    os.environ["START_EXECUTION"] = str(START_EXECUTION)
-    if args['output']:
-        if "false" in args['output']:
-            os.environ["PREPARE_ACTIONS_HTML"] = "false" 
-    freeze_support()
     main()
-    print("--- Completed in : %s seconds ---" % (time.time() - start_time))

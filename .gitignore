@@ -33,3 +33,4 @@ sdist/
 Include/
 .ipynb_checkpoints/
 .eggs/
+perfecto/temp.dat

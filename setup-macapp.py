@@ -13,9 +13,25 @@ mainscript = 'perfecto/perfectoactions.py'
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+if sys.platform == 'darwin': 
+    extra_options = dict(
+        setup_requires=['py2app'],
+        app=[mainscript],
+        options={'py2app': OPTIONS},
+    )
+elif sys.platform == 'win32':
+    extra_options = dict( 
+        setup_requires=['py2exe'], 
+        app=[mainscript],
+    ) 
+else:
+    extra_options = dict(
+    # Normally unix-like platforms will use "setup.py install" # and install the main script as such 
+        scripts=[mainscript],
+)
 setup(
      name='perfectoactions',
-     version='0.0.20',
+     version='0.0.16',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
      description="A Perfecto device actions execution + reporter package",
@@ -25,7 +41,7 @@ setup(
      keywords = ['Perfecto', 'appium', 'selenium', 'testing', 'api', 'automation'],
      url="https://github.com/PerfectoMobileSA/Device_actions_reporter",
      install_requires=[
-            'requests','configparser','termcolor', 'pandas','matplotlib', 'colorama'
+            'requests','configparser','termcolor', 'pandas','matplotlib'
       ],
      packages=find_packages(),
      include_package_data=True,
@@ -34,5 +50,6 @@ setup(
          'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
          'Operating System :: OS Independent'
      ],
-     entry_points={"console_scripts": ["perfectoactions=perfecto.perfectoactions:main"]}
+     entry_points={"console_scripts": ["perfectoactions=perfecto.perfectoactions:main"]},
+     **extra_options
  )
