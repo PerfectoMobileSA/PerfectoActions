@@ -442,7 +442,7 @@ def prepare_html():
                                 for(j = 0; j < table.rows[0].cells.length; j++) {{
     								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
                                         if(j=table.rows[0].cells.length){{
-                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.includes("failed")) {{
+                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
                                                         table.rows[i].cells[j].style.color = '#660001';
                                                         table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
                                                 }}
@@ -456,7 +456,7 @@ def prepare_html():
     							link.innerHTML = txt;
     							link.target = "_blank";
     							table.rows[i].cells[device_id_column_number].innerHTML = "";
-    							table.rows[i].cells[device_id_column_number].append(link);
+    							table.rows[i].cells[device_id_column_number].appendChild(link);
     						}}else{{
     							for(j = 0; j < table.rows[0].cells.length; j++) {{
     								table.rows[i].cells[j].style.color = '#660001';
