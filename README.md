@@ -16,6 +16,7 @@
   2. Install [pip](https://pip.pypa.io/en/stable/installing/)
     
   3. Run the following command from command prompt/ terminal:
+  
            pip3 install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple perfectoactions
     
 ## Usage:
@@ -55,27 +56,40 @@
                         
 ## Examples:
 
-1. List all available devices: <br /> 
+1. List all available devices: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>"`
     
-2. List all available devices using perfecto username and password: <br /> 
+
+2. List all available devices using perfecto username and password: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<username/email>>:<<password>>"`
     
-3. List all devices irrespective on device status: <br /> 
+
+3. List all devices irrespective on device status: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -t all`
     
-4. Reboot, clean up and get network settings for all devices in parallel: <br /> 
+
+4. Reboot, clean up and get network settings for all devices in parallel: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -t "all" -a "reboot:true;cleanup:true;get_network_settings:true"`
     
-5.  get network settings like airplane mode, wifi and data for only available galaxy devices in parallel: <br /> 
+
+5.  get network settings like airplane mode, wifi and data for only available galaxy devices in parallel: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>"  -a "get_network_settings:true" -d "model:Galaxy.*"`
 
-6. Re-runs the same execution with a specified sleep time: <br /> 
+6. Re-runs the same execution with a specified sleep time: <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -r 1`
     
-7. Skip's output in html format: ( for faster results in terminal/cmd ) <br /> 
+
+7. Skip's output in html format: ( for faster results in terminal/cmd ) <br />
+ 
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -o false`
     
+
 ### Note:
 
     1. Make sure active scripting is enabled in IE browser.
