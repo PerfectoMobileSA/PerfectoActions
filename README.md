@@ -6,18 +6,18 @@
     
     1. 8 GB Ram and above
     
-    2. 2.20 GHz processor and above
+    2. 2.20 GHz multi core processors and above
     
 
 ## Prerequisites:
     
-  1. Install [Python](https://www.python.org/downloads/) version 3 and above and make sure that python version greater than 3 is set as default.
+  1. Install [Python](https://www.python.org/downloads/) version 3+ and make sure that python version > 3+ is set as default.
     
   2. Install [pip](https://pip.pypa.io/en/stable/installing/)
     
   3. Run the following command from command prompt/ terminal:
   
-           pip3 install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple perfectoactions
+           pip3 install perfectoactions -U
     
 ## Usage:
 
@@ -181,7 +181,7 @@
     10. WINDOWS:
         Add a build step: Execute Windows batch command and add the below commands inside it:
         
-            pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -U perfectoactions
+            pip install -U perfectoactions
             del /s /q "C:\Users\<<Windows user name>>\AppData\Local\Temp\output\*.*"
             perfectoactions -c <<CLOUD NAME, e.g. demo>>  -s "<<SECURITY TOKEN>>" <<ADDITIONAL ARGUMENTS AS APPLICABLE>>
             xcopy /s "C:\Users\<<Windows user name>>\AppData\Local\Temp\output" .
@@ -190,7 +190,7 @@
    
         MAC:
         Add a build step: Execute shell and add the below commands inside it:
-            <<PATH TO PIP>>/pip3 install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple -U perfectoactions
+            <<PATH TO PIP>>/pip3 install -U perfectoactions
             rm -rf "/tmp/output/*.*"
             perfectoactions -c <<CLOUD NAME, e.g. demo>> -s "<<SECURITY TOKEN>>" <<ADDITIONAL ARGUMENTS AS APPLICABLE>>
             cp /tmp/output/result.html .
@@ -204,33 +204,3 @@
     12. Add post-build Actions: Publish HTML reports with index page: result.html (Screenshots above)
     13. Run the job to find the results.html being published as a html report.
 <img src="https://github.com/PerfectoMobileSA/Device_actions_reporter/blob/master/docs/jenkins/4.png" height="360" width="760"/>   
-
-## Steps to contribute to this python package by testing it in test pypi:
-
-Increase the version in setup.py and run the following to upload to test pypi: <br /> 
-
-    python3 -m pip install --user --upgrade setuptools wheel twine
-    rm -rf build dist
-    python3 setup.py clean --all
-    python3 setup.py sdist bdist_wheel
-    python3 -m twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/* -r testpypi
-    
-
-Using Python’s Virtual for testing:<br /> 
-
-    python3 -m pip install --user --upgrade virtualenv
-    virtualenv env
-    source env/bin/activate
-
-Install test package in local:<br /> 
-
-    pip3 uninstall perfectoactions
-    pip3 install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple perfectoactions -U
-    
-
-Python code performance check:<br /> 
-
-    Navigate to perfecto folder in terminal/cmd. 
-    pip install snakeviz
-    python -m cProfile -o temp.dat perfectoactions.py
-    snakeviz temp.dat

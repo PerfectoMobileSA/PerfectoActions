@@ -248,7 +248,6 @@ def get_list(get_dev_list):
             device_list = [x for x in device_list if x != 0]
         if len(device_list) > 0:
             agents = get_handset_count(RESPONSE)
-            print(agents)
             pool = Pool(processes=agents)
             try:
                 print("Found " + str(len(device_list)) + " devices with status: " + desc)

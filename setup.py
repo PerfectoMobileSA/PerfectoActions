@@ -15,7 +15,8 @@ with open("README.md", "r") as fh:
 
 setup(
      name='perfectoactions',
-     version='0.0.23',
+#      version='0.0.24',
+     version='1.0.0',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
      description="A Perfecto device actions execution + reporter package",
