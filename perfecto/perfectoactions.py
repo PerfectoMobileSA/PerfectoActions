@@ -308,6 +308,7 @@ def prepare_html():
         f= open(file,"r")
     except FileNotFoundError:
         raise Exception( 'No devices found/ Re-check your arguments')
+        sys.exit(-1)
     result = f.read()
     f.close() 
     print_results(result.split("\n"))
@@ -796,6 +797,7 @@ def create_dir(directory, delete):
                 os.makedirs(directory)
     except Exception as e:
         print(colored(e, "red"))
+        sys.exit(-1)
 
     
 def main():
@@ -923,6 +925,7 @@ def main():
             except Exception:
                proc.terminate()
                print(traceback.format_exc())
+               sys.exit(-1)
         else:
             if not args["device_list_parameters"]:
                 os.environ['DEVICE_LIST_PARAMETERS'] = "All Available Devices"
@@ -937,6 +940,7 @@ def main():
             main()
     except Exception as e:
         raise Exception("Oops!" , e )
+        sys.exit(-1)
 
 if __name__ == '__main__':
     main()
