@@ -576,9 +576,9 @@ def prepare_html():
                 transition:transform 0.25s ease;
             }}
            
-            td:hover {{
-                -webkit-transform:scale(1.15);
-                transform:scale(1.15);
+            tr:hover {{
+                -webkit-transform:scale(1.05);
+                transform:scale(1.05);
             }}
     
             tr:hover {{background-color:grey;}}
