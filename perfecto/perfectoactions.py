@@ -517,7 +517,7 @@ def prepare_html():
               background-repeat: no-repeat;
               background-size: 25px 30px;
               width: 40%;
-              height:4%;
+              height:auto;
               font-weight: bold;
               font-size: 12px;
               padding: 11px 20px 12px 40px;
