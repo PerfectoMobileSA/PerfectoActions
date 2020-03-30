@@ -710,7 +710,7 @@ def prepare_html():
               position: relative;
               margin-top:5%;
               width: 60%;
-              height: 72%;
+              height: 82%;
               box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
             }}
     
