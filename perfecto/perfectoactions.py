@@ -489,8 +489,8 @@ def prepare_html():
                 font-family: "Trebuchet MS", Helvetica, sans-serif;
                 border-collapse: collapse;
                 border: 2px solid black;
-                margin-right: 5%;
-                margin-left: 5%;
+                margin-right: auto;
+                margin-left: auto;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
             }}
             
