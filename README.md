@@ -1,5 +1,7 @@
 # PerfectoActions
 
+Official documentation: https://developers.perfectomobile.com/pages/viewpage.action?pageId=50922763
+
   PerfectoActions can execute device operations like clean up, reboot and get network settings in parallel across all/ specific perfecto devices and showcase their results in a fully responsive, accessibility friendly, html report which has direct access to open an available device, search for devices in the displayed html table, show case direct API results for clean & restart commands, raise a perfecto support ticket, open your perfecto cloud, nagivate to perfecto documentation and showcases device status, model, OS versions & SIM operator graphs.
 
 ## Recommended system configuration:
@@ -76,19 +78,27 @@
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -t "all" -a "reboot:true;cleanup:true;get_network_settings:true"`
     
 
-5.  get network settings like airplane mode, wifi and data for only available galaxy devices in parallel: <br />
+5. Limit the selection of devices by applying any/multiple Get Devices List parameters and regular expressions using the following syntax: {param1}:{value1};{param2}:{value2}
+ 
+	`perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -d "model:Galaxy S.*;description:.*Genesis;dynamicField.ipa:Test-Android.*"`
+
+6. get network settings like airplane mode, wifi and data for only available galaxy devices in parallel: <br />
  
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>"  -a "get_network_settings:true" -d "model:Galaxy.*"`
 
-6. Re-runs the same execution with a specified sleep time: <br />
+7. Re-runs the same execution with a specified sleep time: <br />
  
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -r 1`
     
 
-7. Skip's output in html format: ( for faster results in terminal/cmd ) <br />
+8. Skip's output in html format: ( for faster results in terminal/cmd ) <br />
  
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -o false`
     
+
+Notes: </br>
+	We recommend that you assign a unique description or dynamicField for devices that are applicable for reboot and utilize the -d parameter for reboot. See the Limit the selection of the devices example.</br>
+	PerfectoActions is subject to the same restrictions and limitations as the Reboot device API, with regard to locked phones and limitations to reboot devices by certain manufacturers. For details, see Devices Restart Limitation.  </br>
 
 ### Note:
 
