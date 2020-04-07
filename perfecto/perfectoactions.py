@@ -19,6 +19,7 @@ import time
 import datetime
 import traceback
 import argparse
+import multiprocessing
 from multiprocessing import freeze_support, Pool, Process
 import ssl
 import tempfile
@@ -233,7 +234,10 @@ def perform_actions(deviceid_color):
         osElements = xmldoc.getElementsByTagName('os')
         osDevice = osElements[0].firstChild.data
         osVElements = xmldoc.getElementsByTagName('osVersion')
-        osVersion = osVElements[0].firstChild.data
+        try:
+            osVersion = osVElements[0].firstChild.data
+        except:
+            osVersion = "NA"
         osVersion =  osDevice + " " + osVersion
         try:
             operatorElements = xmldoc.getElementsByTagName('operator')
@@ -300,6 +304,9 @@ def perform_actions(deviceid_color):
             f.close() 
         return final_string
 
+def start_process():
+    print('Starting', multiprocessing.current_process().name)
+    
 def get_list(get_dev_list):
     """get_list"""
     # Verifies each device id based on statuses
@@ -319,13 +326,12 @@ def get_list(get_dev_list):
             device_list.append(device_id + "||" + color + "||" + desc)
             device_list = [x for x in device_list if x != 0]
         if len(device_list) > 0:
-#             agents = get_handset_count(RESPONSE)
-            pool = Pool(processes=60)
+            pool_size = multiprocessing.cpu_count() * 2
+            pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
             try:
                 print("Found " + str(len(device_list)) + " devices with status: " + desc)
                 output = pool.map(perform_actions, device_list)
-                pool.close()  
-                pool.join()
+                pool.close()
             except Exception:
                 pool.close()
                 pool.terminate()
