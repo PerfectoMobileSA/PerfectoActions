@@ -10,6 +10,7 @@ from termcolor import colored
 import shutil
 import pandas
 import webbrowser
+import matplotlib
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -23,6 +24,11 @@ import ssl
 import tempfile
 import platform
 from colorama import init
+import xml.etree.ElementTree as ETree
+from openpyxl import Workbook
+from openpyxl.styles import Alignment
+from pandas.plotting import table
+
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
 # Do not change these variable
@@ -32,7 +38,7 @@ def send_request(url):
     """send request"""
 #     print("Submitting", url)
     device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
-    if "All devices" in device_list_parameters or "All available devices" in device_list_parameters:
+    if "All devices" in device_list_parameters or "Available devices only" in device_list_parameters:
         response = urllib.request.urlopen(url)
     else:
         response = urllib.request.urlopen(url.replace(" ", "%20"))
@@ -47,12 +53,73 @@ def send_request_with_json_response(url):
     maps = json.loads(text)
     return maps
 
+def as_text(value):
+    """as texts"""
+    if value is None:
+        return ""
+    return str(value)
+
+def convertxmlToXls(xml, dict_keys, filename):
+        '''
+                Checks if file exists, parses the file and extracts the needed data
+                returns a 2 dimensional list without "header"
+        '''
+        root = ETree.fromstring(xml)
+        headers = []
+        finalHeaders = []
+        if dict_keys is None: 
+            for child in root:
+                headers.append({x.tag for x in root.findall(child.tag+"/*")})
+        else:
+            headers = dict_keys
+        headers = headers[0]
+        mdlist = []
+        for child in root:
+                temp = []
+                for key in sorted(headers):
+                    try:
+                        finalHeaders.append(key)
+                        temp.append(child.find(key).text)
+                    except Exception as e:
+                        temp.append("-")
+                mdlist.append(temp)
+        '''
+        Generates excel file with given data
+        mdlist: 2 Dimensional list containing data
+        '''
+        wb = Workbook()
+        ws = wb.active
+        for i,row in enumerate(mdlist):
+                for j,value in enumerate(row):
+                        ws.cell(row=i+1, column=j+1).value = value
+        ws.insert_rows(0)
+        #generates header
+        i = 0
+        finalHeaders = list(dict.fromkeys(finalHeaders))
+        for i,value in enumerate(finalHeaders):
+                        ws.cell(1, column=i+1).value = value
+                        ws.cell(1, column=i+1).alignment = Alignment(horizontal='center')
+        for column_cells in ws.columns:
+            length = max(len(as_text(cell.value)) for cell in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = length + 5
+        newfilename = os.path.abspath(filename)
+        wb.save(newfilename)
+        return
+
 def send_request_with_xml_response(url):
-    """send reqeust"""
+    """send request"""
     response = send_request(url)
-    text = response.read().decode("utf-8")
-    xmldoc = minidom.parseString(text)
+    decoded = response.read().decode("utf-8")
+    xmldoc = minidom.parseString(decoded)
     return xmldoc
+
+def send_request_to_xlsx(url, filename):
+    """send_request_to_xlsx"""
+    response = send_request(url)
+    decoded = response.read().decode("utf-8")
+    if "=list" in url:
+        filename = os.path.join(TEMP_DIR, 'output', filename)
+        convertxmlToXls(decoded, None, filename)
 
 def send_request2(url):
     """send request"""
@@ -122,6 +189,11 @@ def get_device_list_response(resource, command, status, in_use):
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
+def get_xml_to_xlsx(resource, command, filename): 
+    """get_xml_to_xlsx"""
+    url = get_url(resource, "", command)
+    send_request_to_xlsx(url, filename)
+    
 def get_device_ids(xmldoc):
     """get_device_ids"""
     device_ids = xmldoc.getElementsByTagName('deviceId')
@@ -153,7 +225,7 @@ def perform_actions(deviceid_color):
     file = os.path.join(TEMP_DIR, 'results', fileName)
     try:
         status = "Results="
-                #update dictionary
+        #update dictionary
         url = get_url(RESOURCE_TYPE, device_id, "info")
         xmldoc = send_request_with_xml_response(url)
         modelElements = xmldoc.getElementsByTagName('model')
@@ -247,8 +319,8 @@ def get_list(get_dev_list):
             device_list.append(device_id + "||" + color + "||" + desc)
             device_list = [x for x in device_list if x != 0]
         if len(device_list) > 0:
-            agents = get_handset_count(RESPONSE)
-            pool = Pool(processes=agents)
+#             agents = get_handset_count(RESPONSE)
+            pool = Pool(processes=60)
             try:
                 print("Found " + str(len(device_list)) + " devices with status: " + desc)
                 output = pool.map(perform_actions, device_list)
@@ -289,6 +361,20 @@ def print_results(results):
             else:
                 print(colored(results[i], "red"))
         i = i + 1  
+        
+def prepare_graph(df, column):
+        """ prepare graph """
+        fig = pl.figure()
+        fig.patch.set_facecolor('green')
+        fig.patch.set_alpha(1)
+        pl.suptitle(column)
+        ax = df[column].value_counts().plot(kind='bar', fontsize = 12, stacked=True, figsize=(25,8))
+        ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
+        ax.patch.set_facecolor('green')
+        ax.patch.set_alpha(0.1)
+        pl.yticks(df[column].value_counts(), fontsize=12, rotation=40)
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', column +'.png'))
+        return '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
         
 def prepare_html():
     """ prepare_html """
@@ -357,31 +443,31 @@ def prepare_html():
         df = df.sort_values(by ='Model')
         df = df.sort_values(by ='Status')
         df.reset_index(drop=True, inplace=True)
-        pl.figure()
-        pl.suptitle("Device Models")
-        df['Model'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','model.png'))
-        model = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-        pl.figure()
-        pl.suptitle("Device Status")
-        df['Status'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','status.png'))
-        barh = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-        pl.figure()
-        pl.suptitle("OS Versions")
-        df['OS Version'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','version.png'))
-        version = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-        pl.figure()
-        pl.suptitle("SIM Operators")
-        df['Operator'].value_counts().plot(kind='barh', stacked=True)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','operator.png'))
-        operator = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+       
+        fig = pl.figure(figsize=(15, 2))
+        device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
+        pl.suptitle("Summary: " + device_list_parameters)
+        ax1 = pl.subplot(121, aspect='equal')
+        fig.patch.set_facecolor('green')
+        fig.patch.set_alpha(0.9)
+        df['Status'].value_counts().plot(kind='pie', y='%', ax=ax1, autopct='%1.1f%%', 
+         startangle=90, shadow=False, labels=df['Status'].unique(), legend = False, fontsize=10)
+        pl.ylabel('')
+        # plot table
+        ax2 = pl.subplot(122)
+        ax2.patch.set_facecolor('green')
+        ax2.patch.set_alpha(0.5)
+        pl.axis('off')
+        tbl = table(ax2, df['Status'].value_counts(), loc='center')
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(8)
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','summary.png'))
+        summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        
         df = df.sort_values(by ='Model')
         df = df.sort_values(by ='Status')
         df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
         current_time = datetime.datetime.now().strftime("%c")
-        device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
         #Futuristic:
     #     le = preprocessing.LabelEncoder()
     #     #convert the categorical columns into numeric
@@ -474,6 +560,15 @@ def prepare_html():
                     x.className = "topnav";
                   }}
                 }}
+                function zoom(element) {{
+				         var data = element.getAttribute("src");
+						 let w = window.open('about:blank');
+						 let image = new Image();
+						 image.src = data;
+						 setTimeout(function(){{
+						   w.document.write(image.outerHTML);
+						 }}, 0);
+				     }}
     		</script>
             
     		<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -489,8 +584,8 @@ def prepare_html():
                 font-family: "Trebuchet MS", Helvetica, sans-serif;
                 border-collapse: collapse;
                 border: 2px solid black;
-                margin-right: auto;
-                margin-left: auto;
+                margin-right: 2%;
+                margin-left: 2%;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
             }}
             
@@ -502,13 +597,13 @@ def prepare_html():
                 position:relative;
             }}
     
-            .mySlides{{
+            #slide{{
               transition:transform 0.25s ease;
             }}
            
-            .mySlides:hover {{
-                -webkit-transform:scale(2);
-                transform:scale(2);
+            #slide:hover {{
+                -webkit-transform:scale(2.6);
+                transform:scale(2.6);
             }}
     
             #myInput {{
@@ -526,8 +621,8 @@ def prepare_html():
             }}
            
             #myInput:hover {{
-                -webkit-transform:scale(1.5);
-                transform:scale(1.5);
+                -webkit-transform:scale(1.01);
+                transform:scale(1.01);
             }}
     
             body {{
@@ -551,7 +646,7 @@ def prepare_html():
               right:-50%;
               top:0%;
               z-index:-1;
-              bottom: 52%;
+              bottom: 45%;
             }}
     
             h1 {{
@@ -577,8 +672,8 @@ def prepare_html():
             }}
            
             tr:hover {{
-                -webkit-transform:scale(1.05);
-                transform:scale(1.05);
+                -webkit-transform:scale(1.01);
+                transform:scale(1.01);
             }}
     
             tr:hover {{background-color:grey;}}
@@ -592,7 +687,7 @@ def prepare_html():
               border-left: 1px solid #333;
               border-right: 1px solid #333;
               background: #fffffa;
-              text-align: justify;
+              text-align: left;
             }}
     
             table.mystyle thead {{
@@ -614,8 +709,8 @@ def prepare_html():
             }}
            
             table.mystyle thead th:hover {{
-                -webkit-transform:scale(1.15);
-                transform:scale(1.15);
+                -webkit-transform:scale(1.01);
+                transform:scale(1.01);
             }}
     
             table.mystyle thead th:first-child {{
@@ -647,6 +742,16 @@ def prepare_html():
             .topnav a:hover {{
                 -webkit-transform:scale(1.15);
                 transform:scale(1.15);
+            }}
+            
+            #summary{{
+             transition:transform 0.25s ease;
+             box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+            }}
+           
+            #summary:hover {{
+                -webkit-transform:scale(1.3);
+                transform:scale(1.3);
             }}
     
             .topnav a.active {{
@@ -732,6 +837,19 @@ def prepare_html():
               bottom: 10%;
               width: 95%;
             }}
+            
+       		#download {{
+			  background-color: #333333;
+			  border: none;
+			  color: white;
+              font-size: 12px;
+              padding: 13px 20px 15px 20px;
+			  cursor: pointer;
+			}}
+
+			#download:hover {{
+			  background-color: RoyalBlue;
+			}}
             </style>
           <div class="bg"></div>
         	<div>
@@ -751,18 +869,20 @@ def prepare_html():
             <h1> <font color=#333 ><b>''' + cloudname.upper() + ''' </h1><a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
             <img src="https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg" alt="Perfecto support"></a>
             <h2>Cloud's Device Status Report @ ''' + current_time + '''</font></h2></b>
-    		 <input id="myInput" aria-label="search" type="text" placeholder="Search.."><br></p>
+    		 <input id="myInput" aria-label="search" type="text" placeholder="Search..">
+             <a id ="download" href="./get_devices_list.xlsx" class="btn"><i class="fa fa-download"></i> Full Devices List</a>
+             <br></p>
+                         ''' + summary + ''' alt='summary' id='summary'></img><br></p>
              <div style="overflow-x:auto;">
              {table}
-             <p align="center" style="font-size:12px;font-family: "Trebuchet MS", Helvetica, sans-serif;" >Device query parameters: ''' + device_list_parameters + ''' </p> <br>
-            <div class="container" align="center" id="slideshow" >
+             <div class="container" align="center" id="slideshow" >
               <div class="mySlides">
-                ''' + barh + ''' alt="Device Status" style="width:30%;">
-              ''' + model + ''' alt="Model" style="width:30%;">
-              </div>
+                ''' + prepare_graph(df, 'Status') + ''' alt="Device Status" style="width:40%;" onClick='zoom(this)' id="slide">
+              ''' + prepare_graph(df, 'Model')  + ''' alt="Model" style="width:40%;" onClick='zoom(this)' id="slide">
+              </div></p><br></p></p>
               <div class="mySlides">
-              ''' + version + ''' alt="Version" style="width:30%;">
-              ''' + operator + ''' alt="Operator" style="width:30%;">
+              ''' + prepare_graph(df, 'OS Version')  + ''' alt="Version" style="width:40%;" onClick='zoom(this)' id="slide">
+              ''' + prepare_graph(df, 'Operator')  + ''' alt="Operator" style="width:40%;" onClick='zoom(this)' id="slide">
               </div>       
               </div>
             </div>
@@ -880,7 +1000,6 @@ def main():
         else:
             device_list_parameters = "All devices"
         os.environ['DEVICE_LIST_PARAMETERS'] = device_list_parameters
-        print(os.environ['DEVICE_LIST_PARAMETERS'])
         os.environ['GET_NETWORK_SETTINGS'] = "False"
         reboot = "False"
         cleanup = "False"
@@ -907,8 +1026,13 @@ def main():
                 os.environ["perfecto_actions_refresh"] = args["refresh"]
         #create results path and files
         create_dir(os.path.join(TEMP_DIR , 'results'), True)
-        create_dir(os.path.join(TEMP_DIR , 'output'), False)
+        create_dir(os.path.join(TEMP_DIR , 'output'), True)
+        get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
         if args["device_status"]:
+#             get_list("list;connected;false;green;Available")
+#             get_list("list;connected;true;red;Busy")
+#             get_list("list;disconnected;;red;Disconnected")
+#             get_list("list;unavailable;;red;Un-available")
             get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
                         "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
             try:
@@ -927,7 +1051,7 @@ def main():
                sys.exit(-1)
         else:
             if not args["device_list_parameters"]:
-                os.environ['DEVICE_LIST_PARAMETERS'] = "All Available Devices"
+                os.environ['DEVICE_LIST_PARAMETERS'] = "Available Devices only"
             get_list("list;connected;false;green;Available")
             
         prepare_html()

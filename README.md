@@ -2,7 +2,7 @@
 
 Official documentation: https://developers.perfectomobile.com/pages/viewpage.action?pageId=50922763
 
-  PerfectoActions can execute device operations like clean up, reboot and get network settings in parallel across all/ specific perfecto devices and showcase their results in a fully responsive, accessibility friendly, html report which has direct access to open an available device, search for devices in the displayed html table, show case direct API results for clean & restart commands, raise a perfecto support ticket, open your perfecto cloud, nagivate to perfecto documentation and showcases device status, model, OS versions & SIM operator graphs.
+  PerfectoActions can execute device operations like clean up, reboot and get network settings in parallel across all/ specific perfecto devices and showcase their results in a fully responsive, accessibility friendly, html report which has direct access to open an available device, search for devices in the displayed html table, show case direct API results for clean & restart commands, raise a perfecto support ticket, open your perfecto cloud, navigate to perfecto documentation, full devices list information in excel format and showcases device status, model, OS versions & SIM operator graphs.
 
 ## Recommended system configuration:
     

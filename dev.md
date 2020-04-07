@@ -34,5 +34,5 @@ Python code performance check:<br />
 
     Navigate to perfecto folder in terminal/cmd. 
     pip install snakeviz
-    python -m cProfile -o temp.dat perfectoactions.py
+    python3 -m cProfile -o temp.dat perfectoactions.py -c ps -s "---" 
     snakeviz temp.dat
