@@ -839,8 +839,8 @@ def prepare_html():
               top: 8%;
               left: 1%;
               right: 1%;
-              bottom: 2%;
-              width: 100%;
+              bottom: 4%;
+              width: 90%;
             }}
             
        		#download {{
