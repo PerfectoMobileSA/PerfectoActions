@@ -608,8 +608,8 @@ def prepare_html():
             }}
            
             #slide:hover {{
-                -webkit-transform:scale(2.6);
-                transform:scale(2.6);
+                -webkit-transform:scale(1.6);
+                transform:scale(1.6);
             }}
     
             #myInput {{
@@ -635,8 +635,7 @@ def prepare_html():
               background-color: #ffffff;
               background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
               height: 100%;
-              top: 70%;
-              background-repeat:  repeat;
+              background-repeat:  repeat-y;
               background-position: right;
               background-size:  contain;
               background-attachment: initial;
@@ -644,11 +643,14 @@ def prepare_html():
             }}
     
             .bg {{
-                background-image: linear-gradient(to bottom left, #666699 40%,  #09f 50%, #add8e6 6%, #09f 5% ) ;
+              background-image: linear-gradient(to bottom left, #666699 40%,  #09f 50%, #add8e6 6%, #09f 5% ) ;
               bottom:0;
               left:-50%;
               opacity:.4;
               position:absolute;
+              background-size: 100% 100%;
+              background-repeat: no-repeat;
+              width:auto;
               right:-50%;
               top:0%;
               z-index:-1;
@@ -756,8 +758,8 @@ def prepare_html():
             }}
            
             #summary:hover {{
-                -webkit-transform:scale(1.3);
-                transform:scale(1.3);
+                -webkit-transform:scale(1.2);
+                transform:scale(1.2);
             }}
     
             .topnav a.active {{
@@ -806,12 +808,10 @@ def prepare_html():
               vertical-align: middle;
             }}
     
-            /* Position the image container */
             .container {{
               position: relative;
             }}
     
-            /* Hide the images by default */
             .mySlides {{
               width: 60%;
             }}
@@ -819,10 +819,9 @@ def prepare_html():
             #slideshow {{
               margin:1% auto;
               position: relative;
-              margin-top:5%;
-              width: 60%;
-              height: 82%;
-              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+              width: 90%;
+              height: 80%;
+              box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
             }}
     
             #ps{{
@@ -836,12 +835,12 @@ def prepare_html():
     
             #slideshow > div {{
               position: relative;
-              margin-top: 10%;
-              top: 10%;
+              margin-top: 3%;
+              top: 8%;
               left: 1%;
               right: 1%;
-              bottom: 10%;
-              width: 95%;
+              bottom: 2%;
+              width: 100%;
             }}
             
        		#download {{
@@ -885,8 +884,7 @@ def prepare_html():
               <div class="mySlides">
                 ''' + prepare_graph(df, 'Status') + ''' alt="Device Status" style="width:40%;" onClick='zoom(this)' id="slide">
               ''' + prepare_graph(df, 'Model')  + ''' alt="Model" style="width:40%;" onClick='zoom(this)' id="slide">
-              </div></p><br></p></p>
-              <div class="mySlides">
+              </p></br>
               ''' + prepare_graph(df, 'OS Version')  + ''' alt="Version" style="width:40%;" onClick='zoom(this)' id="slide">
               ''' + prepare_graph(df, 'Operator')  + ''' alt="Operator" style="width:40%;" onClick='zoom(this)' id="slide">
               </div>       
