@@ -34,3 +34,8 @@ Include/
 .ipynb_checkpoints/
 .eggs/
 perfecto/temp.dat
+
+.code-workspace.code-workspace
+
+.vscode
+usage_reports.py

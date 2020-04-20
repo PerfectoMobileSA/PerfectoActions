@@ -30,7 +30,8 @@ Install test package in local:<br />
     ** below is applicable only for pushing the package to main pypi:
     pip3 install perfectoactions -U
     
-    Note: Mac may have multiple ruby versions, make sure that perfectoactions is present in the bin folder of the latest ruby folder. E.g.: /Library/Frameworks/Python.framework/Versions/3.7/bin 
+    Mac: 
+    python3 -m pip install perfectoactions -U
 
     
 Python code performance check:<br /> 

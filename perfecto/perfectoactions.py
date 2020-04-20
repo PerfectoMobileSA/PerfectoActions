@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-import urllib.request
+import urllib.request, urllib.parse, urllib.error
 import os
-import urllib.parse
-import urllib.error
 from xml.dom import minidom
 import json
 import re
@@ -15,8 +13,10 @@ import matplotlib.pyplot as plt
 import io
 import base64
 import pylab as pl
+import requests
 import time
 import datetime
+from datetime import timedelta
 import traceback
 import argparse
 import multiprocessing
@@ -29,11 +29,17 @@ import xml.etree.ElementTree as ETree
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from pandas.plotting import table
+import manage_repository
+import sys
+import numpy as np
+from openpyxl.reader.excel import load_workbook
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
+RESOURCE_TYPE_USERS = "users"
+REPOSITORY_RESOURCE_TYPE = "repositories/media"
 
 def send_request(url):
     """send request"""
@@ -61,51 +67,88 @@ def as_text(value):
     return str(value)
 
 def convertxmlToXls(xml, dict_keys, filename):
-        '''
-                Checks if file exists, parses the file and extracts the needed data
-                returns a 2 dimensional list without "header"
-        '''
-        root = ETree.fromstring(xml)
-        headers = []
-        finalHeaders = []
-        if dict_keys is None: 
-            for child in root:
-                headers.append({x.tag for x in root.findall(child.tag+"/*")})
-        else:
-            headers = dict_keys
-        headers = headers[0]
-        mdlist = []
+    '''
+            Checks if file exists, parses the file and extracts the needed data
+            returns a 2 dimensional list without "header"
+    '''
+    root = ETree.fromstring(xml)
+    headers = []
+    finalHeaders = []
+    if dict_keys is None:
         for child in root:
-                temp = []
-                for key in sorted(headers):
-                    try:
-                        finalHeaders.append(key)
-                        temp.append(child.find(key).text)
-                    except Exception as e:
-                        temp.append("-")
-                mdlist.append(temp)
-        '''
-        Generates excel file with given data
-        mdlist: 2 Dimensional list containing data
-        '''
-        wb = Workbook()
-        ws = wb.active
-        for i,row in enumerate(mdlist):
-                for j,value in enumerate(row):
-                        ws.cell(row=i+1, column=j+1).value = value
-        ws.insert_rows(0)
-        #generates header
-        i = 0
-        finalHeaders = list(dict.fromkeys(finalHeaders))
-        for i,value in enumerate(finalHeaders):
-                        ws.cell(1, column=i+1).value = value
-                        ws.cell(1, column=i+1).alignment = Alignment(horizontal='center')
-        for column_cells in ws.columns:
-            length = max(len(as_text(cell.value)) for cell in column_cells)
-            ws.column_dimensions[column_cells[0].column_letter].width = length + 5
-        newfilename = os.path.abspath(filename)
-        wb.save(newfilename)
-        return
+            headers.append({x.tag for x in root.findall(child.tag+"/*")})
+    else:
+        headers = dict_keys
+    headers = headers[0]
+    mdlist = []
+    for child in root:
+            temp = []
+            for key in sorted(headers):
+                try:
+                    finalHeaders.append(key)
+                    temp.append(child.find(key).text)
+                except Exception as e:
+                    temp.append("-")
+            mdlist.append(temp)
+    '''
+    Generates excel file with given data
+    mdlist: 2 Dimensional list containing data
+    '''
+    wb = Workbook()
+    ws = wb.active
+    for i,row in enumerate(mdlist):
+            for j,value in enumerate(row):
+                    ws.cell(row=i+1, column=j+1).value = value
+    ws.insert_rows(0)
+    #generates header
+    i = 0
+    finalHeaders = list(dict.fromkeys(finalHeaders))
+    for i,value in enumerate(finalHeaders):
+                    ws.cell(1, column=i+1).value = value
+                    ws.cell(1, column=i+1).alignment = Alignment(horizontal='center')
+    for column_cells in ws.columns:
+        length = max(len(as_text(cell.value)) for cell in column_cells)
+        ws.column_dimensions[column_cells[0].column_letter].width = length + 5
+    newfilename = os.path.abspath(filename)
+    wb.save(newfilename)
+    return
+
+def user_condition(df):
+    cols = list(df)
+    if len(cols) > 0:
+        cols = [cols[-1]] + cols[:-1]
+        df = df[cols]
+        df = df.replace(np.nan, '', regex=True)
+        df = df[~df["email"].str.contains("perfectomobile.com")]
+        df = df.sort_values(by ='firstName')
+    return df
+    
+def convertjsonToXls(json_text, dict_keys, filename):
+    jsonfile = 'user_results.json'
+    file = os.path.join(TEMP_DIR, 'results', jsonfile)
+    f= open(file,"w+")
+    f.write(str(json_text))
+    f.close()
+    data = json.load(open(file))
+    sys.stdout.flush()
+    pandas.set_option('display.max_columns', 6)
+    # pandas.set_option('display.max_colwidth', 120)
+    pandas.set_option('colheader_justify', 'left')
+    df = pandas.DataFrame(data["users"])
+    if len(df.index) < 1:
+        raise Exception("There are no users who match the expected conditions " + os.environ["USER_LIST_PARAMETERS"])
+    df.drop(['username', 'authentication', 'gender','phoneNumberExt','location','stateCode','state'], axis=1, inplace=True, errors='ignore')
+    df = user_condition(df)
+    df.to_excel(filename, index=False)
+    wb = Workbook()
+    wb = load_workbook(filename)
+    ws = wb.worksheets[0]
+    for column_cells in ws.columns:
+        length = max(len(as_text(cell.value)) for cell in column_cells)
+        ws.column_dimensions[column_cells[0].column_letter].width = length + 5
+    newfilename = os.path.abspath(filename)
+    wb.save(newfilename)
+    return df
 
 def send_request_with_xml_response(url):
     """send request"""
@@ -118,10 +161,22 @@ def send_request_to_xlsx(url, filename):
     """send_request_to_xlsx"""
     response = send_request(url)
     decoded = response.read().decode("utf-8")
-    if "=list" in url:
+    if any(["=list" in url, "=users" in url]):
         filename = os.path.join(TEMP_DIR, 'output', filename)
         convertxmlToXls(decoded, None, filename)
 
+def send_jsonrequest_to_xlsx(url, filename):
+    """send_request_to_xlsx"""
+    try:
+        response = send_request(url)
+    except:
+        raise Exception("unable to find users who match the expected conditions " + os.environ["USER_LIST_PARAMETERS"])
+    decoded = response.read().decode("utf-8")
+    if any(["=list" in url, "=users" in url]):
+        filename = os.path.join(TEMP_DIR, 'output', filename)
+        return convertjsonToXls(decoded, None, filename)
+    
+        
 def send_request2(url):
     """send request"""
     response = send_request(url)
@@ -133,13 +188,13 @@ def get_url(resource, resource_id, operation):
     cloudname = os.environ['CLOUDNAME']
     url = "https://" + cloudname + ".perfectomobile.com/services/" + resource
     if resource_id != "":
-        url += "/" + resource_id
+        url += "/" + str(resource_id)
     token = os.environ['TOKEN']
     if "eyJhb" in token:
         query = urllib.parse.urlencode({"operation": operation, "securityToken": token})
     else:
         if ":" not in token:
-            raise Exception("Please pass your perfecto credentials in the format user:password as your second parameter!" )
+            raise Exception("Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!" )
         else:
             user = token.split(":")[0]
             pwd = token.split(":")[1]
@@ -190,11 +245,22 @@ def get_device_list_response(resource, command, status, in_use):
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
-def get_xml_to_xlsx(resource, command, filename): 
+def get_xml_to_xlsx(resource, command, filename):
     """get_xml_to_xlsx"""
     url = get_url(resource, "", command)
     send_request_to_xlsx(url, filename)
+    sys.stdout.flush()
     
+def get_json_to_xlsx(resource, command, filename):
+    """get_json_to_xlsx"""
+    url = get_url(resource, "", command)
+    if  len(os.environ["USER_LIST_PARAMETERS"].split(":")) >= 2:
+        for item in os.environ["USER_LIST_PARAMETERS"].split(";"):
+            if ":" in item:
+                url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
+    print(url.replace(" ", "%20"))
+    return send_jsonrequest_to_xlsx(url.replace(" ", "%20"), filename)
+
 def get_device_ids(xmldoc):
     """get_device_ids"""
     device_ids = xmldoc.getElementsByTagName('deviceId')
@@ -230,11 +296,18 @@ def perform_actions(deviceid_color):
         url = get_url(RESOURCE_TYPE, device_id, "info")
         xmldoc = send_request_with_xml_response(url)
         modelElements = xmldoc.getElementsByTagName('model')
+        manufacturerElements = xmldoc.getElementsByTagName('manufacturer')
         model = modelElements[0].firstChild.data
+        manufacturer = manufacturerElements[0].firstChild.data
         osElements = xmldoc.getElementsByTagName('os')
         osDevice = osElements[0].firstChild.data
-        osVElements = xmldoc.getElementsByTagName('osVersion')
         try:
+            descriptionElements = xmldoc.getElementsByTagName('description')
+            description = descriptionElements[0].firstChild.data
+        except:
+            description=''
+        try:
+            osVElements = xmldoc.getElementsByTagName('osVersion')
             osVersion = osVElements[0].firstChild.data
         except:
             osVersion = "NA"
@@ -242,10 +315,12 @@ def perform_actions(deviceid_color):
         try:
             operatorElements = xmldoc.getElementsByTagName('operator')
             operator = operatorElements[0].childNodes[0].data
+        except:
+            operator = "NA"
+        try:
             phElements = xmldoc.getElementsByTagName('phoneNumber')
             phoneNumber = phElements[0].firstChild.data
         except:
-            operator = "NA"
             phoneNumber ="NA"
         if "green"  in color:
             start_execution = os.environ['START_EXECUTION']
@@ -257,7 +332,7 @@ def perform_actions(deviceid_color):
                 device_command(EXEC_ID, device_id, "open")
                 cleanup = os.environ['CLEANUP']
                 if "True" in cleanup:
-                    if not "iOS" in osDevice: 
+                    if not "iOS" in osDevice:
                         print("cleaning up: " + model + ", device id: " + device_id)
                         status += "clean:" + exec_command(EXEC_ID, device_id, "device", "clean")
                         status += ";"
@@ -265,15 +340,20 @@ def perform_actions(deviceid_color):
                         status +="clean:NA;"
                 reboot = os.environ['REBOOT']
                 if "True" in reboot:
-                    print("rebooting: " + model+ ", device id: " + device_id)
-                    status += "reboot:" + exec_command(EXEC_ID, device_id, "device", "reboot")
-                    status += ";"
+                    if all(['Huawei' not in manufacturer, 'Xiaomi' not in manufacturer, 'Oppo' not in manufacturer, 'Motorola' not in manufacturer, 'OnePlus' not in manufacturer]):
+                        print("rebooting: " + model+ ", device id: " + device_id)
+                        status += "reboot:" + exec_command(EXEC_ID, device_id, "device", "reboot")
+                        status += ";"
+                    else:
+                        print(model+ " not applicable for rebooting")
+                        status += 'reboot:NA;'
                 if "True" in get_network_settings:
                     print("getting network status of : " + model + ", device id: " + device_id)
                     networkstatus = exec_command(EXEC_ID, device_id, "network.settings", "get").replace("{","").replace("}","")
                     status += "NW:OK"
                     status += ";"
                 #Close device
+                print("closing: " + model + ", device id: " + device_id)
                 device_command(EXEC_ID, device_id, "close")
                 #End execution
                 end_execution(EXEC_ID)
@@ -281,32 +361,30 @@ def perform_actions(deviceid_color):
             networkstatus = ",,"
 
         if "True" in get_network_settings:
-                final_string =  "status=" + desc + ", deviceId='" + device_id + "', model=" + str(model) + ", version=" + str(osVersion) + ", operator="+ \
-                str(operator) + ", phoneNumber=" + str(phoneNumber) + ", " + str(networkstatus) + ", " + str(status)
+                final_string =  "status=" + desc + ", deviceId='" + device_id + "', Manufacturer=" + str(manufacturer) + "', model=" + str(model) + \
+                ", version=" + str(osVersion) + ", description=" + str(description) + ", operator="+ str(operator) + ", phoneNumber=" + str(phoneNumber) + ", " + str(networkstatus) + ", " + str(status)
         else:
-            final_string = "status=" + desc + ", deviceId='" + device_id + "', model=" + str(model) + ", version=" + str(osVersion) + ", operator="+ \
-            str(operator) + ", phoneNumber=" + str(phoneNumber) + ",,,, " + str(status)
+            final_string = "status=" + desc + ", deviceId='" + device_id + "', Manufacturer=" + str(manufacturer) + "', model=" + str(model) + ", version=" + str(osVersion) + \
+            ", description=" + str(description) + ", operator=" + str(operator) + ", phoneNumber=" + str(phoneNumber) + ",,,, " + str(status)
         final_string = re.sub(r"^'|'$", '', final_string)
         f= open(file,"w+")
         f.write(str(final_string))
-        f.close() 
+        f.close()
+        sys.stdout.flush()
         return final_string
     except Exception as e:
         raise Exception("Oops!" , e )
-        
+ #TODO : Dont forget to increase coma in both if else conditions if a new column is added
         if not os.path.isfile(os.path.join(TEMP_DIR, 'results', device_id + '.txt')):
             if "True" in get_network_settings:
-                final_string =  "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,"
+                final_string =  "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,,,"
             else:
-                final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,"
+                final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,"
             f= open(file,"w+")
             f.write(str(final_string))
-            f.close() 
+            f.close()
         return final_string
 
-def start_process():
-    print('Starting', multiprocessing.current_process().name)
-    
 def get_list(get_dev_list):
     """get_list"""
     # Verifies each device id based on statuses
@@ -329,14 +407,16 @@ def get_list(get_dev_list):
             pool_size = multiprocessing.cpu_count() * 2
             pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
             try:
-                print("Found " + str(len(device_list)) + " devices with status: " + desc)
+                print("\nFound " + str(len(device_list)) + " devices with status: " + desc)
+                sys.stdout.flush()
                 output = pool.map(perform_actions, device_list)
                 pool.close()
+                pool.terminate()
             except Exception:
                 pool.close()
                 pool.terminate()
-                print(traceback.format_exc())
-    
+                print(traceback.format_exc())  
+                sys.exit(-1)
 
 def fetch_details(i, exp_number, result, exp_list):
     """ fetches details"""
@@ -366,23 +446,51 @@ def print_results(results):
                 print(colored(results[i], "green"))
             else:
                 print(colored(results[i], "red"))
-        i = i + 1  
-        
+        i = i + 1
+
+def validate_logo(logo):
+    try:
+        send_request(logo)
+    except Exception as e:
+        print("Exception: " + str(e))
+        os.environ['company_logo'] = os.environ['perfecto_logo']
+
+def create_summary(df, title, column, name):
+    fig = pl.figure(figsize=(15, 2))
+    pl.suptitle(title)
+    ax1 = pl.subplot(121, aspect='equal', facecolor='lightslategray')
+    fig.patch.set_facecolor('yellow')
+    fig.patch.set_alpha(.9)
+    df[column].value_counts().sort_index().plot(kind='pie', y='%', ax=ax1,  autopct='%1.1f%%',
+        startangle=30, shadow=False, legend=False, x=df[column].unique, fontsize=7)
+    pl.ylabel('')
+    # plot table
+    ax2 = pl.subplot(122, facecolor='lightslategray')
+    ax2.patch.set_facecolor('yellow')
+    ax2.patch.set_alpha(0.8)
+    pl.axis('off')
+    tbl = table(ax2, df[column].value_counts(), loc='center')
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(8)
+    encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', name + '.png'))
+    summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+    return summary
+           
 def prepare_graph(df, column):
         """ prepare graph """
         fig = pl.figure()
         fig.patch.set_facecolor('green')
         fig.patch.set_alpha(1)
-        pl.suptitle(column)
-        ax = df[column].value_counts().plot(kind='bar', fontsize = 12, stacked=True, figsize=(25,8))
+        ax = df[column].value_counts().sort_index().plot(kind='bar', fontsize = 12, stacked=True, figsize=(25,10), ylim=(0,2))
+        ax.set_title(column, fontsize=20)
         ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
         ax.patch.set_facecolor('green')
         ax.patch.set_alpha(0.1)
-        pl.yticks(df[column].value_counts(), fontsize=12, rotation=40)
+        pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
         encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', column +'.png'))
         return '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
-        
-def prepare_html():
+
+def prepare_html(user_html, table3):
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
     #copies all device status to final summary
@@ -401,14 +509,16 @@ def prepare_html():
         raise Exception( 'No devices found/ Re-check your arguments')
         sys.exit(-1)
     result = f.read()
-    f.close() 
+    f.close()
     print_results(result.split("\n"))
     if "true" in os.environ["PREPARE_ACTIONS_HTML"]:
         results = result.split("\n")
-        #export to CSV
+        #TODO Add a new list and number below & a new_dict if a new column is added
         new_dict = {}
         deviceids = []
         status = []
+        description = []
+        manufacturer = []
         model = []
         osVersion = []
         operator = []
@@ -425,55 +535,44 @@ def prepare_html():
                 for result in new_result:
                     fetch_details(i, 0, result, status)
                     fetch_details(i, 1, result, deviceids)
-                    fetch_details(i, 2, result, model)
-                    fetch_details(i, 3, result, osVersion)
-                    fetch_details(i, 4, result, operator)
-                    fetch_details(i, 5, result, phonenumber)
-                    fetch_details(i, 6, result, airplanemode)
-                    fetch_details(i, 7, result, wifi)
-                    fetch_details(i, 8, result, data)
-                    fetch_details(i, 9, result, action_results)
+                    fetch_details(i, 2, result, manufacturer)
+                    fetch_details(i, 3, result, model)
+                    fetch_details(i, 4, result, osVersion)
+                    fetch_details(i, 5, result, description)
+                    fetch_details(i, 6, result, operator)
+                    fetch_details(i, 7, result, phonenumber)
+                    fetch_details(i, 8, result, airplanemode)
+                    fetch_details(i, 9, result, wifi)
+                    fetch_details(i, 10, result, data)
+                    fetch_details(i, 11, result, action_results)
                     new_list.append(result)
                     i = i + 1
         pandas.set_option('display.max_columns', None)
         pandas.set_option('display.max_colwidth', 100)
-        pandas.set_option('colheader_justify', 'center') 
+        pandas.set_option('colheader_justify', 'center')
         get_network_settings = os.environ['GET_NETWORK_SETTINGS']
         reboot = os.environ['REBOOT']
         cleanup = os.environ['CLEANUP']
         if "True" in get_network_settings or "True" in  reboot or "True" in cleanup:
-            new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
+            new_dict =  {'Status': status, 'Device Id': deviceids, 'Manufacturer': manufacturer, 'Model': model, 'OS Version': osVersion, 'Description': description,'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
         else:
-            new_dict =  {'Status': status, 'Device Id': deviceids, 'Model': model, 'OS Version': osVersion, 'Operator': operator, 'Phone number': phonenumber}
+            new_dict =  {'Status': status, 'Device Id': deviceids, 'Manufacturer': manufacturer, 'Model': model, 'OS Version': osVersion, 'Description': description,'Operator': operator, 'Phone number': phonenumber}
         df = pandas.DataFrame(new_dict)
+        df = df.sort_values(by ='Manufacturer')
         df = df.sort_values(by ='Model')
         df = df.sort_values(by ='Status')
         df.reset_index(drop=True, inplace=True)
-       
-        fig = pl.figure(figsize=(15, 2))
         device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
-        pl.suptitle("Summary: " + device_list_parameters)
-        ax1 = pl.subplot(121, aspect='equal')
-        fig.patch.set_facecolor('green')
-        fig.patch.set_alpha(0.9)
-        df['Status'].value_counts().plot(kind='pie', y='%', ax=ax1, autopct='%1.1f%%', 
-         startangle=90, shadow=False, labels=df['Status'].unique(), legend = False, fontsize=10)
-        pl.ylabel('')
-        # plot table
-        ax2 = pl.subplot(122)
-        ax2.patch.set_facecolor('green')
-        ax2.patch.set_alpha(0.5)
-        pl.axis('off')
-        tbl = table(ax2, df['Status'].value_counts(), loc='center')
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(8)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results','summary.png'))
-        summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+        cloudname = os.environ['CLOUDNAME']
+        current_time = datetime.datetime.now().strftime("%c")
+        title = cloudname.upper() + " cloud status summary of " + device_list_parameters + " @ " + current_time
+        summary = create_summary(df,title, "Status", "device_summary")
+        plt.close('all')
         
         df = df.sort_values(by ='Model')
         df = df.sort_values(by ='Status')
-        df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
-        current_time = datetime.datetime.now().strftime("%c")
+        #skipping csv output as we now have full device list api response
+#         df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
         #Futuristic:
     #     le = preprocessing.LabelEncoder()
     #     #convert the categorical columns into numeric
@@ -496,8 +595,8 @@ def prepare_html():
     #     target = dfs['Status']
     #     print(data)
     #     print(target)
-        
-        cloudname = os.environ['CLOUDNAME']
+
+ 
         html_string = '''
         <html lang="en">
           <head>
@@ -505,15 +604,58 @@ def prepare_html():
            <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
     		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
             <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title>''' + cloudname.upper() + ''' Device Status Report @ ''' + current_time + '''</title>
+    		     <head><title>''' + cloudname.upper() + ''' Cloud Status</title>
           <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
             <script>
             $(document).ready(function(){{
+                // Add smooth scrolling to all links
+                $("a").on('click', function(event) {{
+
+                    // Make sure this.hash has a value before overriding default behavior
+                    if (this.hash !== "") {{
+                    // Prevent default anchor click behavior
+                    event.preventDefault();
+
+                    // Store hash
+                    var hash = this.hash;
+
+                    // Using jQuery's animate() method to add smooth page scroll
+                    // The optional number (800) specifies the number of milliseconds it takes to scroll to the specified area
+                    $('html, body').animate({{
+                        scrollTop: $(hash).offset().top
+                    }}, 800, function(){{
+                
+                        // Add hash (#) to URL when done scrolling (default click behavior)
+                        window.location.hash = hash;
+                    }});
+                    }} // End if
+                }});
+            }});
+            $(document).ready(function(){{
               $("#myInput").on("keyup", function() {{
                 var value = $(this).val().toLowerCase();
-                $("tbody tr").filter(function() {{
+                $("#devicetable tbody tr").filter(function() {{
                   $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
                 }});
+                document.getElementById('devicetable').scrollIntoView();
+              }});
+            }});
+                      $(document).ready(function(){{
+              $("#myInput2").on("keyup", function() {{
+                var value = $(this).val().toLowerCase();
+                $("#usertable tbody tr").filter(function() {{
+                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+                }});
+                document.getElementById('usertable').scrollIntoView();
+              }});
+            }});
+            $(document).ready(function(){{
+              $("#myInput3").on("keyup", function() {{
+                var value = $(this).val().toLowerCase();
+                $("#repotable tbody tr").filter(function() {{
+                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+                }});
+                document.getElementById('repotable').scrollIntoView();
               }});
             }});
             </script>
@@ -524,7 +666,7 @@ def prepare_html():
     				$("tbody tr:contains('ERROR')").css('background-color','#fcc');
     				$("tbody tr:contains('Un-available')").css('background-color','#fcc');
     				$("tbody tr:contains('Busy')").css('background-color','#fcc');
-                    var table = document.getElementsByTagName("table")[0];
+                    var table = document.getElementById("devicetable");
     				var rowCount = table.rows.length;
     				for (var i = 0; i < rowCount; i++) {{
     					if ( i >=1){{
@@ -575,44 +717,111 @@ def prepare_html():
 						   w.document.write(image.outerHTML);
 						 }}, 0);
 				     }}
+                     
     		</script>
-            
+
     		<meta name="viewport" content="width=device-width, initial-scale=1">
             </head>
              <style>
-    
+
             html {{
               height:100%;
             }}
-    
+            
+            .tabbed {{
+               display:  flex;
+               text-align: left;
+               flex-wrap: wrap;
+               box-shadow: 0 0 20px rgba(186, 99, 228, 0.4);
+               font-size: 12px;
+               font-family: "Trebuchet MS", Helvetica, sans-serif;
+             }}
+             .tabbed > input {{
+               display: none;
+             }}
+             .tabbed > input:checked + label {{
+               font-size: 14px;
+               text-align: center;
+               color: white;
+               background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
+             }}
+             .tabbed > input:checked + label + div {{
+               color:darkslateblue;
+               display: block;
+             }}
+             .tabbed > label {{
+               background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
+               color: white;
+               text-align: center;
+               display: block;
+               order: 1;
+               flex-grow: 1;
+               padding: .3%;
+             }}
+             .tabbed > div {{
+               order: 2;
+               flex-basis: 100%;
+               display: none;
+               padding: 10px;
+             }}
+
+             /* For presentation only */
+             .container {{
+               width: 100%;
+               margin: 0 auto;
+               background-color: black;
+               box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
+             }}
+
+             .tabbed {{
+               border: 1px solid;
+             }}
+
+             hr {{
+               background-color: white;
+               height: 5px;
+               border: 0;
+               margin: 10px 0 0;
+             }}
+             
+             hr + * {{
+               margin-top: 10px;
+             }}
+             
+             hr + hr {{
+               margin: 0 0;
+             }}
+
             .mystyle {{
                 font-size: 12pt;
                 font-family: "Trebuchet MS", Helvetica, sans-serif;
                 border-collapse: collapse;
                 border: 2px solid black;
-                margin-right: 2%;
-                margin-left: 2%;
+                margin:auto;
+                width: 95%;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+                table-layout: fixed;
+                word-wrap: break-word; 
             }}
-            
+
             .mystyle body {{
               font-family: "Trebuchet MS", Helvetica, sans-serif;
                 table-layout: auto;
-                width: 100%;
-                margin:0;
                 position:relative;
             }}
-    
+
             #slide{{
               transition:transform 0.25s ease;
+              width:100%;
+              height:auto;
             }}
-           
+
             #slide:hover {{
-                -webkit-transform:scale(1.6);
-                transform:scale(1.6);
+                -webkit-transform:scale(1.1);
+                transform:scale(1.1);
             }}
-    
-            #myInput {{
+
+            #myInput, #myInput2, #myInput3 {{
               background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
               background-position: 2px 4px;
               background-repeat: no-repeat;
@@ -625,12 +834,17 @@ def prepare_html():
               box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
               transition:transform 0.25s ease;
             }}
-           
+
             #myInput:hover {{
                 -webkit-transform:scale(1.01);
                 transform:scale(1.01);
             }}
-    
+            
+            #myInput2:hover {{
+                -webkit-transform:scale(1.01);
+                transform:scale(1.01);
+            }}
+
             body {{
               background-color: #ffffff;
               background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
@@ -641,26 +855,11 @@ def prepare_html():
               background-attachment: initial;
               opacity:.93;
             }}
-    
-            .bg {{
-              background-image: linear-gradient(to bottom left, #666699 40%,  #09f 50%, #add8e6 6%, #09f 5% ) ;
-              bottom:0;
-              left:-50%;
-              opacity:.4;
-              position:absolute;
-              background-size: 100% 100%;
-              background-repeat: no-repeat;
-              width:auto;
-              right:-50%;
-              top:0%;
-              z-index:-1;
-              bottom: 45%;
-            }}
-    
-            h1 {{
+
+            h4 {{
               font-family:monospace;
             }}
-    
+
             @keyframes slide {{
               0% {{
                 transform:translateX(-25%);
@@ -669,25 +868,19 @@ def prepare_html():
                 transform:translateX(25%);
               }}
             }}
-    
+
             .mystyle table {{
                 table-layout: auto;
                 width: 100%;
                 height: 100%;
                 position:relative;
                 border-collapse: collapse;
-                transition:transform 0.25s ease;
             }}
-           
-            tr:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
-            }}
-    
+
             tr:hover {{background-color:grey;}}
-    
+
             .mystyle td {{
-                font-size: 13px;
+                font-size: 12px;
                 position:relative;
                 padding: 5px;
                 width:10%;
@@ -697,42 +890,40 @@ def prepare_html():
               background: #fffffa;
               text-align: left;
             }}
-    
+
             table.mystyle thead {{
               background: #333333;
-              font-size: 13px;
+              font-size: 14px;
               position:relative;
               border-bottom: 1px solid #DBDB40;
               border-left: 1px solid #D8DB40;
               border-right: 1px solid #D8DB40;
               border-top: 1px solid black;
             }}
-    
+
             table.mystyle thead th {{
-              line-height: 140%;
-              font-size: 17px;
-              color: white;
+              line-height: 200%;
+              font-size: 13px;
+              color: #fff1bf;
               text-align: center;
               transition:transform 0.25s ease;
             }}
-           
+
             table.mystyle thead th:hover {{
                 -webkit-transform:scale(1.01);
                 transform:scale(1.01);
             }}
-    
+
             table.mystyle thead th:first-child {{
               border-left: none;
-              width:1%;
             }}
-    
+
             .topnav {{
               overflow: hidden;
               background-color: #333;
               opacity: 0.7;
-              background-image: linear-gradient(to right,  #666699, #013220, #333333 , #333333);
             }}
-    
+
             .topnav a {{
               float: right;
               display: block;
@@ -746,32 +937,33 @@ def prepare_html():
               border-right: 1px solid #6c3;
               transition:transform 0.25s ease;
             }}
-           
+
             .topnav a:hover {{
                 -webkit-transform:scale(1.15);
                 transform:scale(1.15);
             }}
-            
+
             #summary{{
-             transition:transform 0.25s ease;
-             box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+             position: relative;
+             width:40%;
+             cursor: pointer;
+             padding: .1%;
+             border-style: outset;
+             border-radius: 1px;
+             border-width: 1px;
             }}
-           
-            #summary:hover {{
-                -webkit-transform:scale(1.2);
-                transform:scale(1.2);
-            }}
-    
+
             .topnav a.active {{
               background-color: #333333;
-              color: #b8ff7a;
+              color: white;
               font-weight: lighter;
             }}
-    
+
             .topnav .icon {{
               display: none;
             }}
-    
+
             @media screen and (max-width: 600px) {{
               .topnav a:not(:first-child) {{display: none;}}
               .topnav a.icon {{
@@ -780,7 +972,7 @@ def prepare_html():
                 display: block;
               }}
             }}
-    
+
             @media screen and (max-width: 600px) {{
               .topnav.responsive {{position: relative;}}
               .topnav.responsive .icon {{
@@ -794,36 +986,32 @@ def prepare_html():
                 text-align: left;
               }}
             }}
-    
-            footer {{
-              display: block;
-              font-size: 12px;
-            }}
-    
+
             * {{
               box-sizing: border-box;
             }}
-    
+
             img {{
               vertical-align: middle;
             }}
-    
-            .container {{
+
+            .containers {{
               position: relative;
             }}
-    
+
             .mySlides {{
-              width: 60%;
+              display:none;
+              width:90%;
             }}
-    
+
             #slideshow {{
-              margin:1% auto;
+              cursor: pointer;
+              margin:.01% auto;
               position: relative;
-              width: 90%;
-              height: 80%;
-              box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+              width: 70%;
+              height: 55%;
             }}
-    
+
             #ps{{
               height: 10%;
               margin-top: 0%;
@@ -832,17 +1020,12 @@ def prepare_html():
               background-repeat: no-repeat;
               background-blend-mode: saturation;
             }}
-    
+
             #slideshow > div {{
               position: relative;
-              margin-top: 3%;
-              top: 8%;
-              left: 1%;
-              right: 1%;
-              bottom: 4%;
               width: 90%;
             }}
-            
+
        		#download {{
 			  background-color: #333333;
 			  border: none;
@@ -856,8 +1039,6 @@ def prepare_html():
 			  background-color: RoyalBlue;
 			}}
             </style>
-          <div class="bg"></div>
-        	<div>
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
     		  <a href="result.html" class="active">Home</a>
@@ -869,43 +1050,117 @@ def prepare_html():
     			<i class="fa fa-bars"></i>
     		  </a>
     		</div>
-           
+
             <div style="text-align: center">
-            <h1> <font color=#333 ><b>''' + cloudname.upper() + ''' </h1><a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
-            <img src="https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg" alt="Perfecto support"></a>
-            <h2>Cloud's Device Status Report @ ''' + current_time + '''</font></h2></b>
-    		 <input id="myInput" aria-label="search" type="text" placeholder="Search..">
-             <a id ="download" href="./get_devices_list.xlsx" class="btn"><i class="fa fa-download"></i> Full Devices List</a>
-             <br></p>
-                         ''' + summary + ''' alt='summary' id='summary'></img><br></p>
-             <div style="overflow-x:auto;">
-             {table}
-             <div class="container" align="center" id="slideshow" >
-              <div class="mySlides">
-                ''' + prepare_graph(df, 'Status') + ''' alt="Device Status" style="width:40%;" onClick='zoom(this)' id="slide">
-              ''' + prepare_graph(df, 'Model')  + ''' alt="Model" style="width:40%;" onClick='zoom(this)' id="slide">
-              </p></br>
-              ''' + prepare_graph(df, 'OS Version')  + ''' alt="Version" style="width:40%;" onClick='zoom(this)' id="slide">
-              ''' + prepare_graph(df, 'Operator')  + ''' alt="Operator" style="width:40%;" onClick='zoom(this)' id="slide">
-              </div>       
-              </div>
-            </div>
-              <footer>
-              <p>Best viewed in Chrome/Safari.</p>
-              </footer>
+                
+                <div class="container">
+                    <div class="tabbed">
+                        <input type="radio" id="tabbed-tab-1-1" name="tabbed-tab-1" checked><label for="tabbed-tab-1-1">Users</label>
+                        <div>
+                            <div class="tabbed">
+                                <input type="radio" id="tabbed-tab-1-1-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-1-1">List</label>
+                                <div align="center">
+                                
+                                <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
+                                <img src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
+                                ''' + create_summary(user_html,title, "status", "user_summary") + ''' alt='user_summary' id='summary' onClick='zoom(this)'></img></br>
+                                <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
+                                <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
+                                </br> </br>
+                                <div style="overflow-x:auto;">
+                                    {table2}
+                                </div>
+                                
+                                </div>
+                    
+                                <input type="radio" id="tabbed-tab-1-1-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-1-2">Usage</label>
+                                <div align="center">
+                                
+                                    usage
+                                         
+                                </div>
+                             </div>
+                        </div>
+                    <input type="radio" id="tabbed-tab-1-2" name="tabbed-tab-1" checked><label for="tabbed-tab-1-2">Device</label>
+                    <div>
+                        <div class="tabbed">
+                            <input type="radio" id="tabbed-tab-1-2-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-2-1">List</label>
+                            <div  align="center">
+                            
+                              
+                                    
+                                <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
+                                <img src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
+                                ''' + summary + ''' alt='summary' id='summary' onClick='zoom(this)'></img> </br>
+                                <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                    <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>
+                                    </br> </br>
+                                        <div style="overflow-x:auto;">
+                                            {table}
+                                        </div>
+                                    </br>
+                                    
+                        </div>
+                        <input type="radio" id="tabbed-tab-1-2-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-2-2">Graphs</label>
+                            <div align="center">
+
+                                  <div style="overflow-x:auto;height:90%">
+                                    <div class="containers" align="center" id = "slideshow">
+                                        <div class="w3-content w3-section"  style="max-width:90%; max-height:90%;height:90%;width:90%;">
+                                        ''' + prepare_graph(df, 'Manufacturer') + ''' alt="Device Status" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        ''' + prepare_graph(df, 'Model')  + ''' alt="Model" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        ''' + prepare_graph(df, 'OS Version')  + ''' alt="Version" class="mySlides" onClick='zoom(this)' id="slide">
+                                        ''' + prepare_graph(df, 'Operator')  + ''' alt="Operator" class="mySlides" onClick='zoom(this)' id="slide">
+                                        ''' + prepare_graph(df, 'Description')  + ''' alt="Description" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        </div>
+                                    </div>
+                                </div>
+                                    
+                            </div>
+                    </div>
+                </div>
+                        {table3}
+                    </div>
+                </div>
+              <script>
+             
+              var myIndex = 0;
+              carousel();
+
+              function carousel() {{
+                var i;
+                var x = document.getElementsByClassName("mySlides");
+                for (i = 0; i < x.length; i++) {{
+                  x[i].style.display = "none";
+                }}
+                myIndex++;
+                if (myIndex > x.length) {{myIndex = 1}}
+                x[myIndex-1].style.display = "block";
+                setTimeout(carousel, 2000); // Change image every 2 seconds
+              }}
+              </script>
           </body>
-          </div>
         </html>
         '''
-        
+
         # OUTPUT AN HTML FILE
+        clean_repo = os.environ["clean_repo"]
         with open(os.path.join(TEMP_DIR,'output','result.html'), 'w') as f:
-            f.write(html_string.format(table=df.to_html(classes='mystyle', index=False)))
-        time.sleep(3)
-        webbrowser.open('file://' + os.path.join(TEMP_DIR,'output','result.html'), new=0) 
-        plt.close('all')
+            if 'NA' != clean_repo:
+                heading = """<input type="radio" id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
+                            <div  align="center">
+                             <input id="myInput3" aria-label="search" type="text" placeholder="Search.."></br> </br>
+                            <div style="overflow-x:auto;"><b><h4>""" + cloudname.upper() + """ Media Repository Cleanup Status for files older than """ + \
+                            str(clean_repo.split("|")[4]) + """ days: Total - """ + str(table3.shape[0]) + """</font></h4></b>"""
+                f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
+                    table2=user_html.to_html(classes='mystyle', table_id="usertable", justify='justify-all',index=False), \
+                        table3=heading + table3.to_html(classes='mystyle', table_id="repotable", index=False) + "</div></div></br>"))
+            else:
+                f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
+                    table2=user_html.to_html(classes='mystyle', table_id="usertable", justify="justify-all",index=False), table3=""))
+        webbrowser.open('file://' + os.path.join(TEMP_DIR,'output','result.html'), new=0)
         print('Results: file://' + os.path.join(TEMP_DIR,'output','result.html'))
-    
+
 
 def create_dir(directory, delete):
     """
@@ -922,14 +1177,14 @@ def create_dir(directory, delete):
         print(colored(e, "red"))
         sys.exit(-1)
 
-    
+
 def main():
     """
     Runs the perfecto actions and reports
     """
     try:
         start_time = time.time()
-        freeze_support() 
+        freeze_support()
         init()
     #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
         if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
@@ -954,6 +1209,14 @@ def main():
             metavar="device_list_parameters",
             type=str,
             help="Perfecto get device list API parameters to limit device list. Support all API capabilities which selects devices based on reg ex/strings,  Leave it empty to select all devices",
+            nargs="?"
+        )
+        parser.add_argument(
+            "-u",
+            "--user_list_parameters",
+            metavar="user_list_parameters",
+            type=str,
+            help="Perfecto get user list API parameters to limit user list. Support all API capabilities which selects users based on applicable parameters,  Leave it empty to select all users",
             nargs="?"
         )
         parser.add_argument(
@@ -988,6 +1251,14 @@ def main():
             help="output in html. Values: true/false. Default is true",
             nargs="?"
         )
+        parser.add_argument(
+            "-l",
+            "--logo",
+            type=str,
+            metavar="shows customer logo",
+            help="shows client logo if valid official client website url is specified in this sample format: www.perfecto.io",
+            nargs="?"
+        )
         args = vars(parser.parse_args())
         if not args["cloud_name"]:
             parser.print_help()
@@ -1004,10 +1275,25 @@ def main():
         else:
             device_list_parameters = "All devices"
         os.environ['DEVICE_LIST_PARAMETERS'] = device_list_parameters
+        if args["user_list_parameters"]:
+                user_list_parameters = args["user_list_parameters"]
+        else:
+            user_list_parameters = ""
+        os.environ['USER_LIST_PARAMETERS'] = user_list_parameters
+        os.environ['perfecto_logo'] = "https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg"
+        if args["logo"]:
+            if str("www.").lower() not in str(args["logo"]).lower():
+                raise Exception("Kindly provide valid client website url. Sample format: www.perfecto.io")
+            new_logo = "https://logo.clearbit.com/" + args["logo"]
+            validate_logo(new_logo)
+            os.environ['company_logo'] = new_logo
+        else:
+            os.environ['company_logo'] = os.environ['perfecto_logo']
         os.environ['GET_NETWORK_SETTINGS'] = "False"
         reboot = "False"
         cleanup = "False"
         start_execution = "False"
+        clean_repo = "NA"
         if args["actions"]:
             if "get_network_settings:true" in args["actions"]:
                 os.environ['GET_NETWORK_SETTINGS'] = "True"
@@ -1015,7 +1301,20 @@ def main():
                 reboot = "True"
             if "cleanup:true" in args["actions"]:
                 cleanup = "True"
-        os.environ["CLEANUP"] = cleanup 
+            if "clean_repo" in args["actions"]:
+                clean_repo = args["actions"]
+            else:
+                os.environ["clean_repo"] = "NA"
+        os.environ["clean_repo"] = clean_repo
+        # manage repo:
+        clean_repo = os.environ["clean_repo"]
+        if 'NA' != clean_repo:
+            try:
+                clean_repo_var = clean_repo.split("|")
+                repo_html = manage_repository.deleteOlderFiles(REPOSITORY_RESOURCE_TYPE, clean_repo_var[1], clean_repo_var[2], clean_repo_var[3], clean_repo_var[4])
+            except Exception:
+                raise Exception("Verify parameters of clean_repo, split them by | seperator")
+        os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
         if "True" in os.environ['GET_NETWORK_SETTINGS'] or "True" in reboot or "True" in cleanup:
             start_execution = "True"
@@ -1023,16 +1322,33 @@ def main():
         os.environ["PREPARE_ACTIONS_HTML"] = "true"
         if args["output"]:
             if "false" in str(args["output"]).lower():
-                os.environ["PREPARE_ACTIONS_HTML"] = "false" 
+                os.environ["PREPARE_ACTIONS_HTML"] = "false"
         os.environ["perfecto_actions_refresh"] = "false"
         if args["refresh"]:
             if int(args["refresh"]) >= 0:
                 os.environ["perfecto_actions_refresh"] = args["refresh"]
         #create results path and files
         create_dir(os.path.join(TEMP_DIR , 'results'), True)
+        create_dir(os.path.join(TEMP_DIR , 'repo_results'), True)
         create_dir(os.path.join(TEMP_DIR , 'output'), True)
-        get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
+        #get device list to excel
+        devlist = Pool(processes=1)            
+        try:
+            result = devlist.apply_async(get_xml_to_xlsx, [RESOURCE_TYPE, "list", 'get_devices_list.xlsx'])
+        except Exception:
+             devlist.close()
+             print(traceback.format_exc())
+             sys.exit(-1)
+        # user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
+        userlist = Pool(processes=1)     
+        try:
+            user_html = userlist.apply_async(get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx']).get()
+        except Exception:
+             userlist.close()
+             print(traceback.format_exc())
+             sys.exit(-1)
         if args["device_status"]:
+#             may require for debug single threads
 #             get_list("list;connected;false;green;Available")
 #             get_list("list;connected;true;red;Busy")
 #             get_list("list;disconnected;;red;Disconnected")
@@ -1057,12 +1373,13 @@ def main():
             if not args["device_list_parameters"]:
                 os.environ['DEVICE_LIST_PARAMETERS'] = "Available Devices only"
             get_list("list;connected;false;green;Available")
-            
-        prepare_html()
+        if 'NA' != clean_repo:
+            prepare_html(user_html, repo_html)
+        else:
+            prepare_html(user_html, "")
         print("--- Completed in : %s seconds ---" % (time.time() - start_time))
-        #Keeps refreshing page with expected arguments with a sleep of provided seconds   
+        #Keeps refreshing page with expected arguments with a sleep of provided seconds
         while "false" not in os.environ["perfecto_actions_refresh"]:
-            print(str(int(os.environ["perfecto_actions_refresh"])))
             time.sleep(int(os.environ["perfecto_actions_refresh"]))
             main()
     except Exception as e:

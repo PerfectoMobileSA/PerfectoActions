@@ -2,7 +2,7 @@
 
 Official documentation: https://developers.perfectomobile.com/pages/viewpage.action?pageId=50922763
 
-  PerfectoActions can execute device operations like clean up, reboot and get network settings in parallel across all/ specific perfecto devices and showcase their results in a fully responsive, accessibility friendly, html report which has direct access to open an available device, search for devices in the displayed html table, show case direct API results for clean & restart commands, raise a perfecto support ticket, open your perfecto cloud, navigate to perfecto documentation, full devices list information in excel format and showcases device status, model, OS versions & SIM operator graphs.
+  PerfectoActions can execute device operations like clean up, reboot and get network settings in parallel across all/ specific perfecto devices and showcase their results in a fully responsive, accessibility friendly, html report which has direct access to open an available device, showcases complete device status summary, accurate expandable graphs with click to full screen view, option to download full Get Devices List API response to excel, search for devices in the displayed html table, show case direct API results for clean & restart commands, raise a perfecto support ticket, open your perfecto cloud, navigate to perfecto documentation, full devices list information in excel format and showcases device status, model, OS versions & SIM operator graphs.
 
 ## Recommended system configuration:
     
@@ -34,33 +34,25 @@ Official documentation: https://developers.perfectomobile.com/pages/viewpage.act
       -c cloud_name, --cloud_name cloud_name
                             Perfecto cloud name. (E.g. demo)
       -s security_token, --security_token security_token
-                            Perfecto Security Token/ Pass your Perfecto's username/email
-                            and password in user:password format
+                            Perfecto Security Token/ Pass your Perfecto's username/email and password in user:password format
       -d [device_list_parameters], --device_list_parameters [device_list_parameters]
-                            Perfecto get device list API parameters to limit
-                            device list. Support all API capabilities which
-                            selects devices based on reg ex/strings, Leave it
-                            empty to select all devices
+                            Perfecto get device list API parameters to limit device list. Support all API capabilities which selects devices based on reg ex/strings, Leave it empty to select all devices
       -t [Different types of Device Connection status], --device_status [Different types of Device Connection status]
-                            Different types of Device Connection status. Values:
-                            all. This will showcase all the device status like
-                            Available, Disconnected, un-available & Busy. Note:
-                            Only Available devices will be shown by default
+                            Different types of Device Connection status. Values: all. This will showcase all the device status like Available, Disconnected, un-available & Busy. Note: Only Available devices will be shown by default
       -a [actions], --actions [actions]
-                            Perfecto actions seperated by semi-colon. E.g.
-                            reboot:true;cleanup:true;get_network_settings:true
+                            Perfecto actions seperated by semi-colon. E.g. reboot:true;cleanup:true;get_network_settings:true
       -r [refresh], --refresh [refresh]
-                            Refreshes the page with latest device status as per
-                            provided interval in seconds
+                            Refreshes the page with latest device status as per provided interval in seconds
       -o [output in html], --output [output in html]
                             output in html. Values: true/false. Default is true
+      -l [shows customer logo ], --logo [shows client logo if valid official client website url is specified] shows client logo if valid official                         client website url is specified in this sample format: www.perfecto.io
                         
                         
 ## Examples:
 
-1. List all available devices: <br />
+1. List all available devices with custom logo ( Syntax: -l "www.<official customer website>): <br />
  
-    `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>"`
+    `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -l "www.perfecto.io"`
     
 
 2. List all available devices using perfecto username and password: <br />
@@ -95,7 +87,16 @@ Official documentation: https://developers.perfectomobile.com/pages/viewpage.act
  
     `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -o false`
     
+9. Syntax to auto display older repository items based on provided admin privilege, media location and number of days to select items older than the provided date : -a "clean_repo|false|{true|false}|{media location with comma seperator}|{# of days}" The example will display repository media items older than 15 days
 
+    `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -a "clean_repo|false|true|PUBLIC:Genesis/Temp/,PRIVATE:Python,GROUP:Genesis|15"`
+
+10. Syntax to auto delete older repository items based on provided admin privilege, media location and number of days to select items older than the provided date : -a "clean_repo|false|{media location with comma seperator}|{# of days}" The example will automatically delete and display repository media items older than 15 days
+
+    `perfectoactions -c "<<CLOUD NAME>>" -s "<<SECURITY TOKEN>>" -a "clean_repo|true|true|PUBLIC:Genesis/Temp/,PRIVATE:Python,GROUP:Genesis|15"`
+    
+    
+    Reach out to support to enable a configuration to enable ability to delete media repository files for users within group folder (not in public media)
 Notes: </br>
 	We recommend that you assign a unique description or dynamicField for devices that are applicable for reboot and utilize the -d parameter for reboot. See the Limit the selection of the devices example.</br>
 	PerfectoActions is subject to the same restrictions and limitations as the Reboot device API, with regard to locked phones and limitations to reboot devices by certain manufacturers. For details, see Devices Restart Limitation.  </br>
