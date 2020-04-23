@@ -8,7 +8,7 @@ from termcolor import colored
 import shutil
 import pandas
 import webbrowser
-import matplotlib
+import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import io
 import base64
@@ -29,10 +29,10 @@ import xml.etree.ElementTree as ETree
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
 from pandas.plotting import table
-import manage_repository
 import sys
 import numpy as np
 from openpyxl.reader.excel import load_workbook
+import uuid
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
@@ -137,6 +137,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
     df = pandas.DataFrame(data["users"])
     if len(df.index) < 1:
         raise Exception("There are no users who match the expected conditions " + os.environ["USER_LIST_PARAMETERS"])
+        sys.exit(-1)    
     df.drop(['username', 'authentication', 'gender','phoneNumberExt','location','stateCode','state'], axis=1, inplace=True, errors='ignore')
     df = user_condition(df)
     df.to_excel(filename, index=False)
@@ -195,6 +196,7 @@ def get_url(resource, resource_id, operation):
     else:
         if ":" not in token:
             raise Exception("Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!" )
+            sys.exit(-1)
         else:
             user = token.split(":")[0]
             pwd = token.split(":")[1]
@@ -254,11 +256,11 @@ def get_xml_to_xlsx(resource, command, filename):
 def get_json_to_xlsx(resource, command, filename):
     """get_json_to_xlsx"""
     url = get_url(resource, "", command)
-    if  len(os.environ["USER_LIST_PARAMETERS"].split(":")) >= 2:
-        for item in os.environ["USER_LIST_PARAMETERS"].split(";"):
-            if ":" in item:
-                url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
-    print(url.replace(" ", "%20"))
+    if "All users" not in os.environ["USER_LIST_PARAMETERS"]:
+        if  len(os.environ["USER_LIST_PARAMETERS"].split(":")) >= 2:
+            for item in os.environ["USER_LIST_PARAMETERS"].split(";"):
+                if ":" in item:
+                    url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
     return send_jsonrequest_to_xlsx(url.replace(" ", "%20"), filename)
 
 def get_device_ids(xmldoc):
@@ -483,14 +485,14 @@ def prepare_graph(df, column):
         fig.patch.set_alpha(1)
         ax = df[column].value_counts().sort_index().plot(kind='bar', fontsize = 12, stacked=True, figsize=(25,10), ylim=(0,2))
         ax.set_title(column, fontsize=20)
-        ax.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
         ax.patch.set_facecolor('green')
         ax.patch.set_alpha(0.1)
         pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
         encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', column +'.png'))
         return '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
 
-def prepare_html(user_html, table3):
+def prepare_html(user_html, table3, day):
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
     #copies all device status to final summary
@@ -607,6 +609,9 @@ def prepare_html(user_html, table3):
     		     <head><title>''' + cloudname.upper() + ''' Cloud Status</title>
           <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
             <script>
+              $(document).ready(function(){{
+                document.getElementById("tabbed-device").click();
+            }});
             $(document).ready(function(){{
                 // Add smooth scrolling to all links
                 $("a").on('click', function(event) {{
@@ -637,7 +642,6 @@ def prepare_html(user_html, table3):
                 $("#devicetable tbody tr").filter(function() {{
                   $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
                 }});
-                document.getElementById('devicetable').scrollIntoView();
               }});
             }});
                       $(document).ready(function(){{
@@ -646,7 +650,6 @@ def prepare_html(user_html, table3):
                 $("#usertable tbody tr").filter(function() {{
                   $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
                 }});
-                document.getElementById('usertable').scrollIntoView();
               }});
             }});
             $(document).ready(function(){{
@@ -655,7 +658,6 @@ def prepare_html(user_html, table3):
                 $("#repotable tbody tr").filter(function() {{
                   $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
                 }});
-                document.getElementById('repotable').scrollIntoView();
               }});
             }});
             </script>
@@ -717,7 +719,10 @@ def prepare_html(user_html, table3):
 						   w.document.write(image.outerHTML);
 						 }}, 0);
 				     }}
-                     
+                function autoselect(element) {{
+                     var data = element.getAttribute("id");
+                     document.getElementById(data + "-1").checked = true;
+                }}     
     		</script>
 
     		<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -811,14 +816,8 @@ def prepare_html(user_html, table3):
             }}
 
             #slide{{
-              transition:transform 0.25s ease;
               width:100%;
               height:auto;
-            }}
-
-            #slide:hover {{
-                -webkit-transform:scale(1.1);
-                transform:scale(1.1);
             }}
 
             #myInput, #myInput2, #myInput3 {{
@@ -832,17 +831,6 @@ def prepare_html(user_html, table3):
               font-size: 12px;
               padding: 11px 20px 12px 40px;
               box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-              transition:transform 0.25s ease;
-            }}
-
-            #myInput:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
-            }}
-            
-            #myInput2:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
             }}
 
             body {{
@@ -920,8 +908,8 @@ def prepare_html(user_html, table3):
 
             .topnav {{
               overflow: hidden;
-              background-color: #333;
-              opacity: 0.7;
+              background-color: black;
+              opacity: 0.9;
             }}
 
             .topnav a {{
@@ -933,22 +921,25 @@ def prepare_html(user_html, table3):
               text-decoration: none;
               font-size: 12px;
               position: relative;
-              border-left: 1px solid #6c3;
-              border-right: 1px solid #6c3;
-              transition:transform 0.25s ease;
-            }}
-
-            .topnav a:hover {{
-                -webkit-transform:scale(1.15);
-                transform:scale(1.15);
+              border: 1px solid #6c3;
+              font-family: "Trebuchet MS", Helvetica, sans-serif;
             }}
 
             #summary{{
              box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
              position: relative;
-             width:40%;
+             width:50%;
              cursor: pointer;
              padding: .1%;
+             border-style: outset;
+             border-radius: 1px;
+             border-width: 1px;
+            }}
+            
+            #logo{{
+             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+             position: relative;
+             cursor: pointer;
              border-style: outset;
              border-radius: 1px;
              border-width: 1px;
@@ -1055,15 +1046,15 @@ def prepare_html(user_html, table3):
                 
                 <div class="container">
                     <div class="tabbed">
-                        <input type="radio" id="tabbed-tab-1-1" name="tabbed-tab-1" checked><label for="tabbed-tab-1-1">Users</label>
+                        <input type="radio" id="tabbed-tab-1-1" onClick='autoselect(this)' name="tabbed-tab-1" checked><label for="tabbed-tab-1-1">Users</label>
                         <div>
                             <div class="tabbed">
                                 <input type="radio" id="tabbed-tab-1-1-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-1-1">List</label>
                                 <div align="center">
                                 
                                 <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
-                                <img src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
-                                ''' + create_summary(user_html,title, "status", "user_summary") + ''' alt='user_summary' id='summary' onClick='zoom(this)'></img></br>
+                                <img id="logo" src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
+                                ''' + create_summary(user_html,"Users list Status", "status", "user_summary") + ''' alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p>
                                 <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
                                 <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
                                 </br> </br>
@@ -1072,26 +1063,17 @@ def prepare_html(user_html, table3):
                                 </div>
                                 
                                 </div>
-                    
-                                <input type="radio" id="tabbed-tab-1-1-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-1-2">Usage</label>
-                                <div align="center">
-                                
-                                    usage
-                                         
-                                </div>
                              </div>
                         </div>
-                    <input type="radio" id="tabbed-tab-1-2" name="tabbed-tab-1" checked><label for="tabbed-tab-1-2">Device</label>
+                    <input type="radio" id="tabbed-tab-1-2" onClick='autoselect(this)' name="tabbed-tab-1" checked><label id="tabbed-device" for="tabbed-tab-1-2">Device</label>
                     <div>
                         <div class="tabbed">
                             <input type="radio" id="tabbed-tab-1-2-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-2-1">List</label>
                             <div  align="center">
                             
-                              
-                                    
                                 <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
-                                <img src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
-                                ''' + summary + ''' alt='summary' id='summary' onClick='zoom(this)'></img> </br>
+                                <img id="logo" src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
+                                ''' + summary + ''' alt='summary' id='summary' onClick='zoom(this)'></img> </br></p>
                                 <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                     <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>
                                     </br> </br>
@@ -1147,20 +1129,211 @@ def prepare_html(user_html, table3):
         clean_repo = os.environ["clean_repo"]
         with open(os.path.join(TEMP_DIR,'output','result.html'), 'w') as f:
             if 'NA' != clean_repo:
-                heading = """<input type="radio" id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
-                            <div  align="center">
+                heading = """<input type="radio" onClick='autoselect(this)' id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
+                            <div>
+                            <div class="tabbed">
+                                <input type="radio" id="tabbed-tab-1-3-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-3-1">List</label>
+                                <div align="center">
+                            <b><h4><p style="color:white">""" + cloudname.upper() + """ Media Repository Cleanup Status for files older than """ + \
+                            str(day) + """ days: Total - """ + str(table3.shape[0]) + """</p></font></h4>
                              <input id="myInput3" aria-label="search" type="text" placeholder="Search.."></br> </br>
-                            <div style="overflow-x:auto;"><b><h4>""" + cloudname.upper() + """ Media Repository Cleanup Status for files older than """ + \
-                            str(clean_repo.split("|")[4]) + """ days: Total - """ + str(table3.shape[0]) + """</font></h4></b>"""
+                            <div style="overflow-x:auto;"></b>"""
                 f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
                     table2=user_html.to_html(classes='mystyle', table_id="usertable", justify='justify-all',index=False), \
-                        table3=heading + table3.to_html(classes='mystyle', table_id="repotable", index=False) + "</div></div></br>"))
+                        table3=heading + table3.to_html(classes='mystyle', table_id="repotable", index=False) + "</div></div></div></div></br>"))
             else:
                 f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
                     table2=user_html.to_html(classes='mystyle', table_id="usertable", justify="justify-all",index=False), table3=""))
         webbrowser.open('file://' + os.path.join(TEMP_DIR,'output','result.html'), new=0)
         print('Results: file://' + os.path.join(TEMP_DIR,'output','result.html'))
 
+
+
+def send_request_repo(url, content):
+    try:
+        response = urllib.request.urlopen(url.replace(" ", "%20"))
+    except Exception as e:
+        return e
+    sys.stdout.flush()
+    return response
+
+def send_request_for_repository(url, content, key):
+    response = send_request_repo(url, content)
+    
+    if("500" in str(response)):
+        print(url)
+        raise RuntimeError("Failed to list repository items - Repository item: " + key + "  was not found in media repository, url:" + str(url))
+        sys.exit(-1)
+    text = response.read().decode("utf-8")
+    map = json.loads(text)
+    return map
+
+def getActualDate(map):
+   #date is fetched here
+   try:
+       date = map['item']['creationTime']['formatted']
+   except KeyError:
+       return "";
+   dateOnly = date.split("T")
+   return datetime.datetime.strptime(dateOnly[0], "%Y-%m-%d")
+
+def getPastDate(days):
+   #Logic for fetching past days based on user preference
+   today = datetime.datetime.today()
+   pastDate = timedelta(days=int(days))
+   return today - pastDate
+
+def sendAPI(resource_type, resource_key, operation):
+    url = get_url(str(resource_type), resource_key, operation)
+    admin = os.environ['repo_admin']
+    if "true" in admin.lower():
+        url += "&admin=" + "true"
+    return send_request_for_repository(url, "", resource_key)
+
+def fetch_details_repo(i, exp_number, result, exp_list):
+    """ fetches details"""
+    if i == exp_number:
+         if ":" in result:
+             exp_list = exp_list.append(result.split(":", 1)[1].replace("'","").strip())
+         else:
+             exp_list = exp_list.append('-')
+    return exp_list
+
+def run_commands(value):
+    # Get date of repository items
+    FINAL_LIST = []
+    DAYS = os.environ['repo_days']
+    DELETE = os.environ['repo_delete']
+    map = sendAPI(os.environ['repo_resource_type'], value, "info")
+    actualDate = getActualDate(map)
+    if not (str(actualDate) == ""):
+             expectedDate = getPastDate(DAYS)
+             expDate = str.split(str(expectedDate), " ")
+             actDate = str(str.split(str(actualDate), " ")[0])
+             #DELETES the item if older than expected date
+             if(actualDate < expectedDate) :
+                 print(colored("File: " + value + " with actual creation date: " + actDate + " was created before " + str(DAYS) + " days.", "red"))
+                  # DELETE item from the repository
+                 if(DELETE.lower() == "true") :
+                     map = sendAPI(os.environ['repo_resource_type'], value, "delete")
+                     status = map['status']
+                     if (status != "Success") :
+                          FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:Unable to delete!;')
+                          raise RuntimeError("Repository item " + value + " was not deleted")
+                          sys.exit(-1)
+                     else:
+                          FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:Yes;')
+                 else:
+                      FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:No;')
+             else:
+                  print(colored("File: " + value + " with actual creation date: " + actDate + " was created within the last " + str(DAYS) + " days.", "green"))
+#                   FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is younger than;Days:' + DAYS + ';Deleted?:No;')
+    fileName = uuid.uuid4().hex + '.txt'
+    file = os.path.join(TEMP_DIR, 'repo_results', fileName)
+    f= open(file,"w+")
+    f.write(str(FINAL_LIST))
+    f.close()
+
+def manage_repo(resource_key):
+    # Get list of repository items
+    map = sendAPI(os.environ['repo_resource_type'], resource_key, "list")
+    try:
+        itemList = map['items']
+        sys.stdout.flush()
+    except:
+        raise RuntimeError("There are no List of repository items inside the folder: " + resource_key)
+        sys.exit(-1)
+    #debug
+#     for value in itemList:
+#         run_commands(value)
+    pool_size = multiprocessing.cpu_count() * 2
+    repo_folder_pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
+    try:
+         FINAL_LIST = repo_folder_pool.map(run_commands, itemList)
+         repo_folder_pool.close()
+         repo_folder_pool.terminate()
+    except Exception:
+        repo_folder_pool.close()
+        repo_folder_pool.terminate()
+        print(traceback.format_exc())  
+        sys.exit(-1)
+    
+def deleteOlderFiles(resource_type, delete, admin, repo_paths, days ):
+    os.environ['repo_delete'] = delete
+    os.environ['repo_days'] = days
+    os.environ['repo_resource_type'] = resource_type
+    os.environ['repo_admin'] = admin
+    create_dir(os.path.join(TEMP_DIR , 'repo_results'), True)
+    I=0
+    REPO_LIST = repo_paths.split(",")
+    #debug:
+#     for repo in REPO_LIST:
+#         manage_repo(repo)
+    procs = []
+    for li in REPO_LIST:
+           proc = Process(target=manage_repo, args=(str(li),))
+           procs.append(proc)
+           proc.start()
+    try:
+       for proc in procs:
+           proc.join()
+       for proc in procs:
+           proc.terminate()
+    except Exception:
+       proc.terminate()
+       print(traceback.format_exc())
+       sys.exit(-1)
+
+    for r, d, f in os.walk(os.path.join(TEMP_DIR , 'repo_results')):
+        for file in f:
+            if ".txt" in file:
+                with open(os.path.join(r, file)) as f:
+                    with open(os.path.join(r, "Final_Repo.txt"), "a") as f1:
+                        for line in f:
+                            f1.write(line)
+                            f1.write("\n")
+    file = os.path.join(TEMP_DIR, 'repo_results', 'Final_Repo.txt')
+    try:
+        f= open(file,"r")
+    except FileNotFoundError:
+        raise Exception( 'No repository items found')
+        sys.exit(-1)
+    result = f.read()
+    f.close()
+    FINAL_LIST = result.split("\n")
+    
+    file = []
+    created = []
+    comparison = []
+    days = []
+    deleted = []
+    final_dict = {}
+    for lists in FINAL_LIST:
+        if lists is not None:
+            if len(lists) > 0:
+                new_result = str(lists).split(";")
+                i = 0
+                for result in new_result:
+                    if "Deleted?:" in result:
+                        fetch_details_repo(i, new_result.index(result, i), str(result).replace("]",''), deleted)
+                    if "File:" in result:
+                        fetch_details_repo(i, new_result.index(result, i), result, file)
+                    if "Created on:" in result:
+                        fetch_details_repo(i, new_result.index(result, i), result, created)
+                    if "Comparison:" in result:
+                        fetch_details_repo(i, new_result.index(result, i), result, comparison)
+                    if "Days:" in result:
+                        fetch_details_repo(i, new_result.index(result, i), result, days)
+                    i = i + 1
+    pandas.set_option('display.max_columns', None)
+    pandas.set_option('display.max_colwidth', 100)
+    pandas.set_option('colheader_justify', 'center')
+    final_dict =  {'File': file, 'Created On': created, 'Comparison': comparison, 'Days': days, 'Deleted?': deleted}
+    df = pandas.DataFrame(final_dict)
+    df = df.sort_values(by ='File')
+    df.style.set_properties(**{'text-align': 'left'})
+    sys.stdout.flush()
+    return df
 
 def create_dir(directory, delete):
     """
@@ -1275,16 +1448,15 @@ def main():
         else:
             device_list_parameters = "All devices"
         os.environ['DEVICE_LIST_PARAMETERS'] = device_list_parameters
+        os.environ["USER_LIST_PARAMETERS"] = "All users"
         if args["user_list_parameters"]:
-                user_list_parameters = args["user_list_parameters"]
-        else:
-            user_list_parameters = ""
-        os.environ['USER_LIST_PARAMETERS'] = user_list_parameters
-        os.environ['perfecto_logo'] = "https://www.perfecto.io/sites/perfecto.io/themes/custom/perfecto/logo.svg"
+                os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
+        os.environ['perfecto_logo'] = "https://logo.clearbit.com/www.perfecto.io?size=120"
         if args["logo"]:
             if str("www.").lower() not in str(args["logo"]).lower():
                 raise Exception("Kindly provide valid client website url. Sample format: www.perfecto.io")
-            new_logo = "https://logo.clearbit.com/" + args["logo"]
+                sys.exit(-1)
+            new_logo = "https://logo.clearbit.com/" + args["logo"] + "?size=120"
             validate_logo(new_logo)
             os.environ['company_logo'] = new_logo
         else:
@@ -1311,9 +1483,14 @@ def main():
         if 'NA' != clean_repo:
             try:
                 clean_repo_var = clean_repo.split("|")
-                repo_html = manage_repository.deleteOlderFiles(REPOSITORY_RESOURCE_TYPE, clean_repo_var[1], clean_repo_var[2], clean_repo_var[3], clean_repo_var[4])
-            except Exception:
-                raise Exception("Verify parameters of clean_repo, split them by | seperator")
+                if ";" in str(clean_repo_var[4]):
+                    day = str(clean_repo_var[4]).split(";")[0]
+                else:
+                    day = str(clean_repo_var[4])
+                repo_html = deleteOlderFiles(REPOSITORY_RESOURCE_TYPE, clean_repo_var[1], clean_repo_var[2], clean_repo_var[3], day)
+            except Exception as e:
+                raise Exception("Verify parameters of clean_repo, split them by | seperator" + str(e))
+                sys.exit(-1)
         os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
         if "True" in os.environ['GET_NETWORK_SETTINGS'] or "True" in reboot or "True" in cleanup:
@@ -1331,6 +1508,7 @@ def main():
         create_dir(os.path.join(TEMP_DIR , 'results'), True)
         create_dir(os.path.join(TEMP_DIR , 'repo_results'), True)
         create_dir(os.path.join(TEMP_DIR , 'output'), True)
+        # result = get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
         #get device list to excel
         devlist = Pool(processes=1)            
         try:
@@ -1343,6 +1521,8 @@ def main():
         userlist = Pool(processes=1)     
         try:
             user_html = userlist.apply_async(get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx']).get()
+            userlist.close()
+            userlist.terminate()
         except Exception:
              userlist.close()
              print(traceback.format_exc())
@@ -1374,17 +1554,26 @@ def main():
                 os.environ['DEVICE_LIST_PARAMETERS'] = "Available Devices only"
             get_list("list;connected;false;green;Available")
         if 'NA' != clean_repo:
-            prepare_html(user_html, repo_html)
+            prepare_html(user_html, repo_html, day)
         else:
-            prepare_html(user_html, "")
+            prepare_html(user_html, "", "")
         print("--- Completed in : %s seconds ---" % (time.time() - start_time))
         #Keeps refreshing page with expected arguments with a sleep of provided seconds
         while "false" not in os.environ["perfecto_actions_refresh"]:
             time.sleep(int(os.environ["perfecto_actions_refresh"]))
             main()
+        devlist.close()
+        devlist.terminate()
+
+        try:
+            if not platform.system() == 'Darwin':
+                os.system('taskkill /f /im perfectoactions.exe')
+        except:
+            pass
     except Exception as e:
         raise Exception("Oops!" , e )
         sys.exit(-1)
 
 if __name__ == '__main__':
     main()
+    sys.exit()
