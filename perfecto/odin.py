@@ -134,7 +134,7 @@ def getDeviceDetails(device, deviceFailCount):
     i = 0
     df = pandas.DataFrame(resources)
     df = pandas.DataFrame([flatten_json(x) for x in resources])
-    df.to_csv("ori.csv", index=False)
+
     import tzlocal
 
     df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
@@ -147,15 +147,28 @@ def getDeviceDetails(device, deviceFailCount):
     df["endTime"] = (
         df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
     )
+    df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
 
-    df["Duration"] = (pandas.to_datetime(df["endTime"]) - pandas.to_datetime(df["startTime"]))
- 
+    df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
+        df["startTime"]
+    )
+    df = df[df['Duration']> pandas.Timedelta(0)]
+
     custom_columns = [
+        "name",
+        "owner",
+        "startTime",
+        "endTime",
+        "Duration",
+        "status",
         "job/name",
         "job/number",
+        "job/branch",
+        "reportURL",
+        "failureReasonName",
+        "platforms/0/os",
         "platforms/0/deviceId",
         "platforms/0/deviceType",
-        "platforms/0/os",
         "platforms/0/mobileInfo/manufacturer",
         "platforms/0/mobileInfo/model",
         "platforms/0/osVersion",
@@ -163,13 +176,7 @@ def getDeviceDetails(device, deviceFailCount):
         "platforms/0/browserInfo/browserVersion",
         "id",
         "externalId",
-        "name",
-        "owner",
-        "startTime",
-        "endTime",
-        "Duration",
         "uxDuration",
-        "status",
         "platforms/0/screenResolution",
         "platforms/0/location",
         "platforms/0/mobileInfo/imei",
@@ -197,7 +204,6 @@ def getDeviceDetails(device, deviceFailCount):
         "tags/5",
         "tags/6",
         "executionEngine/version",
-        "reportURL",
         "project/name",
         "project/version",
         "automationFramework",
@@ -257,7 +263,6 @@ def getDeviceDetails(device, deviceFailCount):
         "artifacts/2/path",
         "artifacts/2/zipped",
         "message",
-        "failureReasonName",
         "tags/8",
         "tags/9",
         "artifacts/0/contentType",
@@ -286,7 +291,6 @@ def getDeviceDetails(device, deviceFailCount):
         "videos/1/downloadUrl",
         "videos/1/screen/width",
         "videos/1/screen/height",
-        "job/branch",
         "tags/12",
         "tags/13",
         "tags/14",
