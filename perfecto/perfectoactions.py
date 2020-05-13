@@ -280,6 +280,7 @@ def exec_command(exec_id, device_id, cmd, subcmd):
     url += "&subcommand=" + subcmd
     url += "&param.deviceId=" + device_id
     response = send_request2(url)
+    print(str(url))
     status = getregex_output(response, r'(description\"\:\".*\",\"timer.system|returnValue\"\:\".*\",\"test)', ":\".*$")
     return str(status)
 
@@ -336,7 +337,10 @@ def perform_actions(deviceid_color):
                 if "True" in cleanup:
                     if not "iOS" in osDevice:
                         print("cleaning up: " + model + ", device id: " + device_id)
-                        status += "clean:" + exec_command(EXEC_ID, device_id, "device", "clean")
+                        try:
+                            status += "clean:" + str(exec_command(EXEC_ID, device_id, "device", "clean")).replace(","," ")
+                        except:
+                            status += "clean:Failed!"
                         status += ";"
                     else:
                         status +="clean:NA;"
@@ -344,15 +348,26 @@ def perform_actions(deviceid_color):
                 if "True" in reboot:
                     if all(['Huawei' not in manufacturer, 'Xiaomi' not in manufacturer, 'Oppo' not in manufacturer, 'Motorola' not in manufacturer, 'OnePlus' not in manufacturer]):
                         print("rebooting: " + model+ ", device id: " + device_id)
-                        status += "reboot:" + exec_command(EXEC_ID, device_id, "device", "reboot")
+                        try:
+                            status += "reboot:" + str(exec_command(EXEC_ID, device_id, "device", "reboot")).replace(","," ")
+                        except:
+                            status += "reboot:Failed!"
                         status += ";"
                     else:
                         print(model+ " not applicable for rebooting")
                         status += 'reboot:NA;'
                 if "True" in get_network_settings:
                     print("getting network status of : " + model + ", device id: " + device_id)
-                    networkstatus = exec_command(EXEC_ID, device_id, "network.settings", "get").replace("{","").replace("}","")
-                    status += "NW:OK"
+                    networkstatus = "airplanemode=Failed, wifi=Failed, data=Failed"
+                    try:
+                        tempstatus = str(exec_command(EXEC_ID, device_id, "network.settings", "get")).replace("{","").replace("}","")
+                        if(tempstatus.count(',') == 2):
+                            networkstatus = tempstatus
+                            status += "NW:OK"
+                        else:
+                            status += "NW:Failed!"
+                    except:
+                        status += "NW:Failed!"
                     status += ";"
                 #Close device
                 print("closing: " + model + ", device id: " + device_id)

@@ -79,6 +79,31 @@ def send_request_with_json_response(url):
     map = json.loads(text)
     return map
 
+def flatten_json(nested_json, exclude=['']):
+    """Flatten json object with nested keys into a single level.
+        Args:
+            nested_json: A nested json object.
+            exclude: Keys to exclude from output.
+        Returns:
+            The flattened json object if successful, None otherwise.
+    """
+    out = {}
+
+    def flatten(x, name='', exclude=exclude):
+        if type(x) is dict:
+            for a in x:
+                if a not in exclude: flatten(x[a], name + a + '/')
+        elif type(x) is list:
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + '/')
+                i += 1
+        else:
+            out[name[:-1]] = x
+
+    flatten(nested_json)
+    return out
+
 """
    gets the top failed device pass count, handset errors and device/ desktop details
 """
@@ -86,14 +111,26 @@ def getDeviceDetails(device, deviceFailCount):
     devicePassCount = 0
     errorsCount = 0
     i=0
-    df = pandas.DataFrame(str(resources))
-    df = pandas.concat([pandas.Series(json.loads(resources)) for line in resources], axis=1)
-    df.to_csv("temp.csv")
-    # jobcol = df.job.apply(lambda x:pandas.Series(x))
-    # jobcol.columns = ['{}.{}'.format('job',i) for i in jobcol]
-    # col = df.columns.difference(['job'])
-    # final = pandas.concat([df[col],jobcol],axis=1)
-    # final.to_csv("temp.csv")
+    df = pandas.DataFrame(resources)
+    df = pandas.DataFrame([flatten_json(x) for x in resources])
+    
+    import tzlocal
+    df['startTime'] = pandas.to_datetime(df['startTime'].astype(int), unit='ms')
+    df['startTime'] = df['startTime'].dt.tz_localize('utc').dt.tz_convert(tzlocal.get_localzone())
+    df['startTime'] = df['startTime'].dt.strftime('%d/%m/%Y %H:%M:%S')
+
+    df['endTime'] = pandas.to_datetime(df['endTime'].astype(int), unit='ms')
+    df['endTime'] = df['endTime'].dt.tz_localize('utc').dt.tz_convert(tzlocal.get_localzone())
+    df['endTime'] = df['endTime'].dt.strftime('%d/%m/%Y %H:%M:%S')
+    
+    df['Duration'] = pandas.to_datetime(df['endTime']) - pandas.to_datetime(df['startTime'])
+    custom_columns = ['job/name','job/number','platforms/0/deviceId','platforms/0/deviceType','platforms/0/os','platforms/0/mobileInfo/manufacturer','platforms/0/mobileInfo/model','platforms/0/osVersion','platforms/0/browserInfo/browserType','platforms/0/browserInfo/browserVersion','id','externalId','name','owner','startTime','endTime','Duration','uxDuration','status','platforms/0/screenResolution','platforms/0/location','platforms/0/mobileInfo/imei','platforms/0/mobileInfo/phoneNumber','platforms/0/mobileInfo/distributor','platforms/0/mobileInfo/firmware','platforms/0/selectionCriteriaV2/0/name','platforms/0/selectionCriteriaV2/1/name','platforms/0/selectionCriteriaV2/2/name','platforms/0/selectionCriteriaV2/2/value','platforms/0/customFields/0/name','platforms/0/customFields/0/value','videos/0/startTime','videos/0/endTime','videos/0/format','videos/0/streamingUrl','videos/0/downloadUrl','videos/0/screen/width','videos/0/screen/height','tags/0','tags/1','tags/2','tags/3','tags/4','tags/5','tags/6','executionEngine/version','reportURL','project/name','project/version','automationFramework','parameters/0/name','parameters/0/value','parameters/1/name','parameters/1/value','parameters/2/name','parameters/2/value','parameters/3/name','parameters/3/value','parameters/4/name','parameters/4/value','parameters/5/name','parameters/5/value','parameters/6/name','parameters/6/value','parameters/7/name','parameters/7/value','parameters/8/name','parameters/9/name','parameters/9/value','parameters/10/name','parameters/10/value','parameters/11/name','parameters/11/value','parameters/12/name','parameters/12/value','platforms/0/mobileInfo/operator','platforms/0/mobileInfo/operatorCountry','tags/7','parameters/8/value','platforms/0/selectionCriteriaV2/3/name','platforms/0/selectionCriteriaV2/3/value','platforms/0/selectionCriteriaV2/4/name','platforms/0/selectionCriteriaV2/4/value','platforms/0/selectionCriteriaV2/5/name','platforms/0/selectionCriteriaV2/5/value','platforms/0/selectionCriteriaV2/6/name','platforms/0/selectionCriteriaV2/6/value','platforms/0/selectionCriteriaV2/7/name','platforms/0/selectionCriteriaV2/7/value','customFields/0/name','customFields/0/value','customFields/1/name','customFields/1/value','parameters/13/name','parameters/13/value','artifacts/0/type','artifacts/0/path','artifacts/0/zipped','artifacts/1/type','artifacts/1/path','artifacts/1/contentType','artifacts/1/zipped','artifacts/2/type','artifacts/2/path','artifacts/2/zipped','message','failureReasonName','tags/8','tags/9','artifacts/0/contentType','tags/10','tags/11','artifacts/2/contentType','platforms/1/deviceId','platforms/1/deviceType','platforms/1/os','platforms/1/osVersion','platforms/1/screenResolution','platforms/1/location','platforms/1/mobileInfo/imei','platforms/1/mobileInfo/manufacturer','platforms/1/mobileInfo/model','platforms/1/mobileInfo/distributor','platforms/1/mobileInfo/firmware','platforms/1/selectionCriteriaV2/0/name','platforms/1/selectionCriteriaV2/0/value','platforms/1/customFields/0/name','platforms/1/customFields/0/value','videos/1/startTime','videos/1/endTime','videos/1/format','videos/1/streamingUrl','videos/1/downloadUrl','videos/1/screen/width','videos/1/screen/height','job/branch','tags/12','tags/13','tags/14','tags/15','tags/16','platforms/1/mobileInfo/phoneNumber']
+    df = df[df.columns.intersection(custom_columns)]
+    df = df.reindex(columns=custom_columns)
+    df=df.dropna(axis=1,how='all')
+    df.to_csv("temp.csv", index=False)
+    with open("temp.html", 'a') as _file:
+      _file.write(df.head().to_html() + "\n\n" )
     for resource in resources:
         try:
              test_execution = resource  # retrieve a test execution
@@ -316,7 +353,7 @@ def prepareReport():
                 orchestrationIssuesCount+= commonErrorCount
                 break
         error = commonError
-        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link"
+        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system"
         if re.search(regEx_Filter, error):
             error = str(re.compile(regEx_Filter).split(error)[0])
             if 'An error occurred.' in error:
@@ -448,7 +485,7 @@ def prepareReport():
     df2 = pandas.DataFrame(jsonObj.topFailingTests)
     df2['test'].replace('', np.nan, inplace=True)
     df2.dropna(subset=['test'], inplace=True)
-    with open("temp.html", 'w') as _file:
+    with open("temp.html", 'a') as _file:
       _file.write(df.head().to_html() + "\n\n" + df2.head().to_html())
     jsonObj = str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*","'")
     
