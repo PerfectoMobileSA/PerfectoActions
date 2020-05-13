@@ -35,23 +35,28 @@ from openpyxl.reader.excel import load_workbook
 import uuid
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
-TEMP_DIR = '/tmp' if platform.system() == 'Darwin' else tempfile.gettempdir()
+TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
 RESOURCE_TYPE_USERS = "users"
 REPOSITORY_RESOURCE_TYPE = "repositories/media"
 
+
 def send_request(url):
     """send request"""
-#     print("Submitting", url)
+    #     print("Submitting", url)
     device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
-    if "All devices" in device_list_parameters or "Available devices only" in device_list_parameters:
+    if (
+        "All devices" in device_list_parameters
+        or "Available devices only" in device_list_parameters
+    ):
         response = urllib.request.urlopen(url)
     else:
         response = urllib.request.urlopen(url.replace(" ", "%20"))
-#    rc = response.getcode()
-#    print("rc =", rc)
+    #    rc = response.getcode()
+    #    print("rc =", rc)
     return response
+
 
 def send_request_with_json_response(url):
     """send request"""
@@ -60,52 +65,54 @@ def send_request_with_json_response(url):
     maps = json.loads(text)
     return maps
 
+
 def as_text(value):
     """as texts"""
     if value is None:
         return ""
     return str(value)
 
+
 def convertxmlToXls(xml, dict_keys, filename):
-    '''
+    """
             Checks if file exists, parses the file and extracts the needed data
             returns a 2 dimensional list without "header"
-    '''
+    """
     root = ETree.fromstring(xml)
     headers = []
     finalHeaders = []
     if dict_keys is None:
         for child in root:
-            headers.append({x.tag for x in root.findall(child.tag+"/*")})
+            headers.append({x.tag for x in root.findall(child.tag + "/*")})
     else:
         headers = dict_keys
     headers = headers[0]
     mdlist = []
     for child in root:
-            temp = []
-            for key in sorted(headers):
-                try:
-                    finalHeaders.append(key)
-                    temp.append(child.find(key).text)
-                except Exception as e:
-                    temp.append("-")
-            mdlist.append(temp)
-    '''
+        temp = []
+        for key in sorted(headers):
+            try:
+                finalHeaders.append(key)
+                temp.append(child.find(key).text)
+            except Exception as e:
+                temp.append("-")
+        mdlist.append(temp)
+    """
     Generates excel file with given data
     mdlist: 2 Dimensional list containing data
-    '''
+    """
     wb = Workbook()
     ws = wb.active
-    for i,row in enumerate(mdlist):
-            for j,value in enumerate(row):
-                    ws.cell(row=i+1, column=j+1).value = value
+    for i, row in enumerate(mdlist):
+        for j, value in enumerate(row):
+            ws.cell(row=i + 1, column=j + 1).value = value
     ws.insert_rows(0)
-    #generates header
+    # generates header
     i = 0
     finalHeaders = list(dict.fromkeys(finalHeaders))
-    for i,value in enumerate(finalHeaders):
-                    ws.cell(1, column=i+1).value = value
-                    ws.cell(1, column=i+1).alignment = Alignment(horizontal='center')
+    for i, value in enumerate(finalHeaders):
+        ws.cell(1, column=i + 1).value = value
+        ws.cell(1, column=i + 1).alignment = Alignment(horizontal="center")
     for column_cells in ws.columns:
         length = max(len(as_text(cell.value)) for cell in column_cells)
         ws.column_dimensions[column_cells[0].column_letter].width = length + 5
@@ -113,32 +120,50 @@ def convertxmlToXls(xml, dict_keys, filename):
     wb.save(newfilename)
     return
 
+
 def user_condition(df):
     cols = list(df)
     if len(cols) > 0:
         cols = [cols[-1]] + cols[:-1]
         df = df[cols]
-        df = df.replace(np.nan, '', regex=True)
+        df = df.replace(np.nan, "", regex=True)
         df = df[~df["email"].str.contains("perfectomobile.com")]
-        df = df.sort_values(by ='firstName')
+        df = df.sort_values(by="firstName")
     return df
-    
+
+
 def convertjsonToXls(json_text, dict_keys, filename):
-    jsonfile = 'user_results.json'
-    file = os.path.join(TEMP_DIR, 'results', jsonfile)
-    f= open(file,"w+")
+    jsonfile = "user_results.json"
+    file = os.path.join(TEMP_DIR, "results", jsonfile)
+    f = open(file, "w+")
     f.write(str(json_text))
     f.close()
     data = json.load(open(file))
     sys.stdout.flush()
-    pandas.set_option('display.max_columns', 6)
+    pandas.set_option("display.max_columns", 6)
     # pandas.set_option('display.max_colwidth', 120)
-    pandas.set_option('colheader_justify', 'left')
+    pandas.set_option("colheader_justify", "left")
     df = pandas.DataFrame(data["users"])
     if len(df.index) < 1:
-        raise Exception("There are no users who match the expected conditions " + os.environ["USER_LIST_PARAMETERS"])
-        sys.exit(-1)    
-    df.drop(['username', 'authentication', 'gender','phoneNumberExt','location','stateCode','state'], axis=1, inplace=True, errors='ignore')
+        raise Exception(
+            "There are no users who match the expected conditions "
+            + os.environ["USER_LIST_PARAMETERS"]
+        )
+        sys.exit(-1)
+    df.drop(
+        [
+            "username",
+            "authentication",
+            "gender",
+            "phoneNumberExt",
+            "location",
+            "stateCode",
+            "state",
+        ],
+        axis=1,
+        inplace=True,
+        errors="ignore",
+    )
     df = user_condition(df)
     df.to_excel(filename, index=False)
     wb = Workbook()
@@ -151,6 +176,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
     wb.save(newfilename)
     return df
 
+
 def send_request_with_xml_response(url):
     """send request"""
     response = send_request(url)
@@ -158,51 +184,62 @@ def send_request_with_xml_response(url):
     xmldoc = minidom.parseString(decoded)
     return xmldoc
 
+
 def send_request_to_xlsx(url, filename):
     """send_request_to_xlsx"""
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     if any(["=list" in url, "=users" in url]):
-        filename = os.path.join(TEMP_DIR, 'output', filename)
+        filename = os.path.join(TEMP_DIR, "output", filename)
         convertxmlToXls(decoded, None, filename)
+
 
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
     try:
         response = send_request(url)
     except:
-        raise Exception("unable to find users who match the expected conditions " + os.environ["USER_LIST_PARAMETERS"])
+        raise Exception(
+            "unable to find users who match the expected conditions "
+            + os.environ["USER_LIST_PARAMETERS"]
+        )
     decoded = response.read().decode("utf-8")
     if any(["=list" in url, "=users" in url]):
-        filename = os.path.join(TEMP_DIR, 'output', filename)
+        filename = os.path.join(TEMP_DIR, "output", filename)
         return convertjsonToXls(decoded, None, filename)
-    
-        
+
+
 def send_request2(url):
     """send request"""
     response = send_request(url)
     text = response.read().decode("utf-8")
     return text
 
+
 def get_url(resource, resource_id, operation):
     """get url """
-    cloudname = os.environ['CLOUDNAME']
+    cloudname = os.environ["CLOUDNAME"]
     url = "https://" + cloudname + ".perfectomobile.com/services/" + resource
     if resource_id != "":
         url += "/" + str(resource_id)
-    token = os.environ['TOKEN']
+    token = os.environ["TOKEN"]
     if "eyJhb" in token:
         query = urllib.parse.urlencode({"operation": operation, "securityToken": token})
     else:
         if ":" not in token:
-            raise Exception("Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!" )
+            raise Exception(
+                "Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!"
+            )
             sys.exit(-1)
         else:
             user = token.split(":")[0]
             pwd = token.split(":")[1]
-            query = urllib.parse.urlencode({"operation": operation, "user": user, "password": pwd})
+            query = urllib.parse.urlencode(
+                {"operation": operation, "user": user, "password": pwd}
+            )
     url += "?" + query
     return url
+
 
 def getregex_output(response, pattern1, pattern2):
     """regex"""
@@ -211,8 +248,14 @@ def getregex_output(response, pattern1, pattern2):
         match_item = str(re.findall(pattern2, match.group()))
         match_item = match_item.replace(':"', "").replace('"', "")
         match_item = match_item.replace("'", "").replace("[", "")
-        match_item = match_item.replace("]", "").replace(",test", "").replace(",timer.system", "").replace('description":"','')
+        match_item = (
+            match_item.replace("]", "")
+            .replace(",test", "")
+            .replace(",timer.system", "")
+            .replace('description":"', "")
+        )
         return str(match_item)
+
 
 def device_command(exec_id, device_id, operation):
     """Runs device command"""
@@ -222,17 +265,20 @@ def device_command(exec_id, device_id, operation):
     url += "&param.deviceId=" + device_id
     send_request_with_json_response(url)
 
+
 def end_execution(exec_id):
     """End execution"""
-    url = get_url("executions/"+ str(exec_id), "", "end")
+    url = get_url("executions/" + str(exec_id), "", "end")
     send_request_with_json_response(url)
+
 
 def start_exec():
     """start execution"""
     url = get_url("executions", "", "start")
     response = send_request2(url)
-    exec_id = getregex_output(response, r'executionId\"\:\"[\w\d@.-]+\"', ":\".*$")
+    exec_id = getregex_output(response, r"executionId\"\:\"[\w\d@.-]+\"", ':".*$')
     return exec_id
+
 
 def get_device_list_response(resource, command, status, in_use):
     """get_device_list_response"""
@@ -240,38 +286,43 @@ def get_device_list_response(resource, command, status, in_use):
     url += "&status=" + status
     if in_use != "":
         url += "&inUse=" + in_use
-    if  len(os.environ["DEVICE_LIST_PARAMETERS"].split(":")) >= 2:
+    if len(os.environ["DEVICE_LIST_PARAMETERS"].split(":")) >= 2:
         for item in os.environ["DEVICE_LIST_PARAMETERS"].split(";"):
             if ":" in item:
                 url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
+
 def get_xml_to_xlsx(resource, command, filename):
     """get_xml_to_xlsx"""
     url = get_url(resource, "", command)
     send_request_to_xlsx(url, filename)
     sys.stdout.flush()
-    
+
+
 def get_json_to_xlsx(resource, command, filename):
     """get_json_to_xlsx"""
     url = get_url(resource, "", command)
     if "All users" not in os.environ["USER_LIST_PARAMETERS"]:
-        if  len(os.environ["USER_LIST_PARAMETERS"].split(":")) >= 2:
+        if len(os.environ["USER_LIST_PARAMETERS"].split(":")) >= 2:
             for item in os.environ["USER_LIST_PARAMETERS"].split(";"):
                 if ":" in item:
                     url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
     return send_jsonrequest_to_xlsx(url.replace(" ", "%20"), filename)
 
+
 def get_device_ids(xmldoc):
     """get_device_ids"""
-    device_ids = xmldoc.getElementsByTagName('deviceId')
+    device_ids = xmldoc.getElementsByTagName("deviceId")
     return device_ids
+
 
 def get_handset_count(xmldoc):
     """get_handset_count"""
-    handset_elements = xmldoc.getElementsByTagName('handset')
+    handset_elements = xmldoc.getElementsByTagName("handset")
     return len(handset_elements)
+
 
 def exec_command(exec_id, device_id, cmd, subcmd):
     """exec_commands"""
@@ -280,88 +331,117 @@ def exec_command(exec_id, device_id, cmd, subcmd):
     url += "&subcommand=" + subcmd
     url += "&param.deviceId=" + device_id
     response = send_request2(url)
-    print(str(url))
-    status = getregex_output(response, r'(description\"\:\".*\",\"timer.system|returnValue\"\:\".*\",\"test)', ":\".*$")
+    status = getregex_output(
+        response,
+        r"(description\"\:\".*\",\"timer.system|returnValue\"\:\".*\",\"test)",
+        ':".*$',
+    )
     return str(status)
+
 
 def perform_actions(deviceid_color):
     """perform_actions"""
-    get_network_settings = os.environ['GET_NETWORK_SETTINGS']
+    get_network_settings = os.environ["GET_NETWORK_SETTINGS"]
     deviceid_color = str(deviceid_color)
-    device_id = deviceid_color.split("||",1)[0]
-    color = deviceid_color.split("||",1)[1];
-    desc = deviceid_color.split("||",2)[2]
-    fileName = device_id + '.txt'
-    file = os.path.join(TEMP_DIR, 'results', fileName)
+    device_id = deviceid_color.split("||", 1)[0]
+    color = deviceid_color.split("||", 1)[1]
+    desc = deviceid_color.split("||", 2)[2]
+    fileName = device_id + ".txt"
+    file = os.path.join(TEMP_DIR, "results", fileName)
     try:
         status = "Results="
-        #update dictionary
+        # update dictionary
         url = get_url(RESOURCE_TYPE, device_id, "info")
         xmldoc = send_request_with_xml_response(url)
-        modelElements = xmldoc.getElementsByTagName('model')
-        manufacturerElements = xmldoc.getElementsByTagName('manufacturer')
+        modelElements = xmldoc.getElementsByTagName("model")
+        manufacturerElements = xmldoc.getElementsByTagName("manufacturer")
         model = modelElements[0].firstChild.data
         manufacturer = manufacturerElements[0].firstChild.data
-        osElements = xmldoc.getElementsByTagName('os')
+        osElements = xmldoc.getElementsByTagName("os")
         osDevice = osElements[0].firstChild.data
         try:
-            descriptionElements = xmldoc.getElementsByTagName('description')
+            descriptionElements = xmldoc.getElementsByTagName("description")
             description = descriptionElements[0].firstChild.data
         except:
-            description=''
+            description = ""
         try:
-            osVElements = xmldoc.getElementsByTagName('osVersion')
+            osVElements = xmldoc.getElementsByTagName("osVersion")
             osVersion = osVElements[0].firstChild.data
         except:
             osVersion = "NA"
-        osVersion =  osDevice + " " + osVersion
+        osVersion = osDevice + " " + osVersion
         try:
-            operatorElements = xmldoc.getElementsByTagName('operator')
+            operatorElements = xmldoc.getElementsByTagName("operator")
             operator = operatorElements[0].childNodes[0].data
         except:
             operator = "NA"
         try:
-            phElements = xmldoc.getElementsByTagName('phoneNumber')
+            phElements = xmldoc.getElementsByTagName("phoneNumber")
             phoneNumber = phElements[0].firstChild.data
         except:
-            phoneNumber ="NA"
-        if "green"  in color:
-            start_execution = os.environ['START_EXECUTION']
+            phoneNumber = "NA"
+        if "green" in color:
+            start_execution = os.environ["START_EXECUTION"]
             if "true" in start_execution.lower():
-                #Get execution id
+                # Get execution id
                 EXEC_ID = start_exec()
-                #open device:
+                # open device:
                 print("opening: " + model + ", device id: " + device_id)
                 device_command(EXEC_ID, device_id, "open")
-                cleanup = os.environ['CLEANUP']
+                cleanup = os.environ["CLEANUP"]
                 if "True" in cleanup:
                     if not "iOS" in osDevice:
                         print("cleaning up: " + model + ", device id: " + device_id)
                         try:
-                            status += "clean:" + str(exec_command(EXEC_ID, device_id, "device", "clean")).replace(","," ")
+                            status += "clean:" + str(
+                                exec_command(EXEC_ID, device_id, "device", "clean")
+                            ).replace(",", " ")
                         except:
                             status += "clean:Failed!"
                         status += ";"
                     else:
-                        status +="clean:NA;"
-                reboot = os.environ['REBOOT']
+                        status += "clean:NA;"
+                reboot = os.environ["REBOOT"]
                 if "True" in reboot:
-                    if all(['Huawei' not in manufacturer, 'Xiaomi' not in manufacturer, 'Oppo' not in manufacturer, 'Motorola' not in manufacturer, 'OnePlus' not in manufacturer]):
-                        print("rebooting: " + model+ ", device id: " + device_id)
+                    if all(
+                        [
+                            "Huawei" not in manufacturer,
+                            "Xiaomi" not in manufacturer,
+                            "Oppo" not in manufacturer,
+                            "Motorola" not in manufacturer,
+                            "OnePlus" not in manufacturer,
+                        ]
+                    ):
+                        print("rebooting: " + model + ", device id: " + device_id)
                         try:
-                            status += "reboot:" + str(exec_command(EXEC_ID, device_id, "device", "reboot")).replace(","," ")
+                            status += "reboot:" + str(
+                                exec_command(EXEC_ID, device_id, "device", "reboot")
+                            ).replace(",", " ")
                         except:
                             status += "reboot:Failed!"
                         status += ";"
                     else:
-                        print(model+ " not applicable for rebooting")
-                        status += 'reboot:NA;'
+                        print(model + " not applicable for rebooting")
+                        status += "reboot:NA;"
                 if "True" in get_network_settings:
-                    print("getting network status of : " + model + ", device id: " + device_id)
+                    print(
+                        "getting network status of : "
+                        + model
+                        + ", device id: "
+                        + device_id
+                    )
                     networkstatus = "airplanemode=Failed, wifi=Failed, data=Failed"
                     try:
-                        tempstatus = str(exec_command(EXEC_ID, device_id, "network.settings", "get")).replace("{","").replace("}","")
-                        if(tempstatus.count(',') == 2):
+                        tempstatus = (
+                            str(
+                                exec_command(
+                                    EXEC_ID, device_id, "network.settings", "get"
+                                )
+                            )
+                            .replace("{", "")
+                            .replace("}", "")
+                        )
+                        if tempstatus.count(",") == 2:
                             networkstatus = tempstatus
                             status += "NW:OK"
                         else:
@@ -369,38 +449,79 @@ def perform_actions(deviceid_color):
                     except:
                         status += "NW:Failed!"
                     status += ";"
-                #Close device
+                # Close device
                 print("closing: " + model + ", device id: " + device_id)
                 device_command(EXEC_ID, device_id, "close")
-                #End execution
+                # End execution
                 end_execution(EXEC_ID)
         else:
             networkstatus = ",,"
 
         if "True" in get_network_settings:
-                final_string =  "status=" + desc + ", deviceId='" + device_id + "', Manufacturer=" + str(manufacturer) + "', model=" + str(model) + \
-                ", version=" + str(osVersion) + ", description=" + str(description) + ", operator="+ str(operator) + ", phoneNumber=" + str(phoneNumber) + ", " + str(networkstatus) + ", " + str(status)
+            final_string = (
+                "status="
+                + desc
+                + ", deviceId='"
+                + device_id
+                + "', Manufacturer="
+                + str(manufacturer)
+                + "', model="
+                + str(model)
+                + ", version="
+                + str(osVersion)
+                + ", description="
+                + str(description)
+                + ", operator="
+                + str(operator)
+                + ", phoneNumber="
+                + str(phoneNumber)
+                + ", "
+                + str(networkstatus)
+                + ", "
+                + str(status)
+            )
         else:
-            final_string = "status=" + desc + ", deviceId='" + device_id + "', Manufacturer=" + str(manufacturer) + "', model=" + str(model) + ", version=" + str(osVersion) + \
-            ", description=" + str(description) + ", operator=" + str(operator) + ", phoneNumber=" + str(phoneNumber) + ",,,, " + str(status)
-        final_string = re.sub(r"^'|'$", '', final_string)
-        f= open(file,"w+")
+            final_string = (
+                "status="
+                + desc
+                + ", deviceId='"
+                + device_id
+                + "', Manufacturer="
+                + str(manufacturer)
+                + "', model="
+                + str(model)
+                + ", version="
+                + str(osVersion)
+                + ", description="
+                + str(description)
+                + ", operator="
+                + str(operator)
+                + ", phoneNumber="
+                + str(phoneNumber)
+                + ",,,, "
+                + str(status)
+            )
+        final_string = re.sub(r"^'|'$", "", final_string)
+        f = open(file, "w+")
         f.write(str(final_string))
         f.close()
         sys.stdout.flush()
         return final_string
     except Exception as e:
-        raise Exception("Oops!" , e )
- #TODO : Dont forget to increase coma in both if else conditions if a new column is added
-        if not os.path.isfile(os.path.join(TEMP_DIR, 'results', device_id + '.txt')):
+        raise Exception("Oops!", e)
+        # TODO : Dont forget to increase coma in both if else conditions if a new column is added
+        if not os.path.isfile(os.path.join(TEMP_DIR, "results", device_id + ".txt")):
             if "True" in get_network_settings:
-                final_string =  "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,,,"
+                final_string = (
+                    "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,,,"
+                )
             else:
                 final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,"
-            f= open(file,"w+")
+            f = open(file, "w+")
             f.write(str(final_string))
             f.close()
         return final_string
+
 
 def get_list(get_dev_list):
     """get_list"""
@@ -424,7 +545,9 @@ def get_list(get_dev_list):
             pool_size = multiprocessing.cpu_count() * 2
             pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
             try:
-                print("\nFound " + str(len(device_list)) + " devices with status: " + desc)
+                print(
+                    "\nFound " + str(len(device_list)) + " devices with status: " + desc
+                )
                 sys.stdout.flush()
                 output = pool.map(perform_actions, device_list)
                 pool.close()
@@ -432,32 +555,34 @@ def get_list(get_dev_list):
             except Exception:
                 pool.close()
                 pool.terminate()
-                print(traceback.format_exc())  
+                print(traceback.format_exc())
                 sys.exit(-1)
+
 
 def fetch_details(i, exp_number, result, exp_list):
     """ fetches details"""
     if i == exp_number:
-         if "=" in result:
-             exp_list = exp_list.append(result.split("=", 1)[1].replace("'","").strip())
-         else:
-             exp_list = exp_list.append('-')
+        if "=" in result:
+            exp_list = exp_list.append(result.split("=", 1)[1].replace("'", "").strip())
+        else:
+            exp_list = exp_list.append("-")
     return exp_list
+
 
 def fig_to_base64(fig):
     img = io.BytesIO()
-    plt.savefig(img, format='png',
-                bbox_inches='tight')
+    plt.savefig(img, format="png", bbox_inches="tight")
     img.seek(0)
     return base64.b64encode(img.getvalue())
+
 
 def print_results(results):
     """ print_results """
     i = 0
     results.sort()
     for i in range(len(results)):
-        results[i]= re.sub('Results\=$','',results[i])
-        results[i]= re.sub('[,]+','',results[i])
+        results[i] = re.sub("Results\=$", "", results[i])
+        results[i] = re.sub("[,]+", "", results[i])
         if results[i]:
             if "Available" in results[i]:
                 print(colored(results[i], "green"))
@@ -465,53 +590,71 @@ def print_results(results):
                 print(colored(results[i], "red"))
         i = i + 1
 
+
 def validate_logo(logo):
     try:
         send_request(logo)
     except Exception as e:
         print("Exception: " + str(e))
-        os.environ['company_logo'] = os.environ['perfecto_logo']
+        os.environ["company_logo"] = os.environ["perfecto_logo"]
+
 
 def create_summary(df, title, column, name):
     fig = pl.figure(figsize=(15, 2))
     pl.suptitle(title)
-    ax1 = pl.subplot(121, aspect='equal', facecolor='lightslategray')
-    fig.patch.set_facecolor('yellow')
-    fig.patch.set_alpha(.9)
-    df[column].value_counts().sort_index().plot(kind='pie', y='%', ax=ax1,  autopct='%1.1f%%',
-        startangle=30, shadow=False, legend=False, x=df[column].unique, fontsize=7)
-    pl.ylabel('')
+    ax1 = pl.subplot(121, aspect="equal", facecolor="lightslategray")
+    fig.patch.set_facecolor("yellow")
+    fig.patch.set_alpha(0.9)
+    df[column].value_counts().sort_index().plot(
+        kind="pie",
+        y="%",
+        ax=ax1,
+        autopct="%1.1f%%",
+        startangle=30,
+        shadow=False,
+        legend=False,
+        x=df[column].unique,
+        fontsize=7,
+    )
+    pl.ylabel("")
     # plot table
-    ax2 = pl.subplot(122, facecolor='lightslategray')
-    ax2.patch.set_facecolor('yellow')
+    ax2 = pl.subplot(122, facecolor="lightslategray")
+    ax2.patch.set_facecolor("yellow")
     ax2.patch.set_alpha(0.8)
-    pl.axis('off')
-    tbl = table(ax2, df[column].value_counts(), loc='center')
+    pl.axis("off")
+    tbl = table(ax2, df[column].value_counts(), loc="center")
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(8)
-    encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', name + '.png'))
-    summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+    encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", name + ".png"))
+    summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
     return summary
-           
+
+
 def prepare_graph(df, column):
-        """ prepare graph """
-        fig = pl.figure()
-        fig.patch.set_facecolor('green')
-        fig.patch.set_alpha(1)
-        ax = df[column].value_counts().sort_index().plot(kind='bar', fontsize = 12, stacked=True, figsize=(25,10), ylim=(0,2))
-        ax.set_title(column, fontsize=20)
-        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
-        ax.patch.set_facecolor('green')
-        ax.patch.set_alpha(0.1)
-        pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
-        encoded = fig_to_base64(os.path.join(TEMP_DIR, 'results', column +'.png'))
-        return '<img src="data:image/png;base64, {}"'.format(encoded.decode('utf-8'))
+    """ prepare graph """
+    fig = pl.figure()
+    fig.patch.set_facecolor("green")
+    fig.patch.set_alpha(1)
+    ax = (
+        df[column]
+        .value_counts()
+        .sort_index()
+        .plot(kind="bar", fontsize=12, stacked=True, figsize=(25, 10), ylim=(0, 2))
+    )
+    ax.set_title(column, fontsize=20)
+    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+    ax.patch.set_facecolor("green")
+    ax.patch.set_alpha(0.1)
+    pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
+    encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", column + ".png"))
+    return '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+
 
 def prepare_html(user_html, table3, day):
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
-    #copies all device status to final summary
-    for r, d, f in os.walk(os.path.join(TEMP_DIR , 'results')):
+    # copies all device status to final summary
+    for r, d, f in os.walk(os.path.join(TEMP_DIR, "results")):
         for file in f:
             if ".txt" in file:
                 with open(os.path.join(r, file)) as f:
@@ -519,18 +662,18 @@ def prepare_html(user_html, table3, day):
                         for line in f:
                             f1.write(line)
                             f1.write("\n")
-    file = os.path.join(TEMP_DIR, 'results', 'Final_Summary.txt')
+    file = os.path.join(TEMP_DIR, "results", "Final_Summary.txt")
     try:
-        f= open(file,"r")
+        f = open(file, "r")
     except FileNotFoundError:
-        raise Exception( 'No devices found/ Re-check your arguments')
+        raise Exception("No devices found/ Re-check your arguments")
         sys.exit(-1)
     result = f.read()
     f.close()
     print_results(result.split("\n"))
     if "true" in os.environ["PREPARE_ACTIONS_HTML"]:
         results = result.split("\n")
-        #TODO Add a new list and number below & a new_dict if a new column is added
+        # TODO Add a new list and number below & a new_dict if a new column is added
         new_dict = {}
         deviceids = []
         status = []
@@ -564,64 +707,94 @@ def prepare_html(user_html, table3, day):
                     fetch_details(i, 11, result, action_results)
                     new_list.append(result)
                     i = i + 1
-        pandas.set_option('display.max_columns', None)
-        pandas.set_option('display.max_colwidth', 100)
-        pandas.set_option('colheader_justify', 'center')
-        get_network_settings = os.environ['GET_NETWORK_SETTINGS']
-        reboot = os.environ['REBOOT']
-        cleanup = os.environ['CLEANUP']
-        if "True" in get_network_settings or "True" in  reboot or "True" in cleanup:
-            new_dict =  {'Status': status, 'Device Id': deviceids, 'Manufacturer': manufacturer, 'Model': model, 'OS Version': osVersion, 'Description': description,'Operator': operator, 'Phone number': phonenumber, 'AirplaneMode' : airplanemode, 'Wifi': wifi, 'Data': data, 'Results' : action_results}
+        pandas.set_option("display.max_columns", None)
+        pandas.set_option("display.max_colwidth", 100)
+        pandas.set_option("colheader_justify", "center")
+        get_network_settings = os.environ["GET_NETWORK_SETTINGS"]
+        reboot = os.environ["REBOOT"]
+        cleanup = os.environ["CLEANUP"]
+        if "True" in get_network_settings or "True" in reboot or "True" in cleanup:
+            new_dict = {
+                "Status": status,
+                "Device Id": deviceids,
+                "Manufacturer": manufacturer,
+                "Model": model,
+                "OS Version": osVersion,
+                "Description": description,
+                "Operator": operator,
+                "Phone number": phonenumber,
+                "AirplaneMode": airplanemode,
+                "Wifi": wifi,
+                "Data": data,
+                "Results": action_results,
+            }
         else:
-            new_dict =  {'Status': status, 'Device Id': deviceids, 'Manufacturer': manufacturer, 'Model': model, 'OS Version': osVersion, 'Description': description,'Operator': operator, 'Phone number': phonenumber}
+            new_dict = {
+                "Status": status,
+                "Device Id": deviceids,
+                "Manufacturer": manufacturer,
+                "Model": model,
+                "OS Version": osVersion,
+                "Description": description,
+                "Operator": operator,
+                "Phone number": phonenumber,
+            }
         df = pandas.DataFrame(new_dict)
-        df = df.sort_values(by ='Manufacturer')
-        df = df.sort_values(by ='Model')
-        df = df.sort_values(by ='Status')
+        df = df.sort_values(by="Manufacturer")
+        df = df.sort_values(by="Model")
+        df = df.sort_values(by="Status")
         df.reset_index(drop=True, inplace=True)
         device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
-        cloudname = os.environ['CLOUDNAME']
+        cloudname = os.environ["CLOUDNAME"]
         current_time = datetime.datetime.now().strftime("%c")
-        title = cloudname.upper() + " cloud status summary of " + device_list_parameters + " @ " + current_time
-        summary = create_summary(df,title, "Status", "device_summary")
-        plt.close('all')
-        
-        df = df.sort_values(by ='Model')
-        df = df.sort_values(by ='Status')
-        #skipping csv output as we now have full device list api response
-#         df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
-        #Futuristic:
-    #     le = preprocessing.LabelEncoder()
-    #     #convert the categorical columns into numeric
-    #     dfs = df.copy()
-    #     encoded_value = le.fit_transform(dfs['Device Id'])
-    #     dfs['Device Id'] = le.fit_transform(dfs['Device Id'])
-    #     dfs['Status'] = le.fit_transform(dfs['Status'])
-    #     dfs['Model'] = le.fit_transform(dfs['Model'])
-    #     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
-    #     dfs['Operator'] = le.fit_transform(dfs['Operator'])
-    #     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
-    #     if  "True" in get_network_settings or  "True" in reboot or  "True" in cleanup:
-    #         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
-    #         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
-    #         dfs['Data'] = le.fit_transform(dfs['Data'])
-    #         dfs['Results'] = le.fit_transform(dfs['Results'])
-    #     print(dfs)
-    #     cols = [col for col in dfs.columns if col not in ['Status','Phone number', 'OS Version', 'Model', 'Operator']]
-    #     data = dfs[cols]
-    #     target = dfs['Status']
-    #     print(data)
-    #     print(target)
+        title = (
+            cloudname.upper()
+            + " cloud status summary of "
+            + device_list_parameters
+            + " @ "
+            + current_time
+        )
+        summary = create_summary(df, title, "Status", "device_summary")
+        plt.close("all")
 
- 
-        html_string = '''
+        df = df.sort_values(by="Model")
+        df = df.sort_values(by="Status")
+        # skipping csv output as we now have full device list api response
+        #         df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
+        # Futuristic:
+        #     le = preprocessing.LabelEncoder()
+        #     #convert the categorical columns into numeric
+        #     dfs = df.copy()
+        #     encoded_value = le.fit_transform(dfs['Device Id'])
+        #     dfs['Device Id'] = le.fit_transform(dfs['Device Id'])
+        #     dfs['Status'] = le.fit_transform(dfs['Status'])
+        #     dfs['Model'] = le.fit_transform(dfs['Model'])
+        #     dfs['OS Version'] = le.fit_transform(dfs['OS Version'])
+        #     dfs['Operator'] = le.fit_transform(dfs['Operator'])
+        #     dfs['Phone number'] = le.fit_transform(dfs['Phone number'])
+        #     if  "True" in get_network_settings or  "True" in reboot or  "True" in cleanup:
+        #         dfs['AirplaneMode'] = le.fit_transform(dfs['AirplaneMode'])
+        #         dfs['Wifi'] = le.fit_transform(dfs['Wifi'])
+        #         dfs['Data'] = le.fit_transform(dfs['Data'])
+        #         dfs['Results'] = le.fit_transform(dfs['Results'])
+        #     print(dfs)
+        #     cols = [col for col in dfs.columns if col not in ['Status','Phone number', 'OS Version', 'Model', 'Operator']]
+        #     data = dfs[cols]
+        #     target = dfs['Status']
+        #     print(data)
+        #     print(target)
+
+        html_string = (
+            """
         <html lang="en">
           <head>
     	  <meta name="viewport" content="width=device-width, initial-scale=1">
            <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
     		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
             <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title>''' + cloudname.upper() + ''' Cloud Status</title>
+    		     <head><title>"""
+            + cloudname.upper()
+            + """ Cloud Status</title>
           <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
             <script>
               $(document).ready(function(){{
@@ -700,7 +873,9 @@ def prepare_html(user_html, table3, day):
     							}}
                                  }}
     							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
-    							var url = 'https://''' + cloudname.upper() + '''.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
+    							var url = 'https://"""
+            + cloudname.upper()
+            + """.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
     							var row = $('<tr></tr>')
     							var link = document.createElement("a");
     							link.href = url;
@@ -1048,7 +1223,11 @@ def prepare_html(user_html, table3, day):
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
     		  <a href="result.html" class="active">Home</a>
-    		  <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="active">''' + cloudname.upper() + ''' Cloud</a>
+    		  <a href="https://"""
+            + cloudname.upper()
+            + """.perfectomobile.com" target="_blank" class="active">"""
+            + cloudname.upper()
+            + """ Cloud</a>
               <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
               <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
     		  <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
@@ -1067,9 +1246,15 @@ def prepare_html(user_html, table3, day):
                                 <input type="radio" id="tabbed-tab-1-1-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-1-1">List</label>
                                 <div align="center">
                                 
-                                <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
-                                <img id="logo" src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
-                                ''' + create_summary(user_html,"Users list Status", "status", "user_summary") + ''' alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p>
+                                <a href="https://"""
+            + cloudname.upper()
+            + """.perfectomobile.com" target="_blank" class="site-logo">
+                                <img id="logo" src="""
+            + os.environ["company_logo"]
+            + """ style="margin:1%;" alt="Company logo" ></a> 
+                                """
+            + create_summary(user_html, "Users list Status", "status", "user_summary")
+            + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p>
                                 <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
                                 <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
                                 </br> </br>
@@ -1086,9 +1271,15 @@ def prepare_html(user_html, table3, day):
                             <input type="radio" id="tabbed-tab-1-2-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-2-1">List</label>
                             <div  align="center">
                             
-                                <a href="https://''' + cloudname.upper() + '''.perfectomobile.com" target="_blank" class="site-logo">
-                                <img id="logo" src=''' + os.environ['company_logo'] +''' style="margin:1%;" alt="Company logo" ></a> 
-                                ''' + summary + ''' alt='summary' id='summary' onClick='zoom(this)'></img> </br></p>
+                                <a href="https://"""
+            + cloudname.upper()
+            + """.perfectomobile.com" target="_blank" class="site-logo">
+                                <img id="logo" src="""
+            + os.environ["company_logo"]
+            + """ style="margin:1%;" alt="Company logo" ></a> 
+                                """
+            + summary
+            + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p>
                                 <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                     <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>
                                     </br> </br>
@@ -1104,11 +1295,21 @@ def prepare_html(user_html, table3, day):
                                   <div style="overflow-x:auto;height:90%">
                                     <div class="containers" align="center" id = "slideshow">
                                         <div class="w3-content w3-section"  style="max-width:90%; max-height:90%;height:90%;width:90%;">
-                                        ''' + prepare_graph(df, 'Manufacturer') + ''' alt="Device Status" class="mySlides"  onClick='zoom(this)' id="slide">
-                                        ''' + prepare_graph(df, 'Model')  + ''' alt="Model" class="mySlides"  onClick='zoom(this)' id="slide">
-                                        ''' + prepare_graph(df, 'OS Version')  + ''' alt="Version" class="mySlides" onClick='zoom(this)' id="slide">
-                                        ''' + prepare_graph(df, 'Operator')  + ''' alt="Operator" class="mySlides" onClick='zoom(this)' id="slide">
-                                        ''' + prepare_graph(df, 'Description')  + ''' alt="Description" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        """
+            + prepare_graph(df, "Manufacturer")
+            + """ alt="Device Status" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        """
+            + prepare_graph(df, "Model")
+            + """ alt="Model" class="mySlides"  onClick='zoom(this)' id="slide">
+                                        """
+            + prepare_graph(df, "OS Version")
+            + """ alt="Version" class="mySlides" onClick='zoom(this)' id="slide">
+                                        """
+            + prepare_graph(df, "Operator")
+            + """ alt="Operator" class="mySlides" onClick='zoom(this)' id="slide">
+                                        """
+            + prepare_graph(df, "Description")
+            + """ alt="Description" class="mySlides"  onClick='zoom(this)' id="slide">
                                         </div>
                                     </div>
                                 </div>
@@ -1138,30 +1339,66 @@ def prepare_html(user_html, table3, day):
               </script>
           </body>
         </html>
-        '''
+        """
+        )
 
         # OUTPUT AN HTML FILE
         clean_repo = os.environ["clean_repo"]
-        with open(os.path.join(TEMP_DIR,'output','result.html'), 'w') as f:
-            if 'NA' != clean_repo:
-                heading = """<input type="radio" onClick='autoselect(this)' id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
+        with open(os.path.join(TEMP_DIR, "output", "result.html"), "w") as f:
+            if "NA" != clean_repo:
+                heading = (
+                    """<input type="radio" onClick='autoselect(this)' id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
                             <div>
                             <div class="tabbed">
                                 <input type="radio" id="tabbed-tab-1-3-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-3-1">List</label>
                                 <div align="center">
-                            <b><h4><p style="color:white">""" + cloudname.upper() + """ Media Repository Cleanup Status for files older than """ + \
-                            str(day) + """ days: Total - """ + str(table3.shape[0]) + """</p></font></h4>
+                            <b><h4><p style="color:white">"""
+                    + cloudname.upper()
+                    + """ Media Repository Cleanup Status for files older than """
+                    + str(day)
+                    + """ days: Total - """
+                    + str(table3.shape[0])
+                    + """</p></font></h4>
                              <input id="myInput3" aria-label="search" type="text" placeholder="Search.."></br> </br>
                             <div style="overflow-x:auto;"></b>"""
-                f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
-                    table2=user_html.to_html(classes='mystyle', table_id="usertable", justify='justify-all',index=False), \
-                        table3=heading + table3.to_html(classes='mystyle', table_id="repotable", index=False) + "</div></div></div></div></br>"))
+                )
+                f.write(
+                    html_string.format(
+                        table=df.to_html(
+                            classes="mystyle", table_id="devicetable", index=False
+                        ),
+                        table2=user_html.to_html(
+                            classes="mystyle",
+                            table_id="usertable",
+                            justify="justify-all",
+                            index=False,
+                        ),
+                        table3=heading
+                        + table3.to_html(
+                            classes="mystyle", table_id="repotable", index=False
+                        )
+                        + "</div></div></div></div></br>",
+                    )
+                )
             else:
-                f.write(html_string.format(table=df.to_html(classes='mystyle', table_id="devicetable", index=False), \
-                    table2=user_html.to_html(classes='mystyle', table_id="usertable", justify="justify-all",index=False), table3=""))
-        webbrowser.open('file://' + os.path.join(TEMP_DIR,'output','result.html'), new=0)
-        print('Results: file://' + os.path.join(TEMP_DIR,'output','result.html'))
-
+                f.write(
+                    html_string.format(
+                        table=df.to_html(
+                            classes="mystyle", table_id="devicetable", index=False
+                        ),
+                        table2=user_html.to_html(
+                            classes="mystyle",
+                            table_id="usertable",
+                            justify="justify-all",
+                            index=False,
+                        ),
+                        table3="",
+                    )
+                )
+        webbrowser.open(
+            "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
+        )
+        print("Results: file://" + os.path.join(TEMP_DIR, "output", "result.html"))
 
 
 def send_request_repo(url, content):
@@ -1172,134 +1409,195 @@ def send_request_repo(url, content):
     sys.stdout.flush()
     return response
 
+
 def send_request_for_repository(url, content, key):
     response = send_request_repo(url, content)
-    
-    if("500" in str(response)):
+
+    if "500" in str(response):
         print(url)
-        raise RuntimeError("Failed to list repository items - Repository item: " + key + "  was not found in media repository, url:" + str(url))
+        raise RuntimeError(
+            "Failed to list repository items - Repository item: "
+            + key
+            + "  was not found in media repository, url:"
+            + str(url)
+        )
         sys.exit(-1)
     text = response.read().decode("utf-8")
     map = json.loads(text)
     return map
 
+
 def getActualDate(map):
-   #date is fetched here
-   try:
-       date = map['item']['creationTime']['formatted']
-   except KeyError:
-       return "";
-   dateOnly = date.split("T")
-   return datetime.datetime.strptime(dateOnly[0], "%Y-%m-%d")
+    # date is fetched here
+    try:
+        date = map["item"]["creationTime"]["formatted"]
+    except KeyError:
+        return ""
+    dateOnly = date.split("T")
+    return datetime.datetime.strptime(dateOnly[0], "%Y-%m-%d")
+
 
 def getPastDate(days):
-   #Logic for fetching past days based on user preference
-   today = datetime.datetime.today()
-   pastDate = timedelta(days=int(days))
-   return today - pastDate
+    # Logic for fetching past days based on user preference
+    today = datetime.datetime.today()
+    pastDate = timedelta(days=int(days))
+    return today - pastDate
+
 
 def sendAPI(resource_type, resource_key, operation):
     url = get_url(str(resource_type), resource_key, operation)
-    admin = os.environ['repo_admin']
+    admin = os.environ["repo_admin"]
     if "true" in admin.lower():
         url += "&admin=" + "true"
     return send_request_for_repository(url, "", resource_key)
 
+
 def fetch_details_repo(i, exp_number, result, exp_list):
     """ fetches details"""
     if i == exp_number:
-         if ":" in result:
-             exp_list = exp_list.append(result.split(":", 1)[1].replace("'","").strip())
-         else:
-             exp_list = exp_list.append('-')
+        if ":" in result:
+            exp_list = exp_list.append(result.split(":", 1)[1].replace("'", "").strip())
+        else:
+            exp_list = exp_list.append("-")
     return exp_list
+
 
 def run_commands(value):
     # Get date of repository items
     FINAL_LIST = []
-    DAYS = os.environ['repo_days']
-    DELETE = os.environ['repo_delete']
-    map = sendAPI(os.environ['repo_resource_type'], value, "info")
+    DAYS = os.environ["repo_days"]
+    DELETE = os.environ["repo_delete"]
+    map = sendAPI(os.environ["repo_resource_type"], value, "info")
     actualDate = getActualDate(map)
     if not (str(actualDate) == ""):
-             expectedDate = getPastDate(DAYS)
-             expDate = str.split(str(expectedDate), " ")
-             actDate = str(str.split(str(actualDate), " ")[0])
-             #DELETES the item if older than expected date
-             if(actualDate < expectedDate) :
-                 print(colored("File: " + value + " with actual creation date: " + actDate + " was created before " + str(DAYS) + " days.", "red"))
-                  # DELETE item from the repository
-                 if(DELETE.lower() == "true") :
-                     map = sendAPI(os.environ['repo_resource_type'], value, "delete")
-                     status = map['status']
-                     if (status != "Success") :
-                          FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:Unable to delete!;')
-                          raise RuntimeError("Repository item " + value + " was not deleted")
-                          sys.exit(-1)
-                     else:
-                          FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:Yes;')
-                 else:
-                      FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is older than;Days:' + DAYS + ';Deleted?:No;')
-             else:
-                  print(colored("File: " + value + " with actual creation date: " + actDate + " was created within the last " + str(DAYS) + " days.", "green"))
-#                   FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is younger than;Days:' + DAYS + ';Deleted?:No;')
-    fileName = uuid.uuid4().hex + '.txt'
-    file = os.path.join(TEMP_DIR, 'repo_results', fileName)
-    f= open(file,"w+")
+        expectedDate = getPastDate(DAYS)
+        expDate = str.split(str(expectedDate), " ")
+        actDate = str(str.split(str(actualDate), " ")[0])
+        # DELETES the item if older than expected date
+        if actualDate < expectedDate:
+            print(
+                colored(
+                    "File: "
+                    + value
+                    + " with actual creation date: "
+                    + actDate
+                    + " was created before "
+                    + str(DAYS)
+                    + " days.",
+                    "red",
+                )
+            )
+            # DELETE item from the repository
+            if DELETE.lower() == "true":
+                map = sendAPI(os.environ["repo_resource_type"], value, "delete")
+                status = map["status"]
+                if status != "Success":
+                    FINAL_LIST.append(
+                        "File:"
+                        + value
+                        + ";Created on:"
+                        + actDate
+                        + ";Comparison:is older than;Days:"
+                        + DAYS
+                        + ";Deleted?:Unable to delete!;"
+                    )
+                    raise RuntimeError("Repository item " + value + " was not deleted")
+                    sys.exit(-1)
+                else:
+                    FINAL_LIST.append(
+                        "File:"
+                        + value
+                        + ";Created on:"
+                        + actDate
+                        + ";Comparison:is older than;Days:"
+                        + DAYS
+                        + ";Deleted?:Yes;"
+                    )
+            else:
+                FINAL_LIST.append(
+                    "File:"
+                    + value
+                    + ";Created on:"
+                    + actDate
+                    + ";Comparison:is older than;Days:"
+                    + DAYS
+                    + ";Deleted?:No;"
+                )
+        else:
+            print(
+                colored(
+                    "File: "
+                    + value
+                    + " with actual creation date: "
+                    + actDate
+                    + " was created within the last "
+                    + str(DAYS)
+                    + " days.",
+                    "green",
+                )
+            )
+    #                   FINAL_LIST.append('File:' + value + ';Created on:' + actDate + ';Comparison:is younger than;Days:' + DAYS + ';Deleted?:No;')
+    fileName = uuid.uuid4().hex + ".txt"
+    file = os.path.join(TEMP_DIR, "repo_results", fileName)
+    f = open(file, "w+")
     f.write(str(FINAL_LIST))
     f.close()
 
+
 def manage_repo(resource_key):
     # Get list of repository items
-    map = sendAPI(os.environ['repo_resource_type'], resource_key, "list")
+    map = sendAPI(os.environ["repo_resource_type"], resource_key, "list")
     try:
-        itemList = map['items']
+        itemList = map["items"]
         sys.stdout.flush()
     except:
-        raise RuntimeError("There are no List of repository items inside the folder: " + resource_key)
+        raise RuntimeError(
+            "There are no List of repository items inside the folder: " + resource_key
+        )
         sys.exit(-1)
-    #debug
-#     for value in itemList:
-#         run_commands(value)
+    # debug
+    #     for value in itemList:
+    #         run_commands(value)
     pool_size = multiprocessing.cpu_count() * 2
     repo_folder_pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
     try:
-         FINAL_LIST = repo_folder_pool.map(run_commands, itemList)
-         repo_folder_pool.close()
-         repo_folder_pool.terminate()
+        FINAL_LIST = repo_folder_pool.map(run_commands, itemList)
+        repo_folder_pool.close()
+        repo_folder_pool.terminate()
     except Exception:
         repo_folder_pool.close()
         repo_folder_pool.terminate()
-        print(traceback.format_exc())  
+        print(traceback.format_exc())
         sys.exit(-1)
-    
-def deleteOlderFiles(resource_type, delete, admin, repo_paths, days ):
-    os.environ['repo_delete'] = delete
-    os.environ['repo_days'] = days
-    os.environ['repo_resource_type'] = resource_type
-    os.environ['repo_admin'] = admin
-    create_dir(os.path.join(TEMP_DIR , 'repo_results'), True)
-    I=0
+
+
+def deleteOlderFiles(resource_type, delete, admin, repo_paths, days):
+    os.environ["repo_delete"] = delete
+    os.environ["repo_days"] = days
+    os.environ["repo_resource_type"] = resource_type
+    os.environ["repo_admin"] = admin
+    create_dir(os.path.join(TEMP_DIR, "repo_results"), True)
+    I = 0
     REPO_LIST = repo_paths.split(",")
-    #debug:
-#     for repo in REPO_LIST:
-#         manage_repo(repo)
+    # debug:
+    #     for repo in REPO_LIST:
+    #         manage_repo(repo)
     procs = []
     for li in REPO_LIST:
-           proc = Process(target=manage_repo, args=(str(li),))
-           procs.append(proc)
-           proc.start()
+        proc = Process(target=manage_repo, args=(str(li),))
+        procs.append(proc)
+        proc.start()
     try:
-       for proc in procs:
-           proc.join()
-       for proc in procs:
-           proc.terminate()
+        for proc in procs:
+            proc.join()
+        for proc in procs:
+            proc.terminate()
     except Exception:
-       proc.terminate()
-       print(traceback.format_exc())
-       sys.exit(-1)
+        proc.terminate()
+        print(traceback.format_exc())
+        sys.exit(-1)
 
-    for r, d, f in os.walk(os.path.join(TEMP_DIR , 'repo_results')):
+    for r, d, f in os.walk(os.path.join(TEMP_DIR, "repo_results")):
         for file in f:
             if ".txt" in file:
                 with open(os.path.join(r, file)) as f:
@@ -1307,16 +1605,16 @@ def deleteOlderFiles(resource_type, delete, admin, repo_paths, days ):
                         for line in f:
                             f1.write(line)
                             f1.write("\n")
-    file = os.path.join(TEMP_DIR, 'repo_results', 'Final_Repo.txt')
+    file = os.path.join(TEMP_DIR, "repo_results", "Final_Repo.txt")
     try:
-        f= open(file,"r")
+        f = open(file, "r")
     except FileNotFoundError:
-        raise Exception( 'No repository items found')
+        raise Exception("No repository items found")
         sys.exit(-1)
     result = f.read()
     f.close()
     FINAL_LIST = result.split("\n")
-    
+
     file = []
     created = []
     comparison = []
@@ -1330,25 +1628,41 @@ def deleteOlderFiles(resource_type, delete, admin, repo_paths, days ):
                 i = 0
                 for result in new_result:
                     if "Deleted?:" in result:
-                        fetch_details_repo(i, new_result.index(result, i), str(result).replace("]",''), deleted)
+                        fetch_details_repo(
+                            i,
+                            new_result.index(result, i),
+                            str(result).replace("]", ""),
+                            deleted,
+                        )
                     if "File:" in result:
                         fetch_details_repo(i, new_result.index(result, i), result, file)
                     if "Created on:" in result:
-                        fetch_details_repo(i, new_result.index(result, i), result, created)
+                        fetch_details_repo(
+                            i, new_result.index(result, i), result, created
+                        )
                     if "Comparison:" in result:
-                        fetch_details_repo(i, new_result.index(result, i), result, comparison)
+                        fetch_details_repo(
+                            i, new_result.index(result, i), result, comparison
+                        )
                     if "Days:" in result:
                         fetch_details_repo(i, new_result.index(result, i), result, days)
                     i = i + 1
-    pandas.set_option('display.max_columns', None)
-    pandas.set_option('display.max_colwidth', 100)
-    pandas.set_option('colheader_justify', 'center')
-    final_dict =  {'File': file, 'Created On': created, 'Comparison': comparison, 'Days': days, 'Deleted?': deleted}
+    pandas.set_option("display.max_columns", None)
+    pandas.set_option("display.max_colwidth", 100)
+    pandas.set_option("colheader_justify", "center")
+    final_dict = {
+        "File": file,
+        "Created On": created,
+        "Comparison": comparison,
+        "Days": days,
+        "Deleted?": deleted,
+    }
     df = pandas.DataFrame(final_dict)
-    df = df.sort_values(by ='File')
-    df.style.set_properties(**{'text-align': 'left'})
+    df = df.sort_values(by="File")
+    df.style.set_properties(**{"text-align": "left"})
     sys.stdout.flush()
     return df
+
 
 def create_dir(directory, delete):
     """
@@ -1374,8 +1688,10 @@ def main():
         start_time = time.time()
         freeze_support()
         init()
-    #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
-        if (not os.environ.get('PYTHONHTTPSVERIFY', '') and getattr(ssl, '_create_unverified_context', None)):
+        #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
+        if not os.environ.get("PYTHONHTTPSVERIFY", "") and getattr(
+            ssl, "_create_unverified_context", None
+        ):
             ssl._create_default_https_context = ssl._create_unverified_context
         parser = argparse.ArgumentParser(description="Perfecto Actions Reporter")
         parser.add_argument(
@@ -1397,7 +1713,7 @@ def main():
             metavar="device_list_parameters",
             type=str,
             help="Perfecto get device list API parameters to limit device list. Support all API capabilities which selects devices based on reg ex/strings,  Leave it empty to select all devices",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-u",
@@ -1405,7 +1721,7 @@ def main():
             metavar="user_list_parameters",
             type=str,
             help="Perfecto get user list API parameters to limit user list. Support all API capabilities which selects users based on applicable parameters,  Leave it empty to select all users",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-t",
@@ -1413,7 +1729,7 @@ def main():
             type=str,
             metavar="Different types of Device Connection status",
             help="Different types of Device Connection status. Values: all. This will showcase all the device status like Available, Disconnected, un-available & Busy. Note: Only Available devices will be shown by default",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-a",
@@ -1421,7 +1737,7 @@ def main():
             metavar="actions",
             type=str,
             help="Perfecto actions seperated by semi-colon. E.g. reboot:true;cleanup:true;get_network_settings:true",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-r",
@@ -1429,7 +1745,7 @@ def main():
             type=str,
             metavar="refresh",
             help="Refreshes the page with latest device status as per provided interval in seconds",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-o",
@@ -1437,7 +1753,7 @@ def main():
             type=str,
             metavar="output in html",
             help="output in html. Values: true/false. Default is true",
-            nargs="?"
+            nargs="?",
         )
         parser.add_argument(
             "-l",
@@ -1445,45 +1761,53 @@ def main():
             type=str,
             metavar="shows customer logo",
             help="shows client logo if valid official client website url is specified in this sample format: www.perfecto.io",
-            nargs="?"
+            nargs="?",
         )
         args = vars(parser.parse_args())
         if not args["cloud_name"]:
             parser.print_help()
-            parser.error("cloud_name parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo")
+            parser.error(
+                "cloud_name parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo"
+            )
             exit
         if not args["security_token"]:
             parser.print_help()
-            parser.error("security_token parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo -s <<TOKEN>> || perfectoactions -c demo -s <<user>>:<<password>>")
+            parser.error(
+                "security_token parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo -s <<TOKEN>> || perfectoactions -c demo -s <<user>>:<<password>>"
+            )
             exit
-        os.environ['CLOUDNAME'] = args["cloud_name"]
-        os.environ['TOKEN'] = args["security_token"]
+        os.environ["CLOUDNAME"] = args["cloud_name"]
+        os.environ["TOKEN"] = args["security_token"]
         if args["device_list_parameters"]:
             device_list_parameters = args["device_list_parameters"]
         else:
             device_list_parameters = "All devices"
-        os.environ['DEVICE_LIST_PARAMETERS'] = device_list_parameters
+        os.environ["DEVICE_LIST_PARAMETERS"] = device_list_parameters
         os.environ["USER_LIST_PARAMETERS"] = "All users"
         if args["user_list_parameters"]:
-                os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
-        os.environ['perfecto_logo'] = "https://logo.clearbit.com/www.perfecto.io?size=120"
+            os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
+        os.environ[
+            "perfecto_logo"
+        ] = "https://logo.clearbit.com/www.perfecto.io?size=120"
         if args["logo"]:
             if str("www.").lower() not in str(args["logo"]).lower():
-                raise Exception("Kindly provide valid client website url. Sample format: www.perfecto.io")
+                raise Exception(
+                    "Kindly provide valid client website url. Sample format: www.perfecto.io"
+                )
                 sys.exit(-1)
             new_logo = "https://logo.clearbit.com/" + args["logo"] + "?size=120"
             validate_logo(new_logo)
-            os.environ['company_logo'] = new_logo
+            os.environ["company_logo"] = new_logo
         else:
-            os.environ['company_logo'] = os.environ['perfecto_logo']
-        os.environ['GET_NETWORK_SETTINGS'] = "False"
+            os.environ["company_logo"] = os.environ["perfecto_logo"]
+        os.environ["GET_NETWORK_SETTINGS"] = "False"
         reboot = "False"
         cleanup = "False"
         start_execution = "False"
         clean_repo = "NA"
         if args["actions"]:
             if "get_network_settings:true" in args["actions"]:
-                os.environ['GET_NETWORK_SETTINGS'] = "True"
+                os.environ["GET_NETWORK_SETTINGS"] = "True"
             if "reboot:true" in args["actions"]:
                 reboot = "True"
             if "cleanup:true" in args["actions"]:
@@ -1495,20 +1819,33 @@ def main():
         os.environ["clean_repo"] = clean_repo
         # manage repo:
         clean_repo = os.environ["clean_repo"]
-        if 'NA' != clean_repo:
+        if "NA" != clean_repo:
             try:
                 clean_repo_var = clean_repo.split("|")
                 if ";" in str(clean_repo_var[4]):
                     day = str(clean_repo_var[4]).split(";")[0]
                 else:
                     day = str(clean_repo_var[4])
-                repo_html = deleteOlderFiles(REPOSITORY_RESOURCE_TYPE, clean_repo_var[1], clean_repo_var[2], clean_repo_var[3], day)
+                repo_html = deleteOlderFiles(
+                    REPOSITORY_RESOURCE_TYPE,
+                    clean_repo_var[1],
+                    clean_repo_var[2],
+                    clean_repo_var[3],
+                    day,
+                )
             except Exception as e:
-                raise Exception("Verify parameters of clean_repo, split them by | seperator" + str(e))
+                raise Exception(
+                    "Verify parameters of clean_repo, split them by | seperator"
+                    + str(e)
+                )
                 sys.exit(-1)
         os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
-        if "True" in os.environ['GET_NETWORK_SETTINGS'] or "True" in reboot or "True" in cleanup:
+        if (
+            "True" in os.environ["GET_NETWORK_SETTINGS"]
+            or "True" in reboot
+            or "True" in cleanup
+        ):
             start_execution = "True"
         os.environ["START_EXECUTION"] = start_execution
         os.environ["PREPARE_ACTIONS_HTML"] = "true"
@@ -1519,61 +1856,69 @@ def main():
         if args["refresh"]:
             if int(args["refresh"]) >= 0:
                 os.environ["perfecto_actions_refresh"] = args["refresh"]
-        #create results path and files
-        create_dir(os.path.join(TEMP_DIR , 'results'), True)
-        create_dir(os.path.join(TEMP_DIR , 'repo_results'), True)
-        create_dir(os.path.join(TEMP_DIR , 'output'), True)
+        # create results path and files
+        create_dir(os.path.join(TEMP_DIR, "results"), True)
+        create_dir(os.path.join(TEMP_DIR, "repo_results"), True)
+        create_dir(os.path.join(TEMP_DIR, "output"), True)
         # result = get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
-        #get device list to excel
-        devlist = Pool(processes=1)            
+        # get device list to excel
+        devlist = Pool(processes=1)
         try:
-            result = devlist.apply_async(get_xml_to_xlsx, [RESOURCE_TYPE, "list", 'get_devices_list.xlsx'])
+            result = devlist.apply_async(
+                get_xml_to_xlsx, [RESOURCE_TYPE, "list", "get_devices_list.xlsx"]
+            )
         except Exception:
-             devlist.close()
-             print(traceback.format_exc())
-             sys.exit(-1)
+            devlist.close()
+            print(traceback.format_exc())
+            sys.exit(-1)
         # user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
-        userlist = Pool(processes=1)     
+        userlist = Pool(processes=1)
         try:
-            user_html = userlist.apply_async(get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx']).get()
+            user_html = userlist.apply_async(
+                get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"]
+            ).get()
             userlist.close()
             userlist.terminate()
         except Exception:
-             userlist.close()
-             print(traceback.format_exc())
-             sys.exit(-1)
+            userlist.close()
+            print(traceback.format_exc())
+            sys.exit(-1)
         if args["device_status"]:
-#             may require for debug single threads
-#             get_list("list;connected;false;green;Available")
-#             get_list("list;connected;true;red;Busy")
-#             get_list("list;disconnected;;red;Disconnected")
-#             get_list("list;unavailable;;red;Un-available")
-            get_dev_list = ["list;connected;true;red;Busy", "list;disconnected;;red;Disconnected", \
-                        "list;unavailable;;red;Un-available", "list;connected;false;green;Available"]
+            #             may require for debug single threads
+            #             get_list("list;connected;false;green;Available")
+            #             get_list("list;connected;true;red;Busy")
+            #             get_list("list;disconnected;;red;Disconnected")
+            #             get_list("list;unavailable;;red;Un-available")
+            get_dev_list = [
+                "list;connected;true;red;Busy",
+                "list;disconnected;;red;Disconnected",
+                "list;unavailable;;red;Un-available",
+                "list;connected;false;green;Available",
+            ]
             try:
-               procs = []
-               for li in get_dev_list:
-                   proc = Process(target=get_list, args=(str(li),))
-                   procs.append(proc)
-                   proc.start()
-               for proc in procs:
-                   proc.join()
-               for proc in procs:
-                   proc.terminate()
+                procs = []
+                for li in get_dev_list:
+                    proc = Process(target=get_list, args=(str(li),))
+                    procs.append(proc)
+                    proc.start()
+                for proc in procs:
+                    proc.join()
+                for proc in procs:
+                    proc.terminate()
             except Exception:
-               proc.terminate()
-               print(traceback.format_exc())
-               sys.exit(-1)
+                proc.terminate()
+                print(traceback.format_exc())
+                sys.exit(-1)
         else:
             if not args["device_list_parameters"]:
-                os.environ['DEVICE_LIST_PARAMETERS'] = "Available Devices only"
+                os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
             get_list("list;connected;false;green;Available")
-        if 'NA' != clean_repo:
+        if "NA" != clean_repo:
             prepare_html(user_html, repo_html, day)
         else:
             prepare_html(user_html, "", "")
         print("--- Completed in : %s seconds ---" % (time.time() - start_time))
-        #Keeps refreshing page with expected arguments with a sleep of provided seconds
+        # Keeps refreshing page with expected arguments with a sleep of provided seconds
         while "false" not in os.environ["perfecto_actions_refresh"]:
             time.sleep(int(os.environ["perfecto_actions_refresh"]))
             main()
@@ -1581,14 +1926,15 @@ def main():
         devlist.terminate()
 
         try:
-            if not platform.system() == 'Darwin':
-                os.system('taskkill /f /im perfectoactions.exe')
+            if not platform.system() == "Darwin":
+                os.system("taskkill /f /im perfectoactions.exe")
         except:
             pass
     except Exception as e:
-        raise Exception("Oops!" , e )
+        raise Exception("Oops!", e)
         sys.exit(-1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
     sys.exit()

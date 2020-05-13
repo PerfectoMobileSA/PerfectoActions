@@ -5,6 +5,9 @@
 Increase the version in setup.py and run the following to upload to test pypi: <br /> 
 
     python3 -m pip install --user --upgrade setuptools wheel twine
+    
+    pip3 freeze > requirements.txt
+    python3 setup.py install
     rm -rf build dist
     python3 setup.py clean --all
     python3 setup.py sdist bdist_wheel
