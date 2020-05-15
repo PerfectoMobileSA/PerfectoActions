@@ -367,7 +367,6 @@ def prepareReport():
     totalTCCount = len(resources)
     print("Total executions: " + str(len(resources)))
     df = pandas.DataFrame([flatten_json(x) for x in resources])
-    df.to_csv("temp.csv")
     df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
     df["startTime"] = (
         df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
@@ -1185,7 +1184,6 @@ if __name__ == "__main__":
     main()
     os.chdir(".")
     results = glob.glob('*.{}'.format(xlformat))
-    print(results)
     for result in results:
         if "csv" in xlformat:
             df = df.append(pandas.read_csv(result))
