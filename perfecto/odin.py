@@ -1,3 +1,6 @@
+import xlwt
+import tzlocal
+import glob
 import numpy as np
 from pandas.io.json import json_normalize
 import pandas
@@ -15,6 +18,10 @@ import os
 from dateutil.parser import parse
 import sys
 import configparser
+from openpyxl import Workbook
+from openpyxl.styles import Alignment
+
+from openpyxl.reader.excel import load_workbook
 
 """
     This is the payload based on only start and end date
@@ -66,7 +73,7 @@ def retrieve_tests_executions(daysOlder, page):
     )
     # print entire response
     # #print(str(r.content))
-    print(str(r.url))
+    # print(str(r.url))
     return r.content
 
 
@@ -132,178 +139,9 @@ def getDeviceDetails(device, deviceFailCount):
     devicePassCount = 0
     errorsCount = 0
     i = 0
-    df = pandas.DataFrame(resources)
-    df = pandas.DataFrame([flatten_json(x) for x in resources])
 
-    import tzlocal
 
-    df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
-    df["startTime"] = (
-        df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
-    )
-    df["startTime"] = df["startTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
-
-    df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
-    df["endTime"] = (
-        df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
-    )
-    df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
-
-    df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
-        df["startTime"]
-    )
-    df = df[df['Duration']> pandas.Timedelta(0)]
-
-    custom_columns = [
-        "name",
-        "owner",
-        "startTime",
-        "endTime",
-        "Duration",
-        "status",
-        "job/name",
-        "job/number",
-        "job/branch",
-        "reportURL",
-        "failureReasonName",
-        "platforms/0/os",
-        "platforms/0/deviceId",
-        "platforms/0/deviceType",
-        "platforms/0/mobileInfo/manufacturer",
-        "platforms/0/mobileInfo/model",
-        "platforms/0/osVersion",
-        "platforms/0/browserInfo/browserType",
-        "platforms/0/browserInfo/browserVersion",
-        "id",
-        "externalId",
-        "uxDuration",
-        "platforms/0/screenResolution",
-        "platforms/0/location",
-        "platforms/0/mobileInfo/imei",
-        "platforms/0/mobileInfo/phoneNumber",
-        "platforms/0/mobileInfo/distributor",
-        "platforms/0/mobileInfo/firmware",
-        "platforms/0/selectionCriteriaV2/0/name",
-        "platforms/0/selectionCriteriaV2/1/name",
-        "platforms/0/selectionCriteriaV2/2/name",
-        "platforms/0/selectionCriteriaV2/2/value",
-        "platforms/0/customFields/0/name",
-        "platforms/0/customFields/0/value",
-        "videos/0/startTime",
-        "videos/0/endTime",
-        "videos/0/format",
-        "videos/0/streamingUrl",
-        "videos/0/downloadUrl",
-        "videos/0/screen/width",
-        "videos/0/screen/height",
-        "tags/0",
-        "tags/1",
-        "tags/2",
-        "tags/3",
-        "tags/4",
-        "tags/5",
-        "tags/6",
-        "executionEngine/version",
-        "project/name",
-        "project/version",
-        "automationFramework",
-        "parameters/0/name",
-        "parameters/0/value",
-        "parameters/1/name",
-        "parameters/1/value",
-        "parameters/2/name",
-        "parameters/2/value",
-        "parameters/3/name",
-        "parameters/3/value",
-        "parameters/4/name",
-        "parameters/4/value",
-        "parameters/5/name",
-        "parameters/5/value",
-        "parameters/6/name",
-        "parameters/6/value",
-        "parameters/7/name",
-        "parameters/7/value",
-        "parameters/8/name",
-        "parameters/9/name",
-        "parameters/9/value",
-        "parameters/10/name",
-        "parameters/10/value",
-        "parameters/11/name",
-        "parameters/11/value",
-        "parameters/12/name",
-        "parameters/12/value",
-        "platforms/0/mobileInfo/operator",
-        "platforms/0/mobileInfo/operatorCountry",
-        "tags/7",
-        "parameters/8/value",
-        "platforms/0/selectionCriteriaV2/3/name",
-        "platforms/0/selectionCriteriaV2/3/value",
-        "platforms/0/selectionCriteriaV2/4/name",
-        "platforms/0/selectionCriteriaV2/4/value",
-        "platforms/0/selectionCriteriaV2/5/name",
-        "platforms/0/selectionCriteriaV2/5/value",
-        "platforms/0/selectionCriteriaV2/6/name",
-        "platforms/0/selectionCriteriaV2/6/value",
-        "platforms/0/selectionCriteriaV2/7/name",
-        "platforms/0/selectionCriteriaV2/7/value",
-        "customFields/0/name",
-        "customFields/0/value",
-        "customFields/1/name",
-        "customFields/1/value",
-        "parameters/13/name",
-        "parameters/13/value",
-        "artifacts/0/type",
-        "artifacts/0/path",
-        "artifacts/0/zipped",
-        "artifacts/1/type",
-        "artifacts/1/path",
-        "artifacts/1/contentType",
-        "artifacts/1/zipped",
-        "artifacts/2/type",
-        "artifacts/2/path",
-        "artifacts/2/zipped",
-        "message",
-        "tags/8",
-        "tags/9",
-        "artifacts/0/contentType",
-        "tags/10",
-        "tags/11",
-        "artifacts/2/contentType",
-        "platforms/1/deviceId",
-        "platforms/1/deviceType",
-        "platforms/1/os",
-        "platforms/1/osVersion",
-        "platforms/1/screenResolution",
-        "platforms/1/location",
-        "platforms/1/mobileInfo/imei",
-        "platforms/1/mobileInfo/manufacturer",
-        "platforms/1/mobileInfo/model",
-        "platforms/1/mobileInfo/distributor",
-        "platforms/1/mobileInfo/firmware",
-        "platforms/1/selectionCriteriaV2/0/name",
-        "platforms/1/selectionCriteriaV2/0/value",
-        "platforms/1/customFields/0/name",
-        "platforms/1/customFields/0/value",
-        "videos/1/startTime",
-        "videos/1/endTime",
-        "videos/1/format",
-        "videos/1/streamingUrl",
-        "videos/1/downloadUrl",
-        "videos/1/screen/width",
-        "videos/1/screen/height",
-        "tags/12",
-        "tags/13",
-        "tags/14",
-        "tags/15",
-        "tags/16",
-        "platforms/1/mobileInfo/phoneNumber",
-    ]
-    df = df[df.columns.intersection(custom_columns)]
-    df = df.reindex(columns=custom_columns)
-    df = df.dropna(axis=1, how="all")
-    df.to_csv("temp.csv", index=False)
-    with open("temp.html", "a") as _file:
-        _file.write(df.head().to_html() + "\n\n")
+    
     for resource in resources:
         try:
             test_execution = resource  # retrieve a test execution
@@ -456,10 +294,21 @@ def pastPassPercentageCalculator(daysOlder):
     return str(percentageCalculator(totalPassCount, totalTCCount))
 
 
+def color_negative_red(value):
+    # if "PASSED" in value:
+    #     color = 'green'
+    # elif "FAILED" in value:
+    #     color = 'red'
+    # else:
+    #     color = 'grey'
+    color = 'red' if value < 1 else 'black'
+    return 'color: %s' % color
+
+
+
 """
    gets' Perfecto reporting API responses, creates dict for top device failures, auto suggestions and top tests failures and prepared json
 """
-
 
 def prepareReport():
     page = 1
@@ -517,6 +366,28 @@ def prepareReport():
     resources = json.loads(jsonDump)
     totalTCCount = len(resources)
     print("Total executions: " + str(len(resources)))
+    df = pandas.DataFrame([flatten_json(x) for x in resources])
+    df.to_csv("temp.csv")
+    df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
+    df["startTime"] = (
+        df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
+    )
+    df["startTime"] = df["startTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
+    df.loc[df['endTime'] < 1, 'endTime'] = int(round(time.time() * 1000)) 
+    df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
+    df["endTime"] = (
+        df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
+    )
+    df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
+    if "Duration" not in df.columns:
+        df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
+            df["startTime"]
+        )
+        df["Duration"] = df["Duration"].dt.seconds
+        df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
+    # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv
+    df_to_xl(df, str(startDate).replace("/","_"))
+    
     for resource in resources:
         try:
             #            totalTCCount += 1
@@ -585,7 +456,7 @@ def prepareReport():
                 orchestrationIssuesCount += commonErrorCount
                 break
         error = commonError
-        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system"
+        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
         if re.search(regEx_Filter, error):
             error = str(re.compile(regEx_Filter).split(error)[0])
             if "An error occurred." in error:
@@ -830,7 +701,6 @@ def prepareReport():
                 "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
             ] = 100
         elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-            print(str(totalTCCount))
             print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
             suggesstionsDict["# Great automation progress. Keep it up!"] = 0
 
@@ -896,9 +766,9 @@ def prepareReport():
             length=5,
         )
         counter += 1
-    df = pandas.DataFrame(jsonObj.topProblematicDevices)
-    df["model"].replace("", np.nan, inplace=True)
-    df.dropna(subset=["model"], inplace=True)
+    df_model = pandas.DataFrame(jsonObj.topProblematicDevices)
+    df_model["model"].replace("", np.nan, inplace=True)
+    df_model.dropna(subset=["model"], inplace=True)
     counter = 0
     print("**************#Top 5 failure tests along with pass count")
     for tcName, status in topTCFailureDict.items():
@@ -922,13 +792,12 @@ def prepareReport():
     df2["test"].replace("", np.nan, inplace=True)
     df2.dropna(subset=["test"], inplace=True)
     with open("temp.html", "a") as _file:
-        _file.write(df.head().to_html() + "\n\n" + df2.head().to_html())
+        _file.write(df_model.head().to_html() + "\n\n" + df2.head().to_html())
     jsonObj = (
         str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
     )
-
     print("############################ Generated JSON:")
-    print("jsonObj" + jsonObj)
+    # print("jsonObj" + jsonObj)
     print("############################")
 
 
@@ -936,6 +805,11 @@ def prepareReport():
    shows the progress bar
 """
 
+def as_text(value):
+    """as texts"""
+    if value is None:
+        return ""
+    return str(value)
 
 def printProgressBar(
     iteration, total, prefix="", suffix="", decimals=1, length=10, fill="#"
@@ -973,22 +847,177 @@ def is_date(string):
     except ValueError:
         return False
 
-
+def df_to_xl(df, filename):
+    custom_columns = [
+        "name",
+        "status",
+        "platforms/0/os",
+        "platforms/0/mobileInfo/model",
+        "platforms/0/browserInfo/browserType",
+        "platforms/0/browserInfo/browserVersion",
+        "platforms/0/osVersion",
+        "failureReasonName",
+        "message",
+        "startTime",
+        "endTime",
+        "Duration",
+        "job/name",
+        "job/number",
+        "job/branch",
+        "owner",
+        "reportURL",
+        "platforms/0/deviceId",
+        "platforms/0/deviceType",
+        "platforms/0/mobileInfo/manufacturer",
+        "platforms/0/screenResolution",
+        "platforms/0/location",
+        "platforms/0/mobileInfo/imei",
+        "platforms/0/mobileInfo/phoneNumber",
+        "platforms/0/mobileInfo/distributor",
+        "platforms/0/mobileInfo/firmware",
+        "platforms/0/selectionCriteriaV2/0/name",
+        "platforms/0/selectionCriteriaV2/1/name",
+        "platforms/0/selectionCriteriaV2/2/name",
+        "platforms/0/selectionCriteriaV2/2/value",
+        "platforms/0/customFields/0/name",
+        "platforms/0/customFields/0/value",
+        "tags/0",
+        "tags/1",
+        "tags/2",
+        "tags/3",
+        "tags/4",
+        "tags/5",
+        "tags/6",
+        "tags/7",
+        "tags/8",
+        "tags/9",        
+        "tags/10",
+        "tags/11",
+        "tags/12",
+        "tags/13",
+        "tags/14",
+        "tags/15",
+        "tags/16",
+        "id",
+        "externalId",
+        "uxDuration",
+        "videos/0/startTime",
+        "videos/0/endTime",
+        "videos/0/format",
+        "videos/0/streamingUrl",
+        "videos/0/downloadUrl",
+        "videos/0/screen/width",
+        "videos/0/screen/height",
+        "executionEngine/version",
+        "project/name",
+        "project/version",
+        "automationFramework",
+        "parameters/0/name",
+        "parameters/0/value",
+        "parameters/1/name",
+        "parameters/1/value",
+        "parameters/2/name",
+        "parameters/2/value",
+        "parameters/3/name",
+        "parameters/3/value",
+        "parameters/4/name",
+        "parameters/4/value",
+        "parameters/5/name",
+        "parameters/5/value",
+        "parameters/6/name",
+        "parameters/6/value",
+        "parameters/7/name",
+        "parameters/7/value",
+        "parameters/8/name",
+        "parameters/8/value",
+        "parameters/9/name",
+        "parameters/9/value",
+        "parameters/10/name",
+        "parameters/10/value",
+        "parameters/11/name",
+        "parameters/11/value",
+        "parameters/12/name",
+        "parameters/12/value",        
+        "parameters/13/name",
+        "parameters/13/value",
+        "platforms/0/mobileInfo/operator",
+        "platforms/0/mobileInfo/operatorCountry",
+        "platforms/0/selectionCriteriaV2/3/name",
+        "platforms/0/selectionCriteriaV2/3/value",
+        "platforms/0/selectionCriteriaV2/4/name",
+        "platforms/0/selectionCriteriaV2/4/value",
+        "platforms/0/selectionCriteriaV2/5/name",
+        "platforms/0/selectionCriteriaV2/5/value",
+        "platforms/0/selectionCriteriaV2/6/name",
+        "platforms/0/selectionCriteriaV2/6/value",
+        "platforms/0/selectionCriteriaV2/7/name",
+        "platforms/0/selectionCriteriaV2/7/value",
+        "customFields/0/name",
+        "customFields/0/value",
+        "customFields/1/name",
+        "customFields/1/value",
+        "artifacts/0/type",
+        "artifacts/0/path",
+        "artifacts/0/zipped",
+        "artifacts/1/type",
+        "artifacts/1/path",
+        "artifacts/1/contentType",
+        "artifacts/1/zipped",
+        "artifacts/2/type",
+        "artifacts/2/path",
+        "artifacts/2/zipped",
+        "artifacts/0/contentType",
+        "artifacts/2/contentType",
+        "platforms/1/deviceId",
+        "platforms/1/deviceType",
+        "platforms/1/os",
+        "platforms/1/osVersion",
+        "platforms/1/screenResolution",
+        "platforms/1/location",
+        "platforms/1/mobileInfo/imei",
+        "platforms/1/mobileInfo/manufacturer",
+        "platforms/1/mobileInfo/model",
+        "platforms/1/mobileInfo/distributor",
+        "platforms/1/mobileInfo/firmware",
+        "platforms/1/selectionCriteriaV2/0/name",
+        "platforms/1/selectionCriteriaV2/0/value",
+        "platforms/1/customFields/0/name",
+        "platforms/1/customFields/0/value",
+        "videos/1/startTime",
+        "videos/1/endTime",
+        "videos/1/format",
+        "videos/1/streamingUrl",
+        "videos/1/downloadUrl",
+        "videos/1/screen/width",
+        "videos/1/screen/height",
+        "platforms/1/mobileInfo/phoneNumber",
+    ]
+    df = df[df.columns.intersection(custom_columns)]
+    df = df.reindex(columns=custom_columns)
+    df = df.dropna(axis=1, how="all")
+    filename = [filename,".",xlformat]
+    if "csv" in xlformat:
+        df.to_csv("".join(filename), index=False)
+    else:
+        df.to_excel("".join(filename), index=False)    
+    print(filename)
+    if "csv"  not in xlformat:
+        wb = Workbook()
+        wb = load_workbook("".join(filename))
+        ws = wb.worksheets[0]
+        for column_cells in ws.columns:
+            length = max(len(as_text(cell.value)) for cell in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = length + 5
+        newfilename = os.path.abspath("".join(filename))
+        wb.save(newfilename)
+ 
 def main():
     start = datetime.now().replace(microsecond=0)
-    # #Auto- Retry
     prepareReport()
-    # if not prepareReport():
-    #     print("############################ Retry in progress as unable to generate report!############################")
-    #     if not prepareReport():
-    #         print("############################ Not retrying further. Unable to generate Report############################")
-    #         exit
-    #     else:
-    #         print("############################ Success! ############################")
-    # else:
     print("############################ Success! ############################")
     end = datetime.now().replace(microsecond=0)
     print("Total Time taken:" + str(end - start))
+
 
 
 if __name__ == "__main__":
@@ -1009,7 +1038,7 @@ if __name__ == "__main__":
     resources = []
     topTCFailureDict = {}
     topDeviceFailureDict = {}
-
+    df = pandas.DataFrame()
     # job
     jobName = ""
     try:
@@ -1017,6 +1046,14 @@ if __name__ == "__main__":
         jobNumber = str(sys.argv[6])
     except Exception:
         jobName = ""
+
+    try: 
+         xlformat = str(sys.argv[7])
+    except Exception:
+       xlformat = "csv"
+    filelist = glob.glob(os.path.join("*." + xlformat))
+    for f in filelist:
+        os.remove(f)
     # End date
     try:
         if is_date(sys.argv[4]):
@@ -1146,3 +1183,16 @@ if __name__ == "__main__":
         startDate = endDate
 
     main()
+    os.chdir(".")
+    results = glob.glob('*.{}'.format(xlformat))
+    print(results)
+    for result in results:
+        if "csv" in xlformat:
+            df = df.append(pandas.read_csv(result))
+        else:
+            df = df.append(pandas.read_excel(result))
+    print(df)
+    df_to_xl(df, "final")   
+   
+    # with open("temp.html", "a") as _file:
+    #     _file.write(df.head().to_html() + "\n\n")

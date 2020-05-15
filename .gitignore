@@ -44,3 +44,6 @@ perfecto/temp.csv
 perfecto/ps_failures.txt
 perfecto/temp.py
 perfecto/ori.csv
+*.csv
+*.xls
+*.xlsx
