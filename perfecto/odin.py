@@ -1,3 +1,5 @@
+import tempfile
+import platform
 import xlwt
 import tzlocal
 import glob
@@ -20,13 +22,13 @@ import sys
 import configparser
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
-
+from perfecto.perfectoactions import create_summary
 from openpyxl.reader.excel import load_workbook
 
 """
     This is the payload based on only start and end date
 """
-
+TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
 
 def payloadNoJob(oldmilliSecs, current_time_millis, page):
     payload = {
@@ -790,8 +792,8 @@ def prepareReport():
     df2 = pandas.DataFrame(jsonObj.topFailingTests)
     df2["test"].replace("", np.nan, inplace=True)
     df2.dropna(subset=["test"], inplace=True)
-    with open("temp.html", "a") as _file:
-        _file.write(df_model.head().to_html() + "\n\n" + df2.head().to_html())
+    # with open("temp.html", "a") as _file:
+    #     _file.write(df_model.head().to_html() + "\n\n" + df2.head().to_html())
     jsonObj = (
         str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
     )
@@ -1011,15 +1013,13 @@ def df_to_xl(df, filename):
         wb.save(newfilename)
  
 def main():
-    start = datetime.now().replace(microsecond=0)
     prepareReport()
     print("############################ Success! ############################")
-    end = datetime.now().replace(microsecond=0)
-    print("Total Time taken:" + str(end - start))
-
+    
 
 
 if __name__ == "__main__":
+    start = datetime.now().replace(microsecond=0)
     global finalDate
     print("Number of arguments:", len(sys.argv))
     print("Argument List:", str(sys.argv))
@@ -1191,6 +1191,61 @@ if __name__ == "__main__":
             df = df.append(pandas.read_excel(result))
     print(df)
     df_to_xl(df, "final")   
-   
-    # with open("temp.html", "a") as _file:
-    #     _file.write(df.head().to_html() + "\n\n")
+    summary = create_summary(df, "Summary Report", "status", "device_summary")
+    # try:
+    #     totalFailCount = 0
+    #     totalPassCount = 0
+    #     totalUnknownCount = 0
+    #     device_Dictionary = {}
+    #     failureList = {}
+    #     testNameFailureList = {}
+    #     test_execution = df 
+    #     status = test_execution["status"]
+    #     if status in "FAILED":
+    #         totalFailCount += 1
+    #         # get failed test names
+    #         name = test_execution["name"]
+    #         if name in testNameFailureList:
+    #             testNameFailureList[name] += 1
+    #         else:
+    #             testNameFailureList[name] = 1
+    #         # get devices which fails
+    #         # platforms = test_execution["platforms"]  # retrieve the platforms
+    #         # platform = platforms[0]
+    #         actual_deviceID = test_execution["platforms/0/deviceId"]
+    #         if actual_deviceID in device_Dictionary:
+    #             device_Dictionary[actual_deviceID] += 1
+    #         else:
+    #             device_Dictionary[actual_deviceID] = 1
+    #         # get error messages
+    #         message = test_execution["message"]
+    #         if message in failureList:
+    #             failureList[message] += 1
+    #         else:
+    #             failureList[message] = 1
+    #     elif status in "PASSED":
+    #         totalPassCount += 1
+    #     elif status in "UNKNOWN":
+    #         totalUnknownCount += 1
+    # except Exception as e:
+    #     print(str(e.message))
+
+    html_string = (
+            """
+        <html lang="en">
+          <head>
+    	  <meta name="viewport" content="width=device-width, initial-scale=1">
+           <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
+    		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+            <body> """ + summary  + """ alt='summary' id='summary' >"""
+    )
+    # with open(os.path.join(TEMP_DIR, "output", "temp.html"), "w") as f:
+    with open("temp.html", "w") as f:
+        f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="summary", index=False )))
+
+    # with open("temp.html", "w+") as _file:
+    #     _file.write(df.head().to_html() + "\n\n" + summary)
+    end = datetime.now().replace(microsecond=0)
+
+    print("Total Time taken:" + str(end - start))
