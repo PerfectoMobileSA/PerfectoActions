@@ -380,6 +380,8 @@ def prepareReport():
         df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
     )
     df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
+    if "month" not in df.columns:
+        df["month"] = pandas.to_datetime(df["startTime"]).dt.strftime("%m/%Y") 
     if "Duration" not in df.columns:
         df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
             df["startTime"]
@@ -992,6 +994,7 @@ def df_to_xl(df, filename):
         "videos/1/screen/width",
         "videos/1/screen/height",
         "platforms/1/mobileInfo/phoneNumber",
+        "month",
     ]
     df = df[df.columns.intersection(custom_columns)]
     df = df.reindex(columns=custom_columns)
@@ -1192,44 +1195,6 @@ if __name__ == "__main__":
     print(df)
     df_to_xl(df, "final")   
     summary = create_summary(df, "Summary Report", "status", "device_summary")
-    # try:
-    #     totalFailCount = 0
-    #     totalPassCount = 0
-    #     totalUnknownCount = 0
-    #     device_Dictionary = {}
-    #     failureList = {}
-    #     testNameFailureList = {}
-    #     test_execution = df 
-    #     status = test_execution["status"]
-    #     if status in "FAILED":
-    #         totalFailCount += 1
-    #         # get failed test names
-    #         name = test_execution["name"]
-    #         if name in testNameFailureList:
-    #             testNameFailureList[name] += 1
-    #         else:
-    #             testNameFailureList[name] = 1
-    #         # get devices which fails
-    #         # platforms = test_execution["platforms"]  # retrieve the platforms
-    #         # platform = platforms[0]
-    #         actual_deviceID = test_execution["platforms/0/deviceId"]
-    #         if actual_deviceID in device_Dictionary:
-    #             device_Dictionary[actual_deviceID] += 1
-    #         else:
-    #             device_Dictionary[actual_deviceID] = 1
-    #         # get error messages
-    #         message = test_execution["message"]
-    #         if message in failureList:
-    #             failureList[message] += 1
-    #         else:
-    #             failureList[message] = 1
-    #     elif status in "PASSED":
-    #         totalPassCount += 1
-    #     elif status in "UNKNOWN":
-    #         totalUnknownCount += 1
-    # except Exception as e:
-    #     print(str(e.message))
-
     html_string = (
             """
         <html lang="en">

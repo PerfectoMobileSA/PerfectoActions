@@ -6,6 +6,7 @@ from IPython.display import HTML
 import glob
 import os
 import re
+import numpy as np
 
 from perfecto.perfectoactions import create_summary
 # data = [dict(name='Google', url='http://www.google.com'),
@@ -23,25 +24,39 @@ df = pandas.DataFrame()
 df = df.append(pandas.read_csv("./final.csv"))
 execution_summary = create_summary(df, "Summary Report", "status", "device_summary")
 failed = df[(df['status'] == "FAILED")]
+#monthly stats
+monthlyStats = df.pivot_table(index = ["month", "platforms/0/deviceType", "platforms/0/os"], 
+              columns = "status" , 
+              values = "name", 
+              aggfunc = "count", margins=True, fill_value=0)\
+        .fillna('')
+for column in monthlyStats.columns:
+  monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
+print (monthlyStats)
+monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="monthlysummary", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
+
+# Failure reasons
+# failurereasons = df.pivot_table(index = ["failureReasonName"], 
+#               columns = "month",
+#                aggfunc=np.count_nonzero).reset_index().fillna(0)
+failurereasons = pandas.crosstab(df['failureReasonName'],df['status'])
+print (failurereasons)
+failurereasons = failurereasons.to_html( classes="mystyle", table_id="failuresummary", index=True, render_links=True, escape=False )
 #top failed TCs
 topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
 reportURLs = []
 for ind in topfailedTCNames.index:
   reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
 topfailedTCNames['Result'] = reportURLs
-# topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '<a href="{0}">link</a>'.format(x))
 topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
 for ind in topfailedTCNames.index:
   topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
 topfailedTCNames = topfailedTCNames.drop('Result', 1)
-# topfailedTCNames.columns = ['Top Failed Test Names', '#Failed']
+topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
 print(str(topfailedTCNames))
 topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
-#top failed Devices
-topFailedDevices = failed.groupby(['platforms/0/deviceId']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
-topFailedDevices.columns = ['Top Failed Device ids', '#Failed']
-print(str(topFailedDevices))
-topfailedDevicestable = topFailedDevices.to_html( classes="mystyle", table_id="summary", index=False , render_links=True, escape=False)
+
+#recommendations
 
 html_string = (
         """
@@ -249,6 +264,7 @@ html_string = (
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
                 table-layout: fixed;
                 word-wrap: break-word; 
+                background-color: white;
             }}
 
             .mystyle body {{
@@ -317,8 +333,10 @@ html_string = (
               border-left: 1px solid #333;
               border-right: 1px solid #333;
               background: #fffffa;
-              text-align: left;
+              text-align: center;
             }}
+
+            table.mystyle td:first-child {{ text-align: left; }}   
 
             table.mystyle thead {{
               background: #333333;
@@ -472,7 +490,7 @@ html_string = (
 			}}
             </style>
           <body bgcolor="#FFFFED">
-        <body> """ + execution_summary  + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p>  <div style="overflow-x:auto;">""" + topfailedtable + topfailedDevicestable + """ </div> </body>"""
+        <body> <div align="center">""" + execution_summary  + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + monthlyStats + failurereasons +  topfailedtable  + """ </div> </body>"""
 )
 # with open(os.path.join(TEMP_DIR, "output", "temp.html"), "w") as f:
 with open("temp.html", "w") as f:
