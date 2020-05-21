@@ -448,7 +448,7 @@ def prepareReport():
         "transfering all failure reasons to: %s"
         % (os.path.join(os.path.abspath(os.curdir), failureListFileName))
     )
-    open(failureListFileName, "w").close
+    open(failureListFileName, "a").close
     for commonError, commonErrorCount in failureList.items():
         for labIssue in labIssues:
             if re.search(labIssue, commonError):
@@ -1054,6 +1054,9 @@ if __name__ == "__main__":
     except Exception:
        xlformat = "csv"
     filelist = glob.glob(os.path.join("*." + xlformat))
+    for f in filelist:
+        os.remove(f)
+    filelist = glob.glob(os.path.join("*_failures.txt" ))
     for f in filelist:
         os.remove(f)
     # End date

@@ -1,3 +1,5 @@
+from easydict import EasyDict as edict
+from collections import Counter
 import tzlocal
 import pandas
 import datetime as dt
@@ -7,6 +9,19 @@ import glob
 import os
 import re
 import numpy as np
+
+"""
+   calculates the percetage of a part and whole number
+"""
+
+
+def percentageCalculator(part, whole):
+    if int(whole) > 0:
+        calc = (100 * float(part) / float(whole), 0)
+        calc = round(float((calc[0])), 2)
+    else:
+        calc = 0
+    return calc
 
 from perfecto.perfectoactions import create_summary
 # data = [dict(name='Google', url='http://www.google.com'),
@@ -24,6 +39,10 @@ df = pandas.DataFrame()
 df = df.append(pandas.read_csv("./final.csv"))
 execution_summary = create_summary(df, "Summary Report", "status", "device_summary")
 failed = df[(df['status'] == "FAILED")]
+passed = df[(df['status'] == "PASSED")]
+failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
+totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
+totalTCCount = df.shape[0]
 #monthly stats
 monthlyStats = df.pivot_table(index = ["month", "platforms/0/deviceType", "platforms/0/os"], 
               columns = "status" , 
@@ -32,15 +51,9 @@ monthlyStats = df.pivot_table(index = ["month", "platforms/0/deviceType", "platf
         .fillna('')
 for column in monthlyStats.columns:
   monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
-print (monthlyStats)
 monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="monthlysummary", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
-
-# Failure reasons
-# failurereasons = df.pivot_table(index = ["failureReasonName"], 
-#               columns = "month",
-#                aggfunc=np.count_nonzero).reset_index().fillna(0)
 failurereasons = pandas.crosstab(df['failureReasonName'],df['status'])
-print (failurereasons)
+# print (failurereasons)
 failurereasons = failurereasons.to_html( classes="mystyle", table_id="failuresummary", index=True, render_links=True, escape=False )
 #top failed TCs
 topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
@@ -53,11 +66,215 @@ for ind in topfailedTCNames.index:
   topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
 topfailedTCNames = topfailedTCNames.drop('Result', 1)
 topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
-print(str(topfailedTCNames))
+# print(str(topfailedTCNames))
 topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
 
 #recommendations
+orchestrationIssues = ["already in use"]
+labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
+regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+labIssuesCount = 0
+scriptingIssuesCount = 0
+orchestrationIssuesCount = 0
+cleanedFailureList = {}
+suggesstionsDict = {}
+totalFailCount = failed.shape[0]
+totalPassCount = passed.shape[0]
+blockedCount = failed_blocked.shape[0]
+# failures count
+failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
+print(failuresmessage)
+for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
+    for labIssue in labIssues:
+        if re.search(labIssue, commonError):
+            labIssuesCount += commonErrorCount
+            break
+    for orchestrationIssue in orchestrationIssues:
+        if re.search(orchestrationIssue, commonError):
+            orchestrationIssuesCount += commonErrorCount
+            break
+    error = commonError
+    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+    if re.search(regEx_Filter, error):
+        error = str(re.compile(regEx_Filter).split(error)[0])
+        if "An error occurred." in error:
+            error = error.split("An error occurred. Stack Trace:")[1]
+    if re.search("error: \-\[|Fatal error:", error):
+        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+    if error.strip() in cleanedFailureList:
+        cleanedFailureList[error.strip()] += 1
+    else:
+        cleanedFailureList[error.strip()] = commonErrorCount
+    scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
+print(orchestrationIssuesCount)
+print(labIssuesCount)
+print(scriptingIssuesCount)
+# print(cleanedFailureList)
 
+ # Top 5 failure reasons
+topFailureDict = {}
+
+failureDict = Counter(cleanedFailureList)
+for commonError, commonErrorCount in failureDict.most_common(5):
+    topFailureDict[commonError] = int(commonErrorCount)
+
+# reach top errors and clean them
+i = 0
+for commonError, commonErrorCount in topFailureDict.items():
+    if "Device not found" in error:
+        error = (
+            "Raise a support case as *|*"
+            + commonError.strip()
+            + "*|* as it occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    elif "Cannot open device" in error:
+        error = (
+            "Reserve the device/ use perfecto lab auto selection feature to avoid:  *|*"
+            + commonError.strip()
+            + "*|* as it occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    else:
+        error = (
+            "Fix the error: *|*"
+            + commonError.strip()
+            + "*|* as it occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    suggesstionsDict[error] = commonErrorCount
+eDict = edict(
+        {
+           
+            "Pass%": int(percentageCalculator(totalPassCount, totalTCCount)),
+            "lab": labIssuesCount,
+            "orchestration": orchestrationIssuesCount,
+            "scripting": scriptingIssuesCount,
+            "unknowns": totalUnknownCount,
+            "executions": totalTCCount,
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "recommendation": "-",
+                    "impact": 0,
+                    "impactMessage": "null",
+                },
+                {
+                    "rank": 2,
+                    "recommendation": "-",
+                    "impact": 0,
+                    "impactMessage": "null",
+                },
+                {
+                    "rank": 3,
+                    "recommendation": "-",
+                    "impact": 0,
+                    "impactMessage": "null",
+                },
+                {
+                    "rank": 4,
+                    "recommendation": "-",
+                    "impact": 0,
+                    "impactMessage": "null",
+                },
+                {
+                    "rank": 5,
+                    "recommendation": "-",
+                    "impact": 0,
+                    "impactMessage": "null",
+                },
+            ],
+        }
+    )
+jsonObj = edict(eDict)
+if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
+    suggesstionsDict[
+        "# Fix the unknowns. The unknown script ratio is too high (%) : "
+        + str(percentageCalculator(totalUnknownCount, totalTCCount))
+        + "%"
+    ] = percentageCalculator(
+        totalPassCount + totalUnknownCount, totalTCCount
+    ) - percentageCalculator(
+        totalPassCount, totalTCCount
+    )
+if len(suggesstionsDict) < 5:
+    if (topfailedTCNames.shape[0]) > 1:
+        for tcName, status in topfailedTCNames.itertuples(index=False):
+            suggesstionsDict[
+                "# Fix the top failing test: "
+                + tcName
+                + " as the failures count is: "
+                + str(int((str(status).split(",")[0]).replace("[", "").strip()))
+            ] = 1
+            break
+
+if len(suggesstionsDict) < 5:
+    if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
+        if totalTCCount > 0:
+            suggesstionsDict[
+                "# Fix the failures. The total failures % is too high (%) : "
+                + str(percentageCalculator(totalFailCount, totalTCCount))
+                + "%"
+            ] = totalFailCount
+if len(suggesstionsDict) < 5:
+    if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
+        totalTCCount > 0
+    ):
+        suggesstionsDict[
+            "# Fix the failures. The total pass %  is too less (%) : "
+            + str(int(percentageCalculator(totalPassCount, totalTCCount)))
+            + "%"
+        ] = (
+            100
+            - (
+                percentageCalculator(
+                    totalPassCount + totalUnknownCount, totalTCCount
+                )
+                - percentageCalculator(totalPassCount, totalTCCount)
+            )
+        ) - int(
+            percentageCalculator(totalPassCount, totalTCCount)
+        )
+if len(suggesstionsDict) < 5:
+    if totalTCCount == 0:
+        suggesstionsDict[
+            "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
+        ] = 100
+    elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
+        print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
+        suggesstionsDict["# Great automation progress. Keep it up!"] = 0
+
+    int(percentageCalculator(totalFailCount, totalTCCount)) > 15
+print("**************#Top 5 failure reasons ")
+topSuggesstionsDict = Counter(suggesstionsDict)
+print(topSuggesstionsDict)
+counter = 0
+for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
+    impact = 1
+    if sugg.startswith("# "):
+        sugg = sugg.replace("# ", "")
+        impact = commonErrorCount
+    else:
+        impact = percentageCalculator(
+            totalPassCount + commonErrorCount, totalTCCount
+        ) - percentageCalculator(totalPassCount, totalTCCount)
+    jsonObj.recommendations[counter].impact = int(impact)
+    if int(impact) < 1:
+        jsonObj.recommendations[counter].recommendation = (
+            sugg.replace('"', "*|*").replace("'", "*|*").strip()
+            + ". Impact: "
+            + str(("%.2f" % round(impact, 2)))
+            + "%"
+        )
+    else:
+        jsonObj.recommendations[counter].recommendation = (
+            sugg.replace('"', "*|*").replace("'", "*|*").strip()
+        )
+    print(str(counter + 1) + "." + str(sugg))
+print(jsonObj)
 html_string = (
         """
     <html lang="en">
