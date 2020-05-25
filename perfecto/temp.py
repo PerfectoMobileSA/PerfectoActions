@@ -1,3 +1,4 @@
+import json 
 from easydict import EasyDict as edict
 from collections import Counter
 import tzlocal
@@ -83,7 +84,7 @@ totalPassCount = passed.shape[0]
 blockedCount = failed_blocked.shape[0]
 # failures count
 failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
-print(failuresmessage)
+
 for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
     for labIssue in labIssues:
         if re.search(labIssue, commonError):
@@ -106,10 +107,6 @@ for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
     else:
         cleanedFailureList[error.strip()] = commonErrorCount
     scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
-print(orchestrationIssuesCount)
-print(labIssuesCount)
-print(scriptingIssuesCount)
-# print(cleanedFailureList)
 
  # Top 5 failure reasons
 topFailureDict = {}
@@ -121,19 +118,19 @@ for commonError, commonErrorCount in failureDict.most_common(5):
 # reach top errors and clean them
 i = 0
 for commonError, commonErrorCount in topFailureDict.items():
-    if "Device not found" in error:
+    if "ERROR: No device was found" in error:
         error = (
-            "Raise a support case as *|*"
+            "Raise a support case as the error: *|*"
             + commonError.strip()
-            + "*|* as it occurs in *|*"
+            + "*|* occurs in *|*"
             + str(commonErrorCount)
             + "*|* occurrences"
         )
     elif "Cannot open device" in error:
         error = (
-            "Reserve the device/ use perfecto lab auto selection feature to avoid:  *|*"
+            "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
             + commonError.strip()
-            + "*|* as it occurs in *|*"
+            + "*|* occurs in *|*"
             + str(commonErrorCount)
             + "*|* occurrences"
         )
@@ -148,43 +145,50 @@ for commonError, commonErrorCount in topFailureDict.items():
     suggesstionsDict[error] = commonErrorCount
 eDict = edict(
         {
-           
-            "Pass%": int(percentageCalculator(totalPassCount, totalTCCount)),
-            "lab": labIssuesCount,
-            "orchestration": orchestrationIssuesCount,
-            "scripting": scriptingIssuesCount,
-            "unknowns": totalUnknownCount,
-            "executions": totalTCCount,
-            "recommendations": [
+            "status": [
                 {
-                    "rank": 1,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
+                "#Total": "Count ->",
+                "#Execution": totalTCCount,
+                "#Pass" : totalPassCount,
+                "#Failed" : totalFailCount,
+                "#Blocked" : blockedCount,
+                "#Unknowns": totalUnknownCount,
+                "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
+                },
+            ],
+            "issues": [
+              {
+                "#Issues": "Count ->",
+                "#Scripting": scriptingIssuesCount,
+                "#Lab": labIssuesCount,
+                "#Orchestration": orchestrationIssuesCount,
+                },
+            ],
+            "recommendation": [
+                {
+                   "Recommendations": "-",
+                   "Rank": 1,
+                    "impact": "0",
                 },
                 {
-                    "rank": 2,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
+                   "Recommendations": "-",
+                     "Rank": 2,
+                    "impact": "0",
                 },
                 {
-                    "rank": 3,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
+                    "Recommendations": "-",
+                    "Rank": 3,
+                    "impact": "0",
                 },
                 {
-                    "rank": 4,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
+                    "Recommendations": "-",
+                    "Rank": 4,
+                     "impact": "0",
                 },
                 {
-                    "rank": 5,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
+                    "Recommendations": "-",
+                    "Rank": 5,
+                    "impact": "0",
                 },
             ],
         }
@@ -248,10 +252,9 @@ if len(suggesstionsDict) < 5:
         suggesstionsDict["# Great automation progress. Keep it up!"] = 0
 
     int(percentageCalculator(totalFailCount, totalTCCount)) > 15
-print("**************#Top 5 failure reasons ")
 topSuggesstionsDict = Counter(suggesstionsDict)
-print(topSuggesstionsDict)
 counter = 0
+totalImpact = 0
 for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
     impact = 1
     if sugg.startswith("# "):
@@ -261,20 +264,20 @@ for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
         impact = percentageCalculator(
             totalPassCount + commonErrorCount, totalTCCount
         ) - percentageCalculator(totalPassCount, totalTCCount)
-    jsonObj.recommendations[counter].impact = int(impact)
-    if int(impact) < 1:
-        jsonObj.recommendations[counter].recommendation = (
-            sugg.replace('"', "*|*").replace("'", "*|*").strip()
-            + ". Impact: "
-            + str(("%.2f" % round(impact, 2)))
-            + "%"
-        )
-    else:
-        jsonObj.recommendations[counter].recommendation = (
-            sugg.replace('"', "*|*").replace("'", "*|*").strip()
-        )
-    print(str(counter + 1) + "." + str(sugg))
-print(jsonObj)
+    jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
+    jsonObj.recommendation[counter].Recommendations = (
+        sugg.replace("*|*", "'").strip()
+    )
+    totalImpact += round(impact, 2)
+    counter += 1
+execution_status = pandas.DataFrame.from_dict(jsonObj.status)
+execution_status = execution_status.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+issues = pandas.DataFrame.from_dict(jsonObj.issues)
+issues = issues.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
+recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(totalImpact) + '%]']
+recommendations = recommendations.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+print("Total impact% :" + str(totalImpact))
 html_string = (
         """
     <html lang="en">
@@ -508,6 +511,10 @@ html_string = (
               box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
             }}
 
+            p {{
+              text-align:center;
+              color:white;
+            }}
             body {{
               background-color: black;
               height: 100%;
@@ -567,8 +574,9 @@ html_string = (
 
             table.mystyle thead th {{
               line-height: 200%;
-              font-size: 13px;
-              color: #fff1bf;
+              font-size: 14px;
+              font-weight: normal;
+              color: #fffffa;
               text-align: center;
               transition:transform 0.25s ease;
             }}
@@ -705,9 +713,32 @@ html_string = (
 			#download:hover {{
 			  background-color: RoyalBlue;
 			}}
+      .glow {{
+        font-size: 15px;
+        color: white;
+        text-align: center;
+        -webkit-animation: glow 1s ease-in-out infinite alternate;
+        -moz-animation: glow 1s ease-in-out infinite alternate;
+        animation: glow 1s ease-in-out infinite alternate;
+      }}
+
+      @-webkit-keyframes glow {{
+        from {{
+          text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
+        }}
+        
+        to {{
+          text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
+        }}
+      }}
+      .myDiv {{
+        background-color: #333333; 
+        text-align: center;
+      }}
             </style>
           <body bgcolor="#FFFFED">
-        <body> <div align="center">""" + execution_summary  + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + monthlyStats + failurereasons +  topfailedtable  + """ </div> </body>"""
+        <body> <div align="center">""" + execution_summary  + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + """ <p> <div class="myDiv" ><h1 class="glow">Summary</h1></div><p>""" + execution_status + \
+          """ <p> <div class="myDiv" ><h1 class="glow">OS Summary</h1></div> <p>""" + monthlyStats + """ <p><div class="myDiv" ><h1 class="glow">Issues</h1> </div> <p>""" +issues + """ <p> <div class="myDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p>""" + failurereasons +  """ <p> <div class="myDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p>""" +topfailedtable + """ <p> <div class="myDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p>""" + recommendations + """ </div> </body>"""
 )
 # with open(os.path.join(TEMP_DIR, "output", "temp.html"), "w") as f:
 with open("temp.html", "w") as f:
