@@ -958,6 +958,7 @@ def prepare_html(user_html, table3, day):
                flex-basis: 100%;
                display: none;
                padding: 10px;
+               overflow-x: auto;
              }}
 
              /* For presentation only */
@@ -993,10 +994,8 @@ def prepare_html(user_html, table3, day):
                 border-collapse: collapse;
                 border: 2px solid black;
                 margin:auto;
-                width: 95%;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                table-layout: fixed;
-                word-wrap: break-word; 
+                background-color: white;
             }}
 
             .mystyle body {{
@@ -1066,8 +1065,10 @@ def prepare_html(user_html, table3, day):
               border-left: 1px solid #333;
               border-right: 1px solid #333;
               background: #fffffa;
-              text-align: left;
+              text-align: center;
             }}
+
+           table.mystyle td:first-child {{ text-align: left; }}   
 
             table.mystyle thead {{
               background: #333333;
@@ -1082,7 +1083,8 @@ def prepare_html(user_html, table3, day):
             table.mystyle thead th {{
               line-height: 200%;
               font-size: 13px;
-              color: #fff1bf;
+              font-weight: normal;
+              color: #fffffa;
               text-align: center;
               transition:transform 0.25s ease;
             }}
@@ -1118,7 +1120,6 @@ def prepare_html(user_html, table3, day):
             #summary{{
              box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
              position: relative;
-             width:50%;
              cursor: pointer;
              padding: .1%;
              border-style: outset;
@@ -1219,6 +1220,43 @@ def prepare_html(user_html, table3, day):
 			#download:hover {{
 			  background-color: RoyalBlue;
 			}}
+
+            .glow {{
+                font-size: 15px;
+                color: white;
+                text-align: center;
+                -webkit-animation: glow 1s ease-in-out infinite alternate;
+                -moz-animation: glow 1s ease-in-out infinite alternate;
+                animation: glow 1s ease-in-out infinite alternate;
+            }}
+
+            @-webkit-keyframes glow {{
+                from {{
+                text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
+                }}
+                
+                to {{
+                text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
+                }}
+            }}
+
+            .reportHeadingDiv {{
+                background-color: #333333; 
+                text-align: center;
+            }}
+
+            .reportDiv {{
+                overflow-x: auto;
+                align:center;
+                text-align: center;
+            }}
+
+            #report{{
+                box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+                overflow-x: auto;
+                min-width:100%;
+            }}
+            
             </style>
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
@@ -1252,9 +1290,10 @@ def prepare_html(user_html, table3, day):
                                 <img id="logo" src="""
             + os.environ["company_logo"]
             + """ style="margin:1%;" alt="Company logo" ></a> 
+            <div class="reportDiv">
                                 """
             + create_summary(user_html, "Users list Status", "status", "user_summary")
-            + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p>
+            + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p></div>
                                 <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
                                 <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
                                 </br> </br>
@@ -1277,9 +1316,9 @@ def prepare_html(user_html, table3, day):
                                 <img id="logo" src="""
             + os.environ["company_logo"]
             + """ style="margin:1%;" alt="Company logo" ></a> 
-                                """
+                                <div class="reportDiv">"""
             + summary
-            + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p>
+            + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p></div>
                                 <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
                                     <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>
                                     </br> </br>
@@ -1319,7 +1358,7 @@ def prepare_html(user_html, table3, day):
                 </div>
                         {table3}
                     </div>
-                    <a target="_blank" class="mystyle" style="color:powderblue;" href="https://clearbit.com">Logos provided by Clearbit</a>
+                    <a target="_blank" style="font-size:12;font-family:"Trebuchet MS", Helvetica, sans-serif;color:powderblue;" href="https://clearbit.com">Logos provided by Clearbit</a>
                 </div>
               <script>
              

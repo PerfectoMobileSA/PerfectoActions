@@ -1017,8 +1017,6 @@ def df_to_xl(df, filename):
  
 def main():
     prepareReport()
-    print("############################ Success! ############################")
-    
 
 
 if __name__ == "__main__":
@@ -1043,12 +1041,13 @@ if __name__ == "__main__":
     df = pandas.DataFrame()
     # job
     jobName = ""
-    try:
-        jobName = str(sys.argv[5])
-        jobNumber = str(sys.argv[6])
-        criteria = "job: " + jobName + " ; number: " + jobNumber
-    except Exception:
-        jobName = ""
+    if "jobName=" in sys.argv[3]:
+        try:
+            jobName = str(sys.argv[5])
+            jobNumber = str(sys.argv[6])
+            criteria = "job: " + jobName + " ; number: " + jobNumber
+        except Exception:
+            jobName = ""
 
     try: 
          xlformat = str(sys.argv[7])
