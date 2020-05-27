@@ -40,7 +40,7 @@ perfecto/temp.dat
 .vscode
 usage_reports.py
 */temp.html
-perfecto/ps_failures.txt
+perfecto/*_failures.txt
 perfecto/ori.csv
 *.csv
 *.xls

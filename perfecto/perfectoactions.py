@@ -602,7 +602,7 @@ def validate_logo(logo):
 def create_summary(df, title, column, name):
     fig = pl.figure(figsize=(15, 2))
     pl.suptitle(title)
-    ax1 = pl.subplot(121, aspect="equal", facecolor="lightslategray")
+    ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
     fig.patch.set_facecolor("yellow")
     fig.patch.set_alpha(0.9)
     df[column].value_counts().sort_index().plot(
@@ -1319,6 +1319,7 @@ def prepare_html(user_html, table3, day):
                 </div>
                         {table3}
                     </div>
+                    <a target="_blank" class="mystyle" style="color:powderblue;" href="https://clearbit.com">Logos provided by Clearbit</a>
                 </div>
               <script>
              
@@ -1788,7 +1789,7 @@ def main():
             os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
         os.environ[
             "perfecto_logo"
-        ] = "https://logo.clearbit.com/www.perfecto.io?size=120"
+        ] = "https://logo.clearbit.com/www.perforce.com?size=120"
         if args["logo"]:
             if str("www.").lower() not in str(args["logo"]).lower():
                 raise Exception(

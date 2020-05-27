@@ -52,10 +52,10 @@ monthlyStats = df.pivot_table(index = ["month", "platforms/0/deviceType", "platf
         .fillna('')
 for column in monthlyStats.columns:
   monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
-monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="monthlysummary", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
+monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
 failurereasons = pandas.crosstab(df['failureReasonName'],df['status'])
 # print (failurereasons)
-failurereasons = failurereasons.to_html( classes="mystyle", table_id="failuresummary", index=True, render_links=True, escape=False )
+failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
 #top failed TCs
 topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
 reportURLs = []
@@ -68,7 +68,7 @@ for ind in topfailedTCNames.index:
 topfailedTCNames = topfailedTCNames.drop('Result', 1)
 topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
 # print(str(topfailedTCNames))
-topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 
 #recommendations
 orchestrationIssues = ["already in use"]
@@ -118,7 +118,7 @@ for commonError, commonErrorCount in failureDict.most_common(5):
 # reach top errors and clean them
 i = 0
 for commonError, commonErrorCount in topFailureDict.items():
-    if "ERROR: No device was found" in error:
+    if "ERROR: No device was found" in commonError:
         error = (
             "Raise a support case as the error: *|*"
             + commonError.strip()
@@ -126,7 +126,7 @@ for commonError, commonErrorCount in topFailureDict.items():
             + str(commonErrorCount)
             + "*|* occurrences"
         )
-    elif "Cannot open device" in error:
+    elif "Cannot open device" in commonError:
         error = (
             "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
             + commonError.strip()
@@ -271,12 +271,12 @@ for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
     totalImpact += round(impact, 2)
     counter += 1
 execution_status = pandas.DataFrame.from_dict(jsonObj.status)
-execution_status = execution_status.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 issues = pandas.DataFrame.from_dict(jsonObj.issues)
-issues = issues.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
 recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(totalImpact) + '%]']
-recommendations = recommendations.to_html( classes="mystyle", table_id="summary", index=False, render_links=True, escape=False )
+recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 print("Total impact% :" + str(totalImpact))
 html_string = (
         """
@@ -480,10 +480,7 @@ html_string = (
                 border-collapse: collapse;
                 border: 2px solid black;
                 margin:auto;
-                width: 95%;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                table-layout: fixed;
-                word-wrap: break-word; 
                 background-color: white;
             }}
 
@@ -731,19 +728,32 @@ html_string = (
           text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
         }}
       }}
-      .myDiv {{
+      .reportHeadingDiv {{
         background-color: #333333; 
         text-align: center;
       }}
+      .reportDiv {{
+        overflow-x: scroll;
+        align:center;
+        text-align: center;
+      }}
+      #report{{
+        box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+        overflow-x: scroll;
+        min-width:100%;
+      }}
             </style>
           <body bgcolor="#FFFFED">
-        <body> <div align="center">""" + execution_summary  + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + """ <p> <div class="myDiv" ><h1 class="glow">Summary</h1></div><p>""" + execution_status + \
-          """ <p> <div class="myDiv" ><h1 class="glow">OS Summary</h1></div> <p>""" + monthlyStats + """ <p><div class="myDiv" ><h1 class="glow">Issues</h1> </div> <p>""" +issues + """ <p> <div class="myDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p>""" + failurereasons +  """ <p> <div class="myDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p>""" +topfailedtable + """ <p> <div class="myDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p>""" + recommendations + """ </div> </body>"""
+        <body> <div class="reportDiv">""" + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
+          """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
+          """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p><div class="reportDiv">""" + failurereasons + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p><div class="reportDiv">""" +topfailedtable + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>"""
 )
 # with open(os.path.join(TEMP_DIR, "output", "temp.html"), "w") as f:
 with open("temp.html", "w") as f:
-    f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="summary", index=False , render_links=True, escape=False)))
-
-  # f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="summary", index=False , render_links=True, escape=False)))
+    f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
 
 
