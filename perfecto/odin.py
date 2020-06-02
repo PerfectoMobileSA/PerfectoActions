@@ -38,12 +38,6 @@ def payloadNoJob(oldmilliSecs, current_time_millis, page):
     }
     return payload
 
-
-"""
-    This is the payload based on only start and end date
-"""
-
-
 def payloadJob(jobName, jobNumber, page):
     payload = {
         "jobName[0]": jobName,
@@ -52,6 +46,14 @@ def payloadJob(jobName, jobNumber, page):
     }
     return payload
 
+def payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page):
+    payload = {
+        "startExecutionTime[0]": oldmilliSecs,
+        "endExecutionTime[0]": current_time_millis,
+        "jobName[0]": jobName,
+        "_page": page,
+    }
+    return payload
 
 """
     Retrieve a list of test executions within the last month
@@ -67,8 +69,11 @@ def retrieve_tests_executions(daysOlder, page):
     oldmilliSecs = pastDateToMS(startDate, daysOlder)
     if not jobName:
         payload = payloadNoJob(oldmilliSecs, current_time_millis, page)
+    elif not jobNumber:
+        payload = payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page)
     else:
         payload = payloadJob(jobName, jobNumber, page)
+    print(str(payload))
     # creates http geat request with the url, given parameters (payload) and header (for authentication)
     r = requests.get(
         api_url, params=payload, headers={"PERFECTO_AUTHORIZATION": OFFLINE_TOKEN}
@@ -352,7 +357,7 @@ def prepareReport():
             raise Exception("Check the cloud name and security tokens")
         executionList = executions["resources"]
         if len(executionList) == 0:
-            print("there are no test executions for that period of time")
+            print("0 test executions")
             break
         else:
             # print(str(executions))
@@ -363,7 +368,9 @@ def prepareReport():
             else:
                 resources.append(executionList)
             page += 1
-
+    if len(executionList) == 0:
+        print("there are no test executions for that period of time for the criteria: " + criteria)
+        sys.exit(-1)
     jsonDump = json.dumps(resources)
     resources = json.loads(jsonDump)
     totalTCCount = len(resources)
@@ -381,7 +388,7 @@ def prepareReport():
     )
     df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
     if "month" not in df.columns:
-        df["month"] = pandas.to_datetime(df["startTime"]).dt.strftime("%m/%Y") 
+        df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
     if "Duration" not in df.columns:
         df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
             df["startTime"]
@@ -428,10 +435,10 @@ def prepareReport():
             continue
 
     # Top 5 device which failed
-    topDeviceFailureDict.clear()
-    deviceFailureDict = Counter(device_Dictionary)
-    for device, deviceFailCount in deviceFailureDict.most_common(5):
-        getDeviceDetails(device, deviceFailCount)
+    # topDeviceFailureDict.clear()
+    # deviceFailureDict = Counter(device_Dictionary)
+    # for device, deviceFailCount in deviceFailureDict.most_common(5):
+    #     getDeviceDetails(device, deviceFailCount)
 
     # Top 5 failure tests along with pass count
     topTCFailureDict.clear()
@@ -462,7 +469,7 @@ def prepareReport():
         regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
         if re.search(regEx_Filter, error):
             error = str(re.compile(regEx_Filter).split(error)[0])
-            if "An error occurred." in error:
+            if "An error occurred. Stack Trace:" in error:
                 error = error.split("An error occurred. Stack Trace:")[1]
         if re.search("error: \-\[|Fatal error:", error):
             error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
@@ -794,14 +801,9 @@ def prepareReport():
     df2 = pandas.DataFrame(jsonObj.topFailingTests)
     df2["test"].replace("", np.nan, inplace=True)
     df2.dropna(subset=["test"], inplace=True)
-    # with open("temp.html", "a") as _file:
-    #     _file.write(df_model.head().to_html() + "\n\n" + df2.head().to_html())
     jsonObj = (
         str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
     )
-    print("############################ Generated JSON:")
-    # print("jsonObj" + jsonObj)
-    print("############################")
 
 
 """
@@ -1004,7 +1006,6 @@ def df_to_xl(df, filename):
         df.to_csv("".join(filename), index=False)
     else:
         df.to_excel("".join(filename), index=False)    
-    print(filename)
     if "csv"  not in xlformat:
         wb = Workbook()
         wb = load_workbook("".join(filename))
@@ -1014,7 +1015,13 @@ def df_to_xl(df, filename):
             ws.column_dimensions[column_cells[0].column_letter].width = length + 5
         newfilename = os.path.abspath("".join(filename))
         wb.save(newfilename)
- 
+
+def get_report_details(item, temp, name, criteria):
+    if name + "=" in item:
+        temp = str(item).split("=")[1]
+        criteria += " : " + name + ": " + temp 
+    return temp, criteria
+
 def main():
     prepareReport()
 
@@ -1022,8 +1029,6 @@ def main():
 if __name__ == "__main__":
     start = datetime.now().replace(microsecond=0)
     global finalDate
-    print("Number of arguments:", len(sys.argv))
-    print("Argument List:", str(sys.argv))
     try:
         CQL_NAME = str(sys.argv[1])
         OFFLINE_TOKEN = str(sys.argv[2])
@@ -1039,20 +1044,29 @@ if __name__ == "__main__":
     topTCFailureDict = {}
     topDeviceFailureDict = {}
     df = pandas.DataFrame()
-    # job
-    jobName = ""
-    if "jobName=" in sys.argv[3]:
-        try:
-            jobName = str(sys.argv[5])
-            jobNumber = str(sys.argv[6])
-            criteria = "job: " + jobName + " ; number: " + jobNumber
-        except Exception:
-            jobName = ""
 
-    try: 
-         xlformat = str(sys.argv[7])
-    except Exception:
-       xlformat = "csv"
+    # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv"
+    report = sys.argv[3]
+    try:
+        criteria = ""
+        jobName = ""
+        jobNumber = ""
+        startDate = ""
+        endDate = ""
+        consolidate = ""
+        xlformat = "csv"
+        temp = ""
+        report_array = report.split("|")
+        for item in report_array:
+            if "jobName" in item: jobName, criteria =  get_report_details(item, temp, "jobName", criteria)
+            if "jobNumber" in item: jobNumber, criteria =  get_report_details(item, temp, "jobNumber", criteria)
+            if "startDate" in item: startDate, criteria =  get_report_details(item, temp, "startDate", criteria)
+            if "endDate" in item: endDate, criteria =  get_report_details(item, temp, "endDate", criteria)
+            if "consolidate" in item: consolidate, criteria =  get_report_details(item, temp, "consolidate", criteria)
+            if "xlformat" in item: xlformat, criteria =  get_report_details(item, temp, "xlformat", criteria)
+    except Exception as e:
+        raise Exception( "Verify parameters of report, split them by | seperator" + str(e) )
+        sys.exit(-1)
     filelist = glob.glob(os.path.join("*." + xlformat))
     for f in filelist:
         os.remove(f)
@@ -1061,15 +1075,15 @@ if __name__ == "__main__":
         os.remove(f)
     # End date
     try:
-        if is_date(sys.argv[4]):
-            finalDate = sys.argv[4]
+        if is_date(endDate):
+            finalDate = endDate
             endDate = str(
                 datetime.strptime(
                     str(
                         (
                             datetime.strptime(
                                 str(
-                                    datetime.strptime(sys.argv[4], "%Y-%m-%d").strftime(
+                                    datetime.strptime(endDate, "%Y-%m-%d").strftime(
                                         "%d/%m/%Y"
                                     )
                                 ),
@@ -1081,8 +1095,8 @@ if __name__ == "__main__":
                     "%Y-%m-%d",
                 ).strftime("%d/%m/%Y")
             )
-        elif "d" in sys.argv[4]:
-            dateRange = int(sys.argv[4].split("d")[0])
+        elif "d" in endDate:
+            dateRange = int(endDate.split("d")[0])
             for value in range(int(dateRange)):
                 finalDate = str(datetime.now().date() + timedelta(-value))
                 endDate = str(
@@ -1172,7 +1186,7 @@ if __name__ == "__main__":
                     (
                         datetime.strptime(
                             str(
-                                datetime.strptime(sys.argv[3], "%Y-%m-%d").strftime(
+                                datetime.strptime(startDate, "%Y-%m-%d").strftime(
                                     "%d/%m/%Y"
                                 )
                             ),
@@ -1199,7 +1213,6 @@ if __name__ == "__main__":
             df = df.append(pandas.read_csv(result))
         else:
             df = df.append(pandas.read_excel(result))
-    print(df)
     df_to_xl(df, "final")   
 execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
 failed = df[(df['status'] == "FAILED")]
@@ -1209,6 +1222,8 @@ failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
 totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
 totalTCCount = df.shape[0]
 #monthly stats
+df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
+df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
 df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Status ->', 'failureReasonName' : 'Custom Failure Reason'})
 monthlyStats = df.pivot_table(index = ["month", "Platform", "OS"], 
               columns = "Status ->" , 
@@ -1263,7 +1278,7 @@ for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
     regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
     if re.search(regEx_Filter, error):
         error = str(re.compile(regEx_Filter).split(error)[0])
-        if "An error occurred." in error:
+        if "An error occurred. Stack Trace:" in error:
             error = error.split("An error occurred. Stack Trace:")[1]
     if re.search("error: \-\[|Fatal error:", error):
         error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
@@ -1686,7 +1701,7 @@ html_string = (
               color:white;
             }}
             body {{
-              background-color: black;
+              background-color: rgb(3, 18, 12);
               height: 100%;
               background-repeat:  repeat-y;
               background-position: right;
@@ -1902,7 +1917,7 @@ html_string = (
         }}
       }}
       .reportHeadingDiv {{
-        background-color: #333333; 
+        background-color: #44118b; 
         text-align: center;
       }}
       .reportDiv {{
@@ -1913,13 +1928,13 @@ html_string = (
       #report{{
         box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
         overflow-x: auto;
-        min-width:100%;
+        min-width:70%;
       }}
             </style>
           <body bgcolor="#FFFFED">
         <body> <div class="reportDiv">""" + execution_summary  + """ alt='user_summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
           """ <p> <div class="reportHeadingDiv" ><h1 class="glow">""" + CQL_NAME.upper() + """ Execution Summary for """ + criteria + """</h1></div><p><div class="reportDiv">""" + execution_status + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Platform Wise Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Platform Wise Monthly Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
           """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">High Level Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p><div class="reportDiv">""" + failurereasons + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p><div class="reportDiv">""" +topfailedtable + \

@@ -10,6 +10,7 @@ import glob
 import os
 import re
 import numpy as np
+from perfecto.perfectoactions import fig_to_base64
 
 """
    calculates the percetage of a part and whole number
@@ -25,19 +26,10 @@ def percentageCalculator(part, whole):
     return calc
 
 from perfecto.perfectoactions import create_summary
-# data = [dict(name='Google', url='http://www.google.com'),
-#         dict(name='Stackoverflow', url='http://stackoverflow.com')]
-
-
-# df = pandas.DataFrame(list(range(5)), columns=['a'])
-
-# df['a'] = df['a'].apply(lambda x: '<a href="http://example.com/{0}">link</a>'.format(x))
-
-# print(df)
-# HTML(df.to_html("temp.html",escape=False))
-
+criteria = "Kenya"
 df = pandas.DataFrame()
-df = df.append(pandas.read_csv("./final.csv"))
+df = df.append(pandas.read_csv("./25_05_2020.csv"))
+# df = df.append(pandas.read_excel("./final.xlsx"))
 execution_summary = create_summary(df, "Summary Report", "status", "device_summary")
 failed = df[(df['status'] == "FAILED")]
 passed = df[(df['status'] == "PASSED")]
@@ -98,7 +90,8 @@ for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
     regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
     if re.search(regEx_Filter, error):
         error = str(re.compile(regEx_Filter).split(error)[0])
-        if "An error occurred." in error:
+        if "An error occurred. Stack Trace:" in error:
+            print(error)
             error = error.split("An error occurred. Stack Trace:")[1]
     if re.search("error: \-\[|Fatal error:", error):
         error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
@@ -278,6 +271,36 @@ recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
 recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(totalImpact) + '%]']
 recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 print("Total impact% :" + str(totalImpact))
+
+
+import plotly.express as px
+import plotly
+#ggplot2 #plotly_dark
+fig = px.histogram(df, x="job/number", color="status", marginal="violin",
+                         hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"orangered","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="ggplot2")
+fig.update_layout(
+    title = criteria,
+    xaxis_title="Job Number",
+    yaxis_title="Status",
+    font=dict(
+        family="Trebuchet MS, Helvetica, sans-serif",
+        size=12,
+        color="#545731"
+    ),
+    hovermode="x unified",
+    autosize=True,
+    xaxis={'tickformat': ',d'},
+    yaxis={'tickformat': ',d'},
+) 
+fig.update_yaxes(automargin=True)
+fig.show()
+# py.plot(fig, filename='temp.html')
+# fig.write_html("temp.html")
+fig.write_image("temp.png")
+encoded = fig_to_base64("temp.png")
+summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+
+
 html_string = (
         """
     <html lang="en">
@@ -537,7 +560,7 @@ html_string = (
 
             .mystyle table {{
                 table-layout: auto;
-                width: 100%;
+                width: auto;
                 height: 100%;
                 position:relative;
                 border-collapse: collapse;
@@ -744,7 +767,7 @@ html_string = (
       }}
             </style>
           <body bgcolor="#FFFFED">
-        <body> <div class="reportDiv">""" + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
+        <body> <div class="reportDiv">""" + summary +  execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
           """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
           """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
@@ -752,8 +775,7 @@ html_string = (
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p><div class="reportDiv">""" +topfailedtable + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>"""
 )
-# with open(os.path.join(TEMP_DIR, "output", "temp.html"), "w") as f:
-with open("temp.html", "w") as f:
+
+
+with open("temp.html", "a") as f:
     f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
-
-
