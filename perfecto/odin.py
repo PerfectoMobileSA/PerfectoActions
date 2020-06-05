@@ -1,3 +1,5 @@
+import base64
+import html 
 import tempfile
 import platform
 import xlwt
@@ -349,13 +351,19 @@ def prepareReport():
             + ". Hold On!!"
         )
         executions = retrieve_tests_executions(0, page)
+        # print(executions)
         # Loads JSON string into JSON object
         executions = json.loads(executions)
         if "{'userMessage': 'Failed decoding the offline token:" in str(executions):
             raise Exception("please change the offline token for your cloud")
         if "userMessage': 'Missing Perfecto-TenantId header" in str(executions):
             raise Exception("Check the cloud name and security tokens")
-        executionList = executions["resources"]
+        try:
+            executionList = executions["resources"]
+        except TypeError as e:
+            print(executions)
+            raise Exception("Unable to find matching records for: " + str(criteria) + ", error:" +executions['userMessage'])
+            sys.exit(-1)
         if len(executionList) == 0:
             print("0 test executions")
             break
@@ -395,6 +403,8 @@ def prepareReport():
         )
         df["Duration"] = df["Duration"].dt.seconds
         df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
+    if "failureReasonName" not in df.columns: 
+        df["failureReasonName"] = ""
     # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv
     df_to_xl(df, str(startDate).replace("/","_"))
     
@@ -997,6 +1007,8 @@ def df_to_xl(df, filename):
         "videos/1/screen/height",
         "platforms/1/mobileInfo/phoneNumber",
         "month",
+        "date",
+        "week"
     ]
     df = df[df.columns.intersection(custom_columns)]
     df = df.reindex(columns=custom_columns)
@@ -1022,451 +1034,9 @@ def get_report_details(item, temp, name, criteria):
         criteria += " : " + name + ": " + temp 
     return temp, criteria
 
-def main():
-    prepareReport()
 
-
-if __name__ == "__main__":
-    start = datetime.now().replace(microsecond=0)
-    global finalDate
-    try:
-        CQL_NAME = str(sys.argv[1])
-        OFFLINE_TOKEN = str(sys.argv[2])
-    except Exception:
-        raise Exception(
-            "Pass the mandatory parameters like cloud name and offline token"
-        )
-    orchestrationIssues = ["already in use"]
-    labIssues = ["HANDSET_ERROR"]
-    REPORTING_SERVER_URL = "https://" + CQL_NAME + ".reporting.perfectomobile.com"
-    api_url = REPORTING_SERVER_URL + "/export/api/v1/test-executions"
-    resources = []
-    topTCFailureDict = {}
-    topDeviceFailureDict = {}
-    df = pandas.DataFrame()
-
-    # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv"
-    report = sys.argv[3]
-    try:
-        criteria = ""
-        jobName = ""
-        jobNumber = ""
-        startDate = ""
-        endDate = ""
-        consolidate = ""
-        xlformat = "csv"
-        temp = ""
-        report_array = report.split("|")
-        for item in report_array:
-            if "jobName" in item: jobName, criteria =  get_report_details(item, temp, "jobName", criteria)
-            if "jobNumber" in item: jobNumber, criteria =  get_report_details(item, temp, "jobNumber", criteria)
-            if "startDate" in item: startDate, criteria =  get_report_details(item, temp, "startDate", criteria)
-            if "endDate" in item: endDate, criteria =  get_report_details(item, temp, "endDate", criteria)
-            if "consolidate" in item: consolidate, criteria =  get_report_details(item, temp, "consolidate", criteria)
-            if "xlformat" in item: xlformat, criteria =  get_report_details(item, temp, "xlformat", criteria)
-    except Exception as e:
-        raise Exception( "Verify parameters of report, split them by | seperator" + str(e) )
-        sys.exit(-1)
-    filelist = glob.glob(os.path.join("*." + xlformat))
-    for f in filelist:
-        os.remove(f)
-    filelist = glob.glob(os.path.join("*_failures.txt" ))
-    for f in filelist:
-        os.remove(f)
-    # End date
-    try:
-        if is_date(endDate):
-            finalDate = endDate
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(endDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-        elif "d" in endDate:
-            dateRange = int(endDate.split("d")[0])
-            for value in range(int(dateRange)):
-                finalDate = str(datetime.now().date() + timedelta(-value))
-                endDate = str(
-                    datetime.strptime(
-                        str(
-                            (
-                                datetime.strptime(
-                                    str(
-                                        datetime.strptime(
-                                            finalDate, "%Y-%m-%d"
-                                        ).strftime("%d/%m/%Y")
-                                    ),
-                                    "%d/%m/%Y",
-                                ).date()
-                                - timedelta(days=0)
-                            )
-                        ),
-                        "%Y-%m-%d",
-                    ).strftime("%d/%m/%Y")
-                )
-                startDate = endDate
-                main()
-            finalDate = str(datetime.now().date())
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-        else:
-            finalDate = str(datetime.today().strftime("%Y-%m-%d"))
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-    except Exception:
-        finalDate = str(datetime.today().strftime("%Y-%m-%d"))
-        endDate = str(
-            datetime.strptime(
-                str(
-                    (
-                        datetime.strptime(
-                            str(
-                                datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                    "%d/%m/%Y"
-                                )
-                            ),
-                            "%d/%m/%Y",
-                        ).date()
-                        - timedelta(days=0)
-                    )
-                ),
-                "%Y-%m-%d",
-            ).strftime("%d/%m/%Y")
-        )
-    # Start date
-    try:
-        startDate = str(
-            datetime.strptime(
-                str(
-                    (
-                        datetime.strptime(
-                            str(
-                                datetime.strptime(startDate, "%Y-%m-%d").strftime(
-                                    "%d/%m/%Y"
-                                )
-                            ),
-                            "%d/%m/%Y",
-                        ).date()
-                        - timedelta(days=0)
-                    )
-                ),
-                "%Y-%m-%d",
-            ).strftime("%d/%m/%Y")
-        )
-        if not jobName:
-            criteria = "start: "  + startDate + " ; end: " + endDate
-    except Exception:
-        startDate = endDate
-        if not jobName:
-            criteria = "start: "  + endDate + " ; end: " + endDate
-
-    main()
-    os.chdir(".")
-    results = glob.glob('*.{}'.format(xlformat))
-    for result in results:
-        if "csv" in xlformat:
-            df = df.append(pandas.read_csv(result))
-        else:
-            df = df.append(pandas.read_excel(result))
-    df_to_xl(df, "final")   
-execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
-failed = df[(df['status'] == "FAILED")]
-passed = df[(df['status'] == "PASSED")]
-blocked = df[(df['status'] == "BLOCKED")]
-failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
-totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
-totalTCCount = df.shape[0]
-#monthly stats
-df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
-df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
-df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Status ->', 'failureReasonName' : 'Custom Failure Reason'})
-monthlyStats = df.pivot_table(index = ["month", "Platform", "OS"], 
-              columns = "Status ->" , 
-              values = "name", 
-              aggfunc = "count", margins=True, fill_value=0)\
-        .fillna('')
-for column in monthlyStats.columns:
-    monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
-monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
-failurereasons = pandas.crosstab(df['Custom Failure Reason'],df['Status ->'])
-# print (failurereasons)
-failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
-#top failed TCs
-topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
-reportURLs = []
-for ind in topfailedTCNames.index:
-    reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
-topfailedTCNames['Result'] = reportURLs
-topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
-for ind in topfailedTCNames.index:
-    topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
-topfailedTCNames = topfailedTCNames.drop('Result', 1)
-topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
-# print(str(topfailedTCNames))
-topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-
-#recommendations
-orchestrationIssues = ["already in use"]
-labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
-regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-labIssuesCount = 0
-scriptingIssuesCount = 0
-orchestrationIssuesCount = 0
-cleanedFailureList = {}
-suggesstionsDict = {}
-totalFailCount = failed.shape[0]
-totalPassCount = passed.shape[0]
-blockedCount = blocked.shape[0]
-# failures count
-failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
-
-for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
-    for labIssue in labIssues:
-        if re.search(labIssue, commonError):
-            labIssuesCount += commonErrorCount
-            break
-    for orchestrationIssue in orchestrationIssues:
-        if re.search(orchestrationIssue, commonError):
-            orchestrationIssuesCount += commonErrorCount
-            break
-    error = commonError
-    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-    if re.search(regEx_Filter, error):
-        error = str(re.compile(regEx_Filter).split(error)[0])
-        if "An error occurred. Stack Trace:" in error:
-            error = error.split("An error occurred. Stack Trace:")[1]
-    if re.search("error: \-\[|Fatal error:", error):
-        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
-    if error.strip() in cleanedFailureList:
-        cleanedFailureList[error.strip()] += 1
-    else:
-        cleanedFailureList[error.strip()] = commonErrorCount
-    scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
-
- # Top 5 failure reasons
-topFailureDict = {}
-
-failureDict = Counter(cleanedFailureList)
-for commonError, commonErrorCount in failureDict.most_common(5):
-    topFailureDict[commonError] = int(commonErrorCount)
-
-# reach top errors and clean them
-i = 0
-for commonError, commonErrorCount in topFailureDict.items():
-    if "ERROR: No device was found" in commonError:
-        error = (
-            "Raise a support case as the error: *|*"
-            + commonError.strip()
-            + "*|* occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    elif "Cannot open device" in commonError:
-        error = (
-            "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
-            + commonError.strip()
-            + "*|* occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    elif '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)' in commonError:
-        error = (
-        "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
-        + commonError.strip()
-        + "*|* occurs in *|*"
-        + str(commonErrorCount)
-        + "*|* occurrences"
-    )
-    else:
-        error = (
-            "Fix the error: *|*"
-            + commonError.strip()
-            + "*|* as it occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    suggesstionsDict[error] = commonErrorCount
-eDict = edict(
-        {
-            "status": [
-                {
-                "#Total": "Count ->",
-                "#Executions": totalTCCount,
-                "#Pass" : totalPassCount,
-                "#Failed" : totalFailCount,
-                "#Blocked" : blockedCount,
-                "#Unknowns": totalUnknownCount,
-                "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
-                },
-            ],
-            "issues": [
-              {
-                "#Issues": "Count ->",
-                "#Scripting": scriptingIssuesCount,
-                "#Lab": labIssuesCount,
-                "#Orchestration": orchestrationIssuesCount,
-                },
-            ],
-            "recommendation": [
-                {
-                   "Recommendations": "-",
-                   "Rank": 1,
-                    "impact": "0",
-                },
-                {
-                   "Recommendations": "-",
-                     "Rank": 2,
-                    "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 3,
-                    "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 4,
-                     "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 5,
-                    "impact": "0",
-                },
-            ],
-        }
-    )
-jsonObj = edict(eDict)
-if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
-    suggesstionsDict[
-        "# Fix the unknowns. The unknown script ratio is too high (%) : "
-        + str(percentageCalculator(totalUnknownCount, totalTCCount))
-        + "%"
-    ] = percentageCalculator(
-        totalPassCount + totalUnknownCount, totalTCCount
-    ) - percentageCalculator(
-        totalPassCount, totalTCCount
-    )
-if len(suggesstionsDict) < 5:
-    if (topfailedTCNames.shape[0]) > 1:
-        for tcName, status in topfailedTCNames.itertuples(index=False):
-            suggesstionsDict[
-                "# Fix the top failing test: "
-                + tcName
-                + " as the failures count is: "
-                + str(int((str(status).split(",")[0]).replace("[", "").strip()))
-            ] = 1
-            break
-
-if len(suggesstionsDict) < 5:
-    if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
-        if totalTCCount > 0:
-            suggesstionsDict[
-                "# Fix the failures. The total failures % is too high (%) : "
-                + str(percentageCalculator(totalFailCount, totalTCCount))
-                + "%"
-            ] = totalFailCount
-if len(suggesstionsDict) < 5:
-    if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
-        totalTCCount > 0
-    ):
-        suggesstionsDict[
-            "# Fix the failures. The total pass %  is too less (%) : "
-            + str(int(percentageCalculator(totalPassCount, totalTCCount)))
-            + "%"
-        ] = (
-            100
-            - (
-                percentageCalculator(
-                    totalPassCount + totalUnknownCount, totalTCCount
-                )
-                - percentageCalculator(totalPassCount, totalTCCount)
-            )
-        ) - int(
-            percentageCalculator(totalPassCount, totalTCCount)
-        )
-if len(suggesstionsDict) < 5:
-    if totalTCCount == 0:
-        suggesstionsDict[
-            "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
-        ] = 100
-    elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-        print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
-        suggesstionsDict["# Great automation progress. Keep it up!"] = 0
-
-    int(percentageCalculator(totalFailCount, totalTCCount)) > 15
-topSuggesstionsDict = Counter(suggesstionsDict)
-counter = 0
-totalImpact = 0
-for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
-    impact = 1
-    if sugg.startswith("# "):
-        sugg = sugg.replace("# ", "")
-        impact = commonErrorCount
-    else:
-        impact = percentageCalculator(
-            totalPassCount + commonErrorCount, totalTCCount
-        ) - percentageCalculator(totalPassCount, totalTCCount)
-    jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
-    jsonObj.recommendation[counter].Recommendations = (
-        sugg.replace("*|*", "'").strip()
-    )
-    totalImpact += round(impact, 2)
-    counter += 1
-execution_status = pandas.DataFrame.from_dict(jsonObj.status)
-execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-issues = pandas.DataFrame.from_dict(jsonObj.issues)
-issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
-recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
-recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-print("Total impact% :" + str(round(totalImpact,2)))
-html_string = (
+def get_html_string(graphs):
+    return (
         """
     <html lang="en">
        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -1930,20 +1500,525 @@ html_string = (
         overflow-x: auto;
         min-width:70%;
       }}
-            </style>
-          <body bgcolor="#FFFFED">
-        <body> <div class="reportDiv">""" + execution_summary  + """ alt='user_summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
-          """ <p> <div class="reportHeadingDiv" ><h1 class="glow">""" + CQL_NAME.upper() + """ Execution Summary for """ + criteria + """</h1></div><p><div class="reportDiv">""" + execution_status + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Platform Wise Monthly Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
-          """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">High Level Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
+    </style>
+    <body bgcolor="#FFFFED">
+        <div class="reportDiv">""" + "".join(graphs) + """</div></p><div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
+          """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
+          """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p><div class="reportDiv">""" + failurereasons + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p><div class="reportDiv">""" +topfailedtable + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>"""
-)
+          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>""")
 
-with open("temp.html", "w") as f:
-    f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
+def main():
+    prepareReport()
 
-    end = datetime.now().replace(microsecond=0)
 
-    print("Total Time taken:" + str(end - start))
+if __name__ == "__main__":
+    start = datetime.now().replace(microsecond=0)
+    global finalDate
+    try:
+        CQL_NAME = str(sys.argv[1])
+        OFFLINE_TOKEN = str(sys.argv[2])
+    except Exception:
+        raise Exception(
+            "Pass the mandatory parameters like cloud name and offline token"
+        )
+    orchestrationIssues = ["already in use"]
+    labIssues = ["HANDSET_ERROR"]
+    REPORTING_SERVER_URL = "https://" + CQL_NAME + ".reporting.perfectomobile.com"
+    api_url = REPORTING_SERVER_URL + "/export/api/v1/test-executions"
+    resources = []
+    topTCFailureDict = {}
+    topDeviceFailureDict = {}
+    df = pandas.DataFrame()
+
+    # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv"
+    report = sys.argv[3]
+    try:
+        criteria = ""
+        jobName = ""
+        jobNumber = ""
+        startDate = ""
+        endDate = ""
+        consolidate = ""
+        xlformat = "csv"
+        temp = ""
+        report_array = report.split("|")
+        for item in report_array:
+            if "jobName" in item: jobName, criteria =  get_report_details(item, temp, "jobName", criteria)
+            if "jobNumber" in item: jobNumber, criteria =  get_report_details(item, temp, "jobNumber", criteria)
+            if "startDate" in item: startDate, criteria =  get_report_details(item, temp, "startDate", criteria)
+            if "endDate" in item: endDate, criteria =  get_report_details(item, temp, "endDate", criteria)
+            if "consolidate" in item: consolidate, criteria =  get_report_details(item, temp, "consolidate", criteria)
+            if "xlformat" in item: xlformat, criteria =  get_report_details(item, temp, "xlformat", criteria)
+    except Exception as e:
+        raise Exception( "Verify parameters of report, split them by | seperator" + str(e) )
+        sys.exit(-1)
+    filelist = glob.glob(os.path.join("*." + xlformat))
+    for f in filelist:
+        os.remove(f)
+    filelist = glob.glob(os.path.join("*_failures.txt" ))
+    for f in filelist:
+        os.remove(f)
+    filelist = glob.glob(os.path.join("*.html" ))
+    for f in filelist:
+        os.remove(f)
+    # End date
+    try:
+        if is_date(endDate):
+            finalDate = endDate
+            endDate = str(
+                datetime.strptime(
+                    str(
+                        (
+                            datetime.strptime(
+                                str(
+                                    datetime.strptime(endDate, "%Y-%m-%d").strftime(
+                                        "%d/%m/%Y"
+                                    )
+                                ),
+                                "%d/%m/%Y",
+                            ).date()
+                            - timedelta(days=0)
+                        )
+                    ),
+                    "%Y-%m-%d",
+                ).strftime("%d/%m/%Y")
+            )
+        elif "d" in endDate:
+            dateRange = int(endDate.split("d")[0])
+            for value in range(int(dateRange)):
+                finalDate = str(datetime.now().date() + timedelta(-value))
+                endDate = str(
+                    datetime.strptime(
+                        str(
+                            (
+                                datetime.strptime(
+                                    str(
+                                        datetime.strptime(
+                                            finalDate, "%Y-%m-%d"
+                                        ).strftime("%d/%m/%Y")
+                                    ),
+                                    "%d/%m/%Y",
+                                ).date()
+                                - timedelta(days=0)
+                            )
+                        ),
+                        "%Y-%m-%d",
+                    ).strftime("%d/%m/%Y")
+                )
+                startDate = endDate
+                main()
+            finalDate = str(datetime.now().date())
+            endDate = str(
+                datetime.strptime(
+                    str(
+                        (
+                            datetime.strptime(
+                                str(
+                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
+                                        "%d/%m/%Y"
+                                    )
+                                ),
+                                "%d/%m/%Y",
+                            ).date()
+                            - timedelta(days=0)
+                        )
+                    ),
+                    "%Y-%m-%d",
+                ).strftime("%d/%m/%Y")
+            )
+        else:
+            finalDate = str(datetime.today().strftime("%Y-%m-%d"))
+            endDate = str(
+                datetime.strptime(
+                    str(
+                        (
+                            datetime.strptime(
+                                str(
+                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
+                                        "%d/%m/%Y"
+                                    )
+                                ),
+                                "%d/%m/%Y",
+                            ).date()
+                            - timedelta(days=0)
+                        )
+                    ),
+                    "%Y-%m-%d",
+                ).strftime("%d/%m/%Y")
+            )
+    except Exception:
+        finalDate = str(datetime.today().strftime("%Y-%m-%d"))
+        endDate = str(
+            datetime.strptime(
+                str(
+                    (
+                        datetime.strptime(
+                            str(
+                                datetime.strptime(finalDate, "%Y-%m-%d").strftime(
+                                    "%d/%m/%Y"
+                                )
+                            ),
+                            "%d/%m/%Y",
+                        ).date()
+                        - timedelta(days=0)
+                    )
+                ),
+                "%Y-%m-%d",
+            ).strftime("%d/%m/%Y")
+        )
+    # Start date
+    try:
+        startDate = str(
+            datetime.strptime(
+                str(
+                    (
+                        datetime.strptime(
+                            str(
+                                datetime.strptime(startDate, "%Y-%m-%d").strftime(
+                                    "%d/%m/%Y"
+                                )
+                            ),
+                            "%d/%m/%Y",
+                        ).date()
+                        - timedelta(days=0)
+                    )
+                ),
+                "%Y-%m-%d",
+            ).strftime("%d/%m/%Y")
+        )
+        if not jobName:
+            criteria = "start: "  + startDate + " ; end: " + endDate
+    except Exception:
+        startDate = endDate
+        if not jobName:
+            criteria = "start: "  + endDate + " ; end: " + endDate
+
+    main()
+    os.chdir(".")
+    results = glob.glob('*.{}'.format(xlformat))
+    for result in results:
+        if "csv" in xlformat:
+            df = df.append(pandas.read_csv(result, low_memory=False))
+        else:
+            df = df.append(pandas.read_excel(result))
+    df_to_xl(df, "final")   
+execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
+failed = df[(df['status'] == "FAILED")]
+passed = df[(df['status'] == "PASSED")]
+blocked = df[(df['status'] == "BLOCKED")]
+failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
+totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
+totalTCCount = df.shape[0]
+#monthly stats
+df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
+df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
+df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Test Status', 'failureReasonName' : 'Custom Failure Reason'})
+monthlyStats = df.pivot_table(index = ["month", "Platform", "OS"], 
+              columns = "Test Status" , 
+              values = "name", 
+              aggfunc = "count", margins=True, fill_value=0)\
+        .fillna('')
+for column in monthlyStats.columns:
+    monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
+monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
+failurereasons = pandas.crosstab(df['Custom Failure Reason'],df['Test Status'])
+# print (failurereasons)
+failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
+#top failed TCs
+topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
+reportURLs = []
+for ind in topfailedTCNames.index:
+    reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
+topfailedTCNames['Result'] = reportURLs
+topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
+for ind in topfailedTCNames.index:
+    topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
+topfailedTCNames = topfailedTCNames.drop('Result', 1)
+topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
+# print(str(topfailedTCNames))
+topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+
+#recommendations
+orchestrationIssues = ["already in use"]
+labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
+regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+labIssuesCount = 0
+scriptingIssuesCount = 0
+orchestrationIssuesCount = 0
+cleanedFailureList = {}
+suggesstionsDict = {}
+totalFailCount = failed.shape[0]
+totalPassCount = passed.shape[0]
+blockedCount = blocked.shape[0]
+# failures count
+failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
+
+for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
+    for labIssue in labIssues:
+        if re.search(labIssue, commonError):
+            labIssuesCount += commonErrorCount
+            break
+    for orchestrationIssue in orchestrationIssues:
+        if re.search(orchestrationIssue, commonError):
+            orchestrationIssuesCount += commonErrorCount
+            break
+    error = commonError
+    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+    if re.search(regEx_Filter, error):
+        error = str(re.compile(regEx_Filter).split(error)[0])
+        if "An error occurred. Stack Trace:" in error:
+            error = error.split("An error occurred. Stack Trace:")[1]
+    if re.search("error: \-\[|Fatal error:", error):
+        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+    if error.strip() in cleanedFailureList:
+        cleanedFailureList[error.strip()] += 1
+    else:
+        cleanedFailureList[error.strip()] = commonErrorCount
+    scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
+
+ # Top 5 failure reasons
+topFailureDict = {}
+
+failureDict = Counter(cleanedFailureList)
+for commonError, commonErrorCount in failureDict.most_common(5):
+    topFailureDict[commonError] = int(commonErrorCount)
+
+# reach top errors and clean them
+i = 0
+for commonError, commonErrorCount in topFailureDict.items():
+    if "ERROR: No device was found" in commonError:
+        error = (
+            "Raise a support case as the error: *|*"
+            + commonError.strip()
+            + "*|* occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    elif "Cannot open device" in commonError:
+        error = (
+            "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
+            + commonError.strip()
+            + "*|* occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    elif '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)' in commonError:
+        error = (
+        "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
+        + commonError.strip()
+        + "*|* occurs in *|*"
+        + str(commonErrorCount)
+        + "*|* occurrences"
+    )
+    else:
+        error = (
+            "Fix the error: *|*"
+            + commonError.strip()
+            + "*|* as it occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
+        )
+    suggesstionsDict[error] = commonErrorCount
+eDict = edict(
+        {
+            "status": [
+                {
+                "#Total": "Count ->",
+                "#Executions": totalTCCount,
+                "#Pass" : totalPassCount,
+                "#Failed" : totalFailCount,
+                "#Blocked" : blockedCount,
+                "#Unknowns": totalUnknownCount,
+                "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
+                },
+            ],
+            "issues": [
+              {
+                "#Issues": "Count ->",
+                "#Scripting": scriptingIssuesCount,
+                "#Lab": labIssuesCount,
+                "#Orchestration": orchestrationIssuesCount,
+                },
+            ],
+            "recommendation": [
+                {
+                   "Recommendations": "-",
+                   "Rank": 1,
+                    "impact": "0",
+                },
+                {
+                   "Recommendations": "-",
+                     "Rank": 2,
+                    "impact": "0",
+                },
+                {
+                    "Recommendations": "-",
+                    "Rank": 3,
+                    "impact": "0",
+                },
+                {
+                    "Recommendations": "-",
+                    "Rank": 4,
+                     "impact": "0",
+                },
+                {
+                    "Recommendations": "-",
+                    "Rank": 5,
+                    "impact": "0",
+                },
+            ],
+        }
+    )
+jsonObj = edict(eDict)
+if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
+    suggesstionsDict[
+        "# Fix the unknowns. The unknown script ratio is too high (%) : "
+        + str(percentageCalculator(totalUnknownCount, totalTCCount))
+        + "%"
+    ] = percentageCalculator(
+        totalPassCount + totalUnknownCount, totalTCCount
+    ) - percentageCalculator(
+        totalPassCount, totalTCCount
+    )
+if len(suggesstionsDict) < 5:
+    if (topfailedTCNames.shape[0]) > 1:
+        for tcName, status in topfailedTCNames.itertuples(index=False):
+            suggesstionsDict[
+                "# Fix the top failing test: "
+                + tcName
+                + " as the failures count is: "
+                + str(int((str(status).split(",")[0]).replace("[", "").strip()))
+            ] = 1
+            break
+
+if len(suggesstionsDict) < 5:
+    if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
+        if totalTCCount > 0:
+            suggesstionsDict[
+                "# Fix the failures. The total failures % is too high (%) : "
+                + str(percentageCalculator(totalFailCount, totalTCCount))
+                + "%"
+            ] = totalFailCount
+if len(suggesstionsDict) < 5:
+    if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
+        totalTCCount > 0
+    ):
+        suggesstionsDict[
+            "# Fix the failures. The total pass %  is too less (%) : "
+            + str(int(percentageCalculator(totalPassCount, totalTCCount)))
+            + "%"
+        ] = (
+            100
+            - (
+                percentageCalculator(
+                    totalPassCount + totalUnknownCount, totalTCCount
+                )
+                - percentageCalculator(totalPassCount, totalTCCount)
+            )
+        ) - int(
+            percentageCalculator(totalPassCount, totalTCCount)
+        )
+if len(suggesstionsDict) < 5:
+    if totalTCCount == 0:
+        suggesstionsDict[
+            "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
+        ] = 100
+    elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
+        print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
+        suggesstionsDict["# Great automation progress. Keep it up!"] = 0
+
+    int(percentageCalculator(totalFailCount, totalTCCount)) > 15
+topSuggesstionsDict = Counter(suggesstionsDict)
+counter = 0
+totalImpact = 0
+for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
+    impact = 1
+    if sugg.startswith("# "):
+        sugg = sugg.replace("# ", "")
+        impact = commonErrorCount
+    else:
+        impact = percentageCalculator(
+            totalPassCount + commonErrorCount, totalTCCount
+        ) - percentageCalculator(totalPassCount, totalTCCount)
+    jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
+    jsonObj.recommendation[counter].Recommendations = (
+         html.escape(sugg.replace("*|*", "'").replace("{","{{").replace("}","}}").strip())
+    )
+    totalImpact += round(impact, 2)
+    counter += 1
+execution_status = pandas.DataFrame.from_dict(jsonObj.status)
+execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+issues = pandas.DataFrame.from_dict(jsonObj.issues)
+issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
+recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
+recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+print("Total impact% :" + str(round(totalImpact,2)))
+import plotly.express as px
+import plotly
+#ggplot2 #plotly_dark #simple_white
+#weekly
+live_report_filename = "live.html"
+email_report_filename = "email.html"
+graphs = []
+
+df['startDate'] = pandas.to_datetime(pandas.to_datetime(df['startTime']).dt.strftime("%d/%m/%Y"))
+
+duration = "week"
+delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%d/%m/%Y")
+print(str(delta.days))
+if (delta.days) <= 14:
+    duration = "days"
+else:
+    df['week'] = df['startDate'] - df['startDate'].dt.weekday.astype('timedelta64[D]')
+print(duration)
+for job in df['job/name'].dropna().unique(): 
+    if duration == "days":
+        fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="Test Status"
+                            , color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)
+    else:
+        fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="Test Status",
+                        hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
+    fig.update_layout(
+        title={
+          'text': job,
+          'y':0.94,
+          'x':0.5,
+          'xanchor': 'center',
+          'yanchor': 'top'},
+        xaxis_title = duration,
+        yaxis_title = "Test Status",
+        font=dict(
+            family = "Trebuchet MS, Helvetica, sans-serif",
+            size = 12,
+            color = 'black',
+            fontweight = 'bold'
+        ),
+        autosize=True,
+       
+        hovermode="x unified",
+        yaxis={'tickformat': ',d' },
+        xaxis = {'tickformat': 'array'},
+        xaxis_tickformat = '%d %B',
+    ) 
+    fig.update_yaxes(automargin=True)
+    encoded = base64.b64encode(plotly.io.to_image(fig))
+    graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + "alt='monthly summary' id='reportDiv' onClick='zoom(this)'></img>")
+    with open(live_report_filename, 'a') as f:
+        f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
+
+
+
+with open(email_report_filename, "a") as f:
+    f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
+
+graphs.clear()
+
+with open(live_report_filename, "a") as f:
+    f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
+
+end = datetime.now().replace(microsecond=0)
+print("Total Time taken:" + str(end - start))

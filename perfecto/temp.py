@@ -1,3 +1,5 @@
+import html
+import base64
 import json 
 from easydict import EasyDict as edict
 from collections import Counter
@@ -26,10 +28,14 @@ def percentageCalculator(part, whole):
     return calc
 
 from perfecto.perfectoactions import create_summary
-criteria = "Kenya"
+reportType = "1email"
+duration = "weekly"
+filelist = glob.glob(os.path.join("*.html" ))
+for f in filelist:
+    os.remove(f)
 df = pandas.DataFrame()
-df = df.append(pandas.read_csv("./25_05_2020.csv"))
-# df = df.append(pandas.read_excel("./final.xlsx"))
+df = df.append(pandas.read_excel("./sc.xlsx"))
+# df = df.append(pandas.read_csv("./final.csv", low_memory=False))
 execution_summary = create_summary(df, "Summary Report", "status", "device_summary")
 failed = df[(df['status'] == "FAILED")]
 passed = df[(df['status'] == "PASSED")]
@@ -91,7 +97,6 @@ for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
     if re.search(regEx_Filter, error):
         error = str(re.compile(regEx_Filter).split(error)[0])
         if "An error occurred. Stack Trace:" in error:
-            print(error)
             error = error.split("An error occurred. Stack Trace:")[1]
     if re.search("error: \-\[|Fatal error:", error):
         error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
@@ -241,7 +246,6 @@ if len(suggesstionsDict) < 5:
             "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
         ] = 100
     elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-        print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
         suggesstionsDict["# Great automation progress. Keep it up!"] = 0
 
     int(percentageCalculator(totalFailCount, totalTCCount)) > 15
@@ -259,7 +263,7 @@ for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
         ) - percentageCalculator(totalPassCount, totalTCCount)
     jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
     jsonObj.recommendation[counter].Recommendations = (
-        sugg.replace("*|*", "'").strip()
+        html.escape(sugg.replace("*|*", "'").replace("{","{{").replace("}","}}").strip())
     )
     totalImpact += round(impact, 2)
     counter += 1
@@ -275,32 +279,50 @@ print("Total impact% :" + str(totalImpact))
 
 import plotly.express as px
 import plotly
-#ggplot2 #plotly_dark
-fig = px.histogram(df, x="job/number", color="status", marginal="violin",
-                         hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"orangered","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="ggplot2")
-fig.update_layout(
-    title = criteria,
-    xaxis_title="Job Number",
-    yaxis_title="Status",
-    font=dict(
-        family="Trebuchet MS, Helvetica, sans-serif",
-        size=12,
-        color="#545731"
-    ),
-    hovermode="x unified",
-    autosize=True,
-    xaxis={'tickformat': ',d'},
-    yaxis={'tickformat': ',d'},
-) 
-fig.update_yaxes(automargin=True)
-fig.show()
-# py.plot(fig, filename='temp.html')
-# fig.write_html("temp.html")
-fig.write_image("temp.png")
-encoded = fig_to_base64("temp.png")
-summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
-
-
+#ggplot2 #plotly_dark #simple_white
+#weekly
+report_filename = "temp.html"
+df['startDate'] = pandas.to_datetime(pandas.to_datetime(df['startTime']).dt.strftime("%d/%m/%Y"))
+df['week'] = df['startDate'] - df['startDate'].dt.weekday.astype('timedelta64[D]')
+monthly_summary = []
+for job in df['job/name'].dropna().unique(): 
+    fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="Test Status",
+                            hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
+    fig.update_layout(
+        title={
+          'text': job,
+          'y':0.94,
+          'x':0.5,
+          'xanchor': 'center',
+          'yanchor': 'top'},
+        xaxis_title="Week",
+        yaxis_title="Status",
+        font=dict(
+            family="Trebuchet MS, Helvetica, sans-serif",
+            size=12,
+            color = 'black'
+        ),
+        autosize=True,
+       
+        hovermode="x unified",
+        yaxis={'tickformat': ',d'},
+        xaxis = dict(tickmode = 'array'),
+        xaxis_tickformat = '%d<br>%B<br>%Y',
+    ) 
+    if reportType == "email":
+          fig.update_layout(
+            width=700,
+            height=500,
+          )
+    fig.update_yaxes(automargin=True)
+    if reportType == "email":
+        encoded = base64.b64encode(plotly.io.to_image(fig))
+        """ + monthly_summary +  """ 
+        monthly_summary.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + "alt='monthly summary' id='reportDiv' onClick='zoom(this)'></img>")
+    else:   
+        # fig.show()
+        with open(report_filename, 'a') as f:
+           f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
 html_string = (
         """
     <html lang="en">
@@ -752,7 +774,7 @@ html_string = (
         }}
       }}
       .reportHeadingDiv {{
-        background-color: #333333; 
+        background-color: #44118b; 
         text-align: center;
       }}
       .reportDiv {{
@@ -767,7 +789,7 @@ html_string = (
       }}
             </style>
           <body bgcolor="#FFFFED">
-        <body> <div class="reportDiv">""" + summary +  execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
+        <body> <div class="reportDiv">""" + "".join(monthly_summary) + """</div></p><div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
           """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
           """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
@@ -777,5 +799,5 @@ html_string = (
 )
 
 
-with open("temp.html", "a") as f:
+with open(report_filename, "a") as f:
     f.write(html_string.format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))

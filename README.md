@@ -33,8 +33,19 @@ The results appear in a fully responsive, dark mode themed, accessible HTML repo
   2. Install [pip](https://pip.pypa.io/en/stable/installing/)
     
   3. Run the following command from command prompt/ terminal:
-  
-           pip3 install perfectoactions -U
+ 
+        `pip3 install perfectoactions -U`
+
+    Additional requirements for Report processing:  
+
+    * Install [npm](https://nodejs.org/en/)
+
+    * Run the following command from command prompt/ terminal:
+    
+            Mac: 
+                `sudo npm install -g electron@1.8.4 orca --unsafe-perm=true`
+            Windows: 
+                `npm install -g electron@1.8.4 orca --unsafe-perm=true`
     
 ## Usage:
 

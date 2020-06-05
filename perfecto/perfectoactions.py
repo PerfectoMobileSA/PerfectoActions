@@ -604,7 +604,7 @@ def create_summary(df, title, column, name):
     pl.suptitle(title)
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
     fig.patch.set_facecolor("yellow")
-    fig.patch.set_alpha(0.9)
+    fig.patch.set_alpha(1)
     df[column].value_counts().sort_index().plot(
         kind="pie",
         y="%",
@@ -618,9 +618,9 @@ def create_summary(df, title, column, name):
     )
     pl.ylabel("")
     # plot table
-    ax2 = pl.subplot(122, facecolor="lightslategray")
+    ax2 = pl.subplot(122, facecolor="#fffffa")
     ax2.patch.set_facecolor("yellow")
-    ax2.patch.set_alpha(0.8)
+    ax2.patch.set_alpha(1)
     pl.axis("off")
     tbl = table(ax2, df[column].value_counts(), loc="center")
     tbl.auto_set_font_size(False)
