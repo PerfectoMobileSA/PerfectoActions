@@ -399,7 +399,9 @@ def prepareReport():
     if "month" not in df.columns:
         df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
     if "startDate" not in df.columns:
-        df['startDate'] = pandas.to_datetime(df['startTime']).dt.strftime("%Y/%d/%m")
+        df['startDate'] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D')
+    if "week" not in df.columns:
+        df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%m/%d")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
     if "Duration" not in df.columns:
         df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
             df["startTime"]
@@ -1039,6 +1041,7 @@ def df_to_xl(df, filename):
         "videos/1/screen/height",
         "platforms/1/mobileInfo/phoneNumber",
         "month",
+        "week",
         "startDate",
     ]
     df = df[df.columns.intersection(custom_columns)]
@@ -1080,16 +1083,14 @@ def update_fig(fig, type):
         size = 12,
         color = 'black',
     ),
-    autosize=True,
-    hovermode="x unified",
-    yaxis={'tickformat' : '.0f' },
-    # xaxis = {'tickformat': '%d/%b/%y', 'autorange' : 'reversed'},
+    autosize =True,
+    hovermode = "x unified",
+    yaxis={ 'tickformat' : '.0f' },
     xaxis_tickformat = '%d/%b/%y',
     ) 
     fig.update_yaxes(automargin=True)
-    if type == "histogram":
-        fig.update_xaxes(autorange='reversed')
-    else:
+    if type == "prediction":
+        # fig.update_xaxes(autorange='reversed')
         fig.update_layout( title={'text': 'Monthly Prediction: ' + job ,}, yaxis_title = "Total tests executed",)
     return fig
 
@@ -1788,7 +1789,7 @@ totalTCCount = df.shape[0]
 df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
 df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
 df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Test Status', 'failureReasonName' : 'Custom Failure Reason'})
-monthlyStats = df.pivot_table(index = ["month", "Platform", "OS"], 
+monthlyStats = df.pivot_table(index = ["month",  "week", "Platform", "OS"], 
               columns = "Test Status" , 
               values = "name", 
               aggfunc = "count", margins=True, fill_value=0)\
@@ -2037,8 +2038,6 @@ live_report_filename = "live.html"
 email_report_filename = "email.html"
 graphs = []
 
-# df['startDate'] = pandas.to_datetime(pandas.to_datetime(df['startTime']).dt.strftime("%d/%m/%Y"))
-# df['startDate'] = pandas.to_datetime(df['startTime']).dt.strftime("%Y/%d/%m")
 df = df.sort_values(by=['startDate'], ascending=False)
 print(str(df['startDate']))
 duration = "weeks"
@@ -2046,8 +2045,6 @@ delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%
 print(str(delta.days))
 if (delta.days) <= 14:
     duration = "dates"
-else:
-    df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%d/%m")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
 for job in df['job/name'].dropna().unique(): 
     if duration == "dates":
         fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="Test Status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
@@ -2055,7 +2052,7 @@ for job in df['job/name'].dropna().unique():
         fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="Test Status",
                         hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
     predict_df = df.loc[df['job/name'] == job]
-    # predict_df['startDate'] = pandas.to_datetime(pandas.to_datetime(predict_df['startTime']).dt.strftime("%d/%m/%Y"), format='%d/%m/%Y')
+    # predict_df['startDate'] = pandas.to_datetime(pandas.to_datetime(predict_df['startTime']).dt.strftime("%Y/%d/%m"), format='%Y/%m/%d')
     predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
     if len(predict_df.index) > 1:
         predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
@@ -2074,7 +2071,7 @@ for job in df['job/name'].dropna().unique():
         forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
         # py.init_notebook_mode()
     else:
-        print("Note: AI Prediction requires more than 2 days of data to analyze!")
+        print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
     fig = update_fig(fig, "histogram")
     encoded = base64.b64encode(plotly.io.to_image(fig))
     graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img>")
