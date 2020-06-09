@@ -1,3 +1,4 @@
+from fbprophet.plot import plot_plotly
 import base64
 import html 
 import tempfile
@@ -397,6 +398,8 @@ def prepareReport():
     df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
     if "month" not in df.columns:
         df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
+    if "startDate" not in df.columns:
+        df['startDate'] = pandas.to_datetime(df['startTime']).dt.strftime("%Y/%d/%m")
     if "Duration" not in df.columns:
         df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
             df["startTime"]
@@ -850,6 +853,35 @@ def printProgressBar(
 #    if iteration == total:
 #        print()
 
+class suppress_stdout_stderr(object):
+    '''
+    A context manager for doing a "deep suppression" of stdout and stderr in
+    Python, i.e. will suppress all print, even if the print originates in a
+    compiled C/Fortran sub-function.
+       This will not suppress raised exceptions, since exceptions are printed
+    to stderr just before a script exits, and after the context manager has
+    exited (at least, I think that is why it lets exceptions through).
+
+    '''
+    def __init__(self):
+        # Open a pair of null files
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
+        # Save the actual stdout (1) and stderr (2) file descriptors.
+        self.save_fds = (os.dup(1), os.dup(2))
+
+    def __enter__(self):
+        # Assign the null pointers to stdout and stderr.
+        os.dup2(self.null_fds[0], 1)
+        os.dup2(self.null_fds[1], 2)
+
+    def __exit__(self, *_):
+        # Re-assign the real stdout/stderr back to (1) and (2)
+        os.dup2(self.save_fds[0], 1)
+        os.dup2(self.save_fds[1], 2)
+        # Close the null files
+        os.close(self.null_fds[0])
+        os.close(self.null_fds[1])
+
 """
    returns a boolean if the provided string is a date or nots
 """
@@ -1007,8 +1039,7 @@ def df_to_xl(df, filename):
         "videos/1/screen/height",
         "platforms/1/mobileInfo/phoneNumber",
         "month",
-        "date",
-        "week"
+        "startDate",
     ]
     df = df[df.columns.intersection(custom_columns)]
     df = df.reindex(columns=custom_columns)
@@ -1034,6 +1065,33 @@ def get_report_details(item, temp, name, criteria):
         criteria += " : " + name + ": " + temp 
     return temp, criteria
 
+def update_fig(fig, type):
+    fig.update_layout(
+    title={
+        'text': job,
+        'y':0.94,
+        'x':0.5,
+        'xanchor': 'center',
+        'yanchor': 'top'},
+    xaxis_title = duration,
+    yaxis_title = "Test Status",
+    font=dict(
+        family = "Trebuchet MS, Helvetica, sans-serif",
+        size = 12,
+        color = 'black',
+    ),
+    autosize=True,
+    hovermode="x unified",
+    yaxis={'tickformat' : '.0f' },
+    # xaxis = {'tickformat': '%d/%b/%y', 'autorange' : 'reversed'},
+    xaxis_tickformat = '%d/%b/%y',
+    ) 
+    fig.update_yaxes(automargin=True)
+    if type == "histogram":
+        fig.update_xaxes(autorange='reversed')
+    else:
+        fig.update_layout( title={'text': 'Monthly Prediction: ' + job ,}, yaxis_title = "Total tests executed",)
+    return fig
 
 def get_html_string(graphs):
     return (
@@ -1271,7 +1329,7 @@ def get_html_string(graphs):
               color:white;
             }}
             body {{
-              background-color: rgb(3, 18, 12);
+              background-color: white;
               height: 100%;
               background-repeat:  repeat-y;
               background-position: right;
@@ -1487,21 +1545,35 @@ def get_html_string(graphs):
         }}
       }}
       .reportHeadingDiv {{
-        background-color: #44118b; 
+        background-color: #4c4753; 
         text-align: center;
       }}
       .reportDiv {{
         overflow-x: auto;
-        align:center;
         text-align: center;
       }}
+      .predictionDiv {{
+        overflow-x: auto;
+        text-align: center;
+        margin-left:15%;
+      }}
+      @media (min-width: 768px) {{
+        .predictionDiv{{
+            margin-left:15%!important;
+        }}
+
+        @media (max-width: 767px) {{
+        .predictionDiv{{
+            margin-left:0!important;
+        }}
+     }}
       #report{{
         box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
         overflow-x: auto;
         min-width:70%;
       }}
     </style>
-    <body bgcolor="#FFFFED">
+    <body bgcolor="white">
         <div class="reportDiv">""" + "".join(graphs) + """</div></p><div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
           """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
@@ -1965,50 +2037,56 @@ live_report_filename = "live.html"
 email_report_filename = "email.html"
 graphs = []
 
-df['startDate'] = pandas.to_datetime(pandas.to_datetime(df['startTime']).dt.strftime("%d/%m/%Y"))
-
-duration = "week"
+# df['startDate'] = pandas.to_datetime(pandas.to_datetime(df['startTime']).dt.strftime("%d/%m/%Y"))
+# df['startDate'] = pandas.to_datetime(df['startTime']).dt.strftime("%Y/%d/%m")
+df = df.sort_values(by=['startDate'], ascending=False)
+print(str(df['startDate']))
+duration = "weeks"
 delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%d/%m/%Y")
 print(str(delta.days))
 if (delta.days) <= 14:
-    duration = "days"
+    duration = "dates"
 else:
-    df['week'] = df['startDate'] - df['startDate'].dt.weekday.astype('timedelta64[D]')
-print(duration)
+    df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%d/%m")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
 for job in df['job/name'].dropna().unique(): 
-    if duration == "days":
-        fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="Test Status"
-                            , color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)
+    if duration == "dates":
+        fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="Test Status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
     else:
         fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="Test Status",
                         hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
-    fig.update_layout(
-        title={
-          'text': job,
-          'y':0.94,
-          'x':0.5,
-          'xanchor': 'center',
-          'yanchor': 'top'},
-        xaxis_title = duration,
-        yaxis_title = "Test Status",
-        font=dict(
-            family = "Trebuchet MS, Helvetica, sans-serif",
-            size = 12,
-            color = 'black',
-            fontweight = 'bold'
-        ),
-        autosize=True,
-       
-        hovermode="x unified",
-        yaxis={'tickformat': ',d' },
-        xaxis = {'tickformat': 'array'},
-        xaxis_tickformat = '%d %B',
-    ) 
-    fig.update_yaxes(automargin=True)
+    predict_df = df.loc[df['job/name'] == job]
+    # predict_df['startDate'] = pandas.to_datetime(pandas.to_datetime(predict_df['startTime']).dt.strftime("%d/%m/%Y"), format='%d/%m/%Y')
+    predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
+    if len(predict_df.index) > 1:
+        predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
+        print(predict_df)
+        predict_df['cap'] = 1000
+        predict_df['floor'] = 0
+        from fbprophet import Prophet
+        with suppress_stdout_stderr():
+            m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df)
+        # m = Prophet()
+        # m.fit(predict_df)
+        future = m.make_future_dataframe(periods=30)
+        future['cap'] = 1000
+        future['floor'] = 0
+        forecast = m.predict(future)
+        forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+        # py.init_notebook_mode()
+    else:
+        print("Note: AI Prediction requires more than 2 days of data to analyze!")
+    fig = update_fig(fig, "histogram")
     encoded = base64.b64encode(plotly.io.to_image(fig))
-    graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + "alt='monthly summary' id='reportDiv' onClick='zoom(this)'></img>")
+    graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img>")
     with open(live_report_filename, 'a') as f:
         f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
+    if len(predict_df.index) > 1:
+        fig = plot_plotly(m, forecast)
+        fig = update_fig(fig, "prediction")
+        encoded = base64.b64encode(plotly.io.to_image(fig))
+        graphs.append('<div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p>")
+        with open(live_report_filename, 'a') as f:
+            f.write('<div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p>")
 
 
 
