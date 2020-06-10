@@ -58,6 +58,16 @@ def payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page):
     }
     return payload
 
+def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page):
+    payload = {
+        "startExecutionTime[0]": oldmilliSecs,
+        "endExecutionTime[0]": current_time_millis,
+        "jobName[0]": jobName,
+        # "jobNumber[0]": jobNumber,
+        "_page": page,
+    }
+    return payload
+
 """
     Retrieve a list of test executions within the last month
     :return: JSON object contains the executions
@@ -74,6 +84,8 @@ def retrieve_tests_executions(daysOlder, page):
         payload = payloadNoJob(oldmilliSecs, current_time_millis, page)
     elif not jobNumber:
         payload = payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page)
+    elif jobNumber and jobName and startDate and endDate:
+        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page)
     else:
         payload = payloadJob(jobName, jobNumber, page)
     print(str(payload))
@@ -83,7 +95,7 @@ def retrieve_tests_executions(daysOlder, page):
     )
     # print entire response
     # #print(str(r.content))
-    # print(str(r.url))
+    print(str(r.url))
     return r.content
 
 
@@ -399,7 +411,7 @@ def prepareReport():
     if "month" not in df.columns:
         df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
     if "startDate" not in df.columns:
-        df['startDate'] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D')
+        df['startDate'] = pandas.to_datetime(pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D').astype(str))
     if "week" not in df.columns:
         df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%m/%d")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
     if "Duration" not in df.columns:
@@ -410,7 +422,59 @@ def prepareReport():
         df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
     if "failureReasonName" not in df.columns: 
         df["failureReasonName"] = ""
-    # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv
+    # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
+
+    import plotly.express as px
+    import plotly
+    #ggplot2 #plotly_dark #simple_white
+    #weekly
+
+    graphs = []
+
+    df = df.sort_values(by=['startDate'], ascending=False)
+    duration = "weeks"
+    delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%d/%m/%Y")
+    if (delta.days) <= 14:
+        duration = "dates"
+    for job in df['job/name'].dropna().unique(): 
+        if duration == "dates":
+            fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
+        else:
+            fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="status",
+                            hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
+        predict_df = df.loc[df['job/name'] == job]
+        predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
+        if len(predict_df.index) > 1:
+            predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
+            predict_df['cap'] = (int(predict_df['y'].max()) * 2)
+            predict_df['floor'] = 0
+            from fbprophet import Prophet
+            with suppress_stdout_stderr():
+                m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df, algorithm='Newton')
+            future = m.make_future_dataframe(periods=30)
+            future['cap'] = (int(predict_df['y'].max()) * 2)
+            future['floor'] = 0
+            forecast = m.predict(future)
+            forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+            
+        else:
+            print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
+        fig = update_fig(fig, "histogram", job, duration)
+        encoded = base64.b64encode(plotly.io.to_image(fig))
+        graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img>")
+        with open(live_report_filename, 'a') as f:
+            f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
+        if len(predict_df.index) > 1:
+            fig = plot_plotly(m, forecast)
+            fig = update_fig(fig, "prediction", job, duration)
+            encoded = base64.b64encode(plotly.io.to_image(fig))
+            graphs.append('<div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p>")
+            with open(live_report_filename, 'a') as f:
+                f.write('<div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p>")
+    
+    if jobNumber != "":
+        df = df[df['job/number'].astype(str).str.contains(jobNumber)]
+        print(df)
     df_to_xl(df, str(startDate).replace("/","_"))
     
     for resource in resources:
@@ -819,6 +883,7 @@ def prepareReport():
     jsonObj = (
         str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
     )
+    return graphs
 
 
 """
@@ -1068,7 +1133,7 @@ def get_report_details(item, temp, name, criteria):
         criteria += " : " + name + ": " + temp 
     return temp, criteria
 
-def update_fig(fig, type):
+def update_fig(fig, type, job, duration):
     fig.update_layout(
     title={
         'text': job,
@@ -1584,11 +1649,13 @@ def get_html_string(graphs):
           """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>""")
 
 def main():
-    prepareReport()
+    return prepareReport()
 
 
 if __name__ == "__main__":
     start = datetime.now().replace(microsecond=0)
+    live_report_filename = "live.html"
+    email_report_filename = "email.html"
     global finalDate
     try:
         CQL_NAME = str(sys.argv[1])
@@ -1769,7 +1836,7 @@ if __name__ == "__main__":
         if not jobName:
             criteria = "start: "  + endDate + " ; end: " + endDate
 
-    main()
+    graphs = main()
     os.chdir(".")
     results = glob.glob('*.{}'.format(xlformat))
     for result in results:
@@ -1778,322 +1845,268 @@ if __name__ == "__main__":
         else:
             df = df.append(pandas.read_excel(result))
     df_to_xl(df, "final")   
-execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
-failed = df[(df['status'] == "FAILED")]
-passed = df[(df['status'] == "PASSED")]
-blocked = df[(df['status'] == "BLOCKED")]
-failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
-totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
-totalTCCount = df.shape[0]
-#monthly stats
-df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
-df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
-df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Test Status', 'failureReasonName' : 'Custom Failure Reason'})
-monthlyStats = df.pivot_table(index = ["month",  "week", "Platform", "OS"], 
-              columns = "Test Status" , 
-              values = "name", 
-              aggfunc = "count", margins=True, fill_value=0)\
-        .fillna('')
-for column in monthlyStats.columns:
-    monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
-monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
-failurereasons = pandas.crosstab(df['Custom Failure Reason'],df['Test Status'])
-# print (failurereasons)
-failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
-#top failed TCs
-topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
-reportURLs = []
-for ind in topfailedTCNames.index:
-    reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
-topfailedTCNames['Result'] = reportURLs
-topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
-for ind in topfailedTCNames.index:
-    topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
-topfailedTCNames = topfailedTCNames.drop('Result', 1)
-topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
-# print(str(topfailedTCNames))
-topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+    execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
+    failed = df[(df['status'] == "FAILED")]
+    passed = df[(df['status'] == "PASSED")]
+    blocked = df[(df['status'] == "BLOCKED")]
+    failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
+    totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
+    totalTCCount = df.shape[0]
+    #monthly stats
+    df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
+    df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
+    df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Test Status', 'failureReasonName' : 'Custom Failure Reason'})
+    monthlyStats = df.pivot_table(index = ["month",  "week", "Platform", "OS"], 
+                columns = "Test Status" , 
+                values = "name", 
+                aggfunc = "count", margins=True, fill_value=0)\
+            .fillna('')
+    for column in monthlyStats.columns:
+        monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
+    monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
+    failurereasons = pandas.crosstab(df['Custom Failure Reason'],df['Test Status'])
+    # print (failurereasons)
+    failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
+    #top failed TCs
+    topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
+    reportURLs = []
+    for ind in topfailedTCNames.index:
+        reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
+    topfailedTCNames['Result'] = reportURLs
+    topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
+    for ind in topfailedTCNames.index:
+        topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
+    topfailedTCNames = topfailedTCNames.drop('Result', 1)
+    topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
+    # print(str(topfailedTCNames))
+    topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
 
-#recommendations
-orchestrationIssues = ["already in use"]
-labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
-regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-labIssuesCount = 0
-scriptingIssuesCount = 0
-orchestrationIssuesCount = 0
-cleanedFailureList = {}
-suggesstionsDict = {}
-totalFailCount = failed.shape[0]
-totalPassCount = passed.shape[0]
-blockedCount = blocked.shape[0]
-# failures count
-failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
-
-for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
-    for labIssue in labIssues:
-        if re.search(labIssue, commonError):
-            labIssuesCount += commonErrorCount
-            break
-    for orchestrationIssue in orchestrationIssues:
-        if re.search(orchestrationIssue, commonError):
-            orchestrationIssuesCount += commonErrorCount
-            break
-    error = commonError
+    #recommendations
+    orchestrationIssues = ["already in use"]
+    labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
     regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-    if re.search(regEx_Filter, error):
-        error = str(re.compile(regEx_Filter).split(error)[0])
-        if "An error occurred. Stack Trace:" in error:
-            error = error.split("An error occurred. Stack Trace:")[1]
-    if re.search("error: \-\[|Fatal error:", error):
-        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
-    if error.strip() in cleanedFailureList:
-        cleanedFailureList[error.strip()] += 1
-    else:
-        cleanedFailureList[error.strip()] = commonErrorCount
-    scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
+    labIssuesCount = 0
+    scriptingIssuesCount = 0
+    orchestrationIssuesCount = 0
+    cleanedFailureList = {}
+    suggesstionsDict = {}
+    totalFailCount = failed.shape[0]
+    totalPassCount = passed.shape[0]
+    blockedCount = blocked.shape[0]
+    # failures count
+    failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
 
- # Top 5 failure reasons
-topFailureDict = {}
+    for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
+        for labIssue in labIssues:
+            if re.search(labIssue, commonError):
+                labIssuesCount += commonErrorCount
+                break
+        for orchestrationIssue in orchestrationIssues:
+            if re.search(orchestrationIssue, commonError):
+                orchestrationIssuesCount += commonErrorCount
+                break
+        error = commonError
+        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+        if re.search(regEx_Filter, error):
+            error = str(re.compile(regEx_Filter).split(error)[0])
+            if "An error occurred. Stack Trace:" in error:
+                error = error.split("An error occurred. Stack Trace:")[1]
+        if re.search("error: \-\[|Fatal error:", error):
+            error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+        if error.strip() in cleanedFailureList:
+            cleanedFailureList[error.strip()] += 1
+        else:
+            cleanedFailureList[error.strip()] = commonErrorCount
+        scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
 
-failureDict = Counter(cleanedFailureList)
-for commonError, commonErrorCount in failureDict.most_common(5):
-    topFailureDict[commonError] = int(commonErrorCount)
+    # Top 5 failure reasons
+    topFailureDict = {}
 
-# reach top errors and clean them
-i = 0
-for commonError, commonErrorCount in topFailureDict.items():
-    if "ERROR: No device was found" in commonError:
-        error = (
-            "Raise a support case as the error: *|*"
-            + commonError.strip()
-            + "*|* occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    elif "Cannot open device" in commonError:
-        error = (
-            "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
-            + commonError.strip()
-            + "*|* occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    elif '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)' in commonError:
-        error = (
-        "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
-        + commonError.strip()
-        + "*|* occurs in *|*"
-        + str(commonErrorCount)
-        + "*|* occurrences"
-    )
-    else:
-        error = (
-            "Fix the error: *|*"
-            + commonError.strip()
-            + "*|* as it occurs in *|*"
-            + str(commonErrorCount)
-            + "*|* occurrences"
-        )
-    suggesstionsDict[error] = commonErrorCount
-eDict = edict(
-        {
-            "status": [
-                {
-                "#Total": "Count ->",
-                "#Executions": totalTCCount,
-                "#Pass" : totalPassCount,
-                "#Failed" : totalFailCount,
-                "#Blocked" : blockedCount,
-                "#Unknowns": totalUnknownCount,
-                "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
-                },
-            ],
-            "issues": [
-              {
-                "#Issues": "Count ->",
-                "#Scripting": scriptingIssuesCount,
-                "#Lab": labIssuesCount,
-                "#Orchestration": orchestrationIssuesCount,
-                },
-            ],
-            "recommendation": [
-                {
-                   "Recommendations": "-",
-                   "Rank": 1,
-                    "impact": "0",
-                },
-                {
-                   "Recommendations": "-",
-                     "Rank": 2,
-                    "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 3,
-                    "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 4,
-                     "impact": "0",
-                },
-                {
-                    "Recommendations": "-",
-                    "Rank": 5,
-                    "impact": "0",
-                },
-            ],
-        }
-    )
-jsonObj = edict(eDict)
-if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
-    suggesstionsDict[
-        "# Fix the unknowns. The unknown script ratio is too high (%) : "
-        + str(percentageCalculator(totalUnknownCount, totalTCCount))
-        + "%"
-    ] = percentageCalculator(
-        totalPassCount + totalUnknownCount, totalTCCount
-    ) - percentageCalculator(
-        totalPassCount, totalTCCount
-    )
-if len(suggesstionsDict) < 5:
-    if (topfailedTCNames.shape[0]) > 1:
-        for tcName, status in topfailedTCNames.itertuples(index=False):
-            suggesstionsDict[
-                "# Fix the top failing test: "
-                + tcName
-                + " as the failures count is: "
-                + str(int((str(status).split(",")[0]).replace("[", "").strip()))
-            ] = 1
-            break
+    failureDict = Counter(cleanedFailureList)
+    for commonError, commonErrorCount in failureDict.most_common(5):
+        topFailureDict[commonError] = int(commonErrorCount)
 
-if len(suggesstionsDict) < 5:
-    if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
-        if totalTCCount > 0:
-            suggesstionsDict[
-                "# Fix the failures. The total failures % is too high (%) : "
-                + str(percentageCalculator(totalFailCount, totalTCCount))
-                + "%"
-            ] = totalFailCount
-if len(suggesstionsDict) < 5:
-    if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
-        totalTCCount > 0
-    ):
-        suggesstionsDict[
-            "# Fix the failures. The total pass %  is too less (%) : "
-            + str(int(percentageCalculator(totalPassCount, totalTCCount)))
-            + "%"
-        ] = (
-            100
-            - (
-                percentageCalculator(
-                    totalPassCount + totalUnknownCount, totalTCCount
-                )
-                - percentageCalculator(totalPassCount, totalTCCount)
+    # reach top errors and clean them
+    i = 0
+    for commonError, commonErrorCount in topFailureDict.items():
+        if "ERROR: No device was found" in commonError:
+            error = (
+                "Raise a support case as the error: *|*"
+                + commonError.strip()
+                + "*|* occurs in *|*"
+                + str(commonErrorCount)
+                + "*|* occurrences"
             )
-        ) - int(
-            percentageCalculator(totalPassCount, totalTCCount)
+        elif "Cannot open device" in commonError:
+            error = (
+                "Reserve the device/ use perfecto lab auto selection feature to avoid the error:  *|*"
+                + commonError.strip()
+                + "*|* occurs in *|*"
+                + str(commonErrorCount)
+                + "*|* occurrences"
+            )
+        elif '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)' in commonError:
+            error = (
+            "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
+            + commonError.strip()
+            + "*|* occurs in *|*"
+            + str(commonErrorCount)
+            + "*|* occurrences"
         )
-if len(suggesstionsDict) < 5:
-    if totalTCCount == 0:
+        else:
+            error = (
+                "Fix the error: *|*"
+                + commonError.strip()
+                + "*|* as it occurs in *|*"
+                + str(commonErrorCount)
+                + "*|* occurrences"
+            )
+        suggesstionsDict[error] = commonErrorCount
+    eDict = edict(
+            {
+                "status": [
+                    {
+                    "#Total": "Count ->",
+                    "#Executions": totalTCCount,
+                    "#Pass" : totalPassCount,
+                    "#Failed" : totalFailCount,
+                    "#Blocked" : blockedCount,
+                    "#Unknowns": totalUnknownCount,
+                    "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
+                    },
+                ],
+                "issues": [
+                {
+                    "#Issues": "Count ->",
+                    "#Scripting": scriptingIssuesCount,
+                    "#Lab": labIssuesCount,
+                    "#Orchestration": orchestrationIssuesCount,
+                    },
+                ],
+                "recommendation": [
+                    {
+                    "Recommendations": "-",
+                    "Rank": 1,
+                        "impact": "0",
+                    },
+                    {
+                    "Recommendations": "-",
+                        "Rank": 2,
+                        "impact": "0",
+                    },
+                    {
+                        "Recommendations": "-",
+                        "Rank": 3,
+                        "impact": "0",
+                    },
+                    {
+                        "Recommendations": "-",
+                        "Rank": 4,
+                        "impact": "0",
+                    },
+                    {
+                        "Recommendations": "-",
+                        "Rank": 5,
+                        "impact": "0",
+                    },
+                ],
+            }
+        )
+    jsonObj = edict(eDict)
+    if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
         suggesstionsDict[
-            "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
-        ] = 100
-    elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-        print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
-        suggesstionsDict["# Great automation progress. Keep it up!"] = 0
+            "# Fix the unknowns. The unknown script ratio is too high (%) : "
+            + str(percentageCalculator(totalUnknownCount, totalTCCount))
+            + "%"
+        ] = percentageCalculator(
+            totalPassCount + totalUnknownCount, totalTCCount
+        ) - percentageCalculator(
+            totalPassCount, totalTCCount
+        )
+    if len(suggesstionsDict) < 5:
+        if (topfailedTCNames.shape[0]) > 1:
+            for tcName, status in topfailedTCNames.itertuples(index=False):
+                suggesstionsDict[
+                    "# Fix the top failing test: "
+                    + tcName
+                    + " as the failures count is: "
+                    + str(int((str(status).split(",")[0]).replace("[", "").strip()))
+                ] = 1
+                break
 
-    int(percentageCalculator(totalFailCount, totalTCCount)) > 15
-topSuggesstionsDict = Counter(suggesstionsDict)
-counter = 0
-totalImpact = 0
-for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
-    impact = 1
-    if sugg.startswith("# "):
-        sugg = sugg.replace("# ", "")
-        impact = commonErrorCount
-    else:
-        impact = percentageCalculator(
-            totalPassCount + commonErrorCount, totalTCCount
-        ) - percentageCalculator(totalPassCount, totalTCCount)
-    jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
-    jsonObj.recommendation[counter].Recommendations = (
-         html.escape(sugg.replace("*|*", "'").replace("{","{{").replace("}","}}").strip())
-    )
-    totalImpact += round(impact, 2)
-    counter += 1
-execution_status = pandas.DataFrame.from_dict(jsonObj.status)
-execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-issues = pandas.DataFrame.from_dict(jsonObj.issues)
-issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
-recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
-recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-print("Total impact% :" + str(round(totalImpact,2)))
-import plotly.express as px
-import plotly
-#ggplot2 #plotly_dark #simple_white
-#weekly
-live_report_filename = "live.html"
-email_report_filename = "email.html"
-graphs = []
+    if len(suggesstionsDict) < 5:
+        if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
+            if totalTCCount > 0:
+                suggesstionsDict[
+                    "# Fix the failures. The total failures % is too high (%) : "
+                    + str(percentageCalculator(totalFailCount, totalTCCount))
+                    + "%"
+                ] = totalFailCount
+    if len(suggesstionsDict) < 5:
+        if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
+            totalTCCount > 0
+        ):
+            suggesstionsDict[
+                "# Fix the failures. The total pass %  is too less (%) : "
+                + str(int(percentageCalculator(totalPassCount, totalTCCount)))
+                + "%"
+            ] = (
+                100
+                - (
+                    percentageCalculator(
+                        totalPassCount + totalUnknownCount, totalTCCount
+                    )
+                    - percentageCalculator(totalPassCount, totalTCCount)
+                )
+            ) - int(
+                percentageCalculator(totalPassCount, totalTCCount)
+            )
+    if len(suggesstionsDict) < 5:
+        if totalTCCount == 0:
+            suggesstionsDict[
+                "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
+            ] = 100
+        elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
+            print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
+            suggesstionsDict["# Great automation progress. Keep it up!"] = 0
 
-df = df.sort_values(by=['startDate'], ascending=False)
-print(str(df['startDate']))
-duration = "weeks"
-delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%d/%m/%Y")
-print(str(delta.days))
-if (delta.days) <= 14:
-    duration = "dates"
-for job in df['job/name'].dropna().unique(): 
-    if duration == "dates":
-        fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="Test Status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
-    else:
-        fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="Test Status",
-                        hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
-    predict_df = df.loc[df['job/name'] == job]
-    # predict_df['startDate'] = pandas.to_datetime(pandas.to_datetime(predict_df['startTime']).dt.strftime("%Y/%d/%m"), format='%Y/%m/%d')
-    predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
-    if len(predict_df.index) > 1:
-        predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
-        print(predict_df)
-        predict_df['cap'] = 1000
-        predict_df['floor'] = 0
-        from fbprophet import Prophet
-        with suppress_stdout_stderr():
-            m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df)
-        # m = Prophet()
-        # m.fit(predict_df)
-        future = m.make_future_dataframe(periods=30)
-        future['cap'] = 1000
-        future['floor'] = 0
-        forecast = m.predict(future)
-        forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-        # py.init_notebook_mode()
-    else:
-        print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
-    fig = update_fig(fig, "histogram")
-    encoded = base64.b64encode(plotly.io.to_image(fig))
-    graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img>")
-    with open(live_report_filename, 'a') as f:
-        f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
-    if len(predict_df.index) > 1:
-        fig = plot_plotly(m, forecast)
-        fig = update_fig(fig, "prediction")
-        encoded = base64.b64encode(plotly.io.to_image(fig))
-        graphs.append('<div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p>")
-        with open(live_report_filename, 'a') as f:
-            f.write('<div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p>")
+        int(percentageCalculator(totalFailCount, totalTCCount)) > 15
+    topSuggesstionsDict = Counter(suggesstionsDict)
+    counter = 0
+    totalImpact = 0
+    for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
+        impact = 1
+        if sugg.startswith("# "):
+            sugg = sugg.replace("# ", "")
+            impact = commonErrorCount
+        else:
+            impact = percentageCalculator(
+                totalPassCount + commonErrorCount, totalTCCount
+            ) - percentageCalculator(totalPassCount, totalTCCount)
+        jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
+        jsonObj.recommendation[counter].Recommendations = (
+            html.escape(sugg.replace("*|*", "'").replace("{","{{").replace("}","}}").strip())
+        )
+        totalImpact += round(impact, 2)
+        counter += 1
+    execution_status = pandas.DataFrame.from_dict(jsonObj.status)
+    execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+    issues = pandas.DataFrame.from_dict(jsonObj.issues)
+    issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+    recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
+    recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
+    recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+    print("Total impact% :" + str(round(totalImpact,2)))
+    
 
 
+    with open(email_report_filename, "a") as f:
+        f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
 
-with open(email_report_filename, "a") as f:
-    f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
+    graphs.clear()
 
-graphs.clear()
+    with open(live_report_filename, "a") as f:
+        f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
 
-with open(live_report_filename, "a") as f:
-    f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
-
-end = datetime.now().replace(microsecond=0)
-print("Total Time taken:" + str(end - start))
+    end = datetime.now().replace(microsecond=0)
+    print("Total Time taken:" + str(end - start))
