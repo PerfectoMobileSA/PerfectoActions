@@ -605,10 +605,13 @@ def create_summary(df, title, column, name):
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
     fig.patch.set_facecolor("yellow")
     fig.patch.set_alpha(1)
+    cdict = {'FAILED': 'crimson', 'PASSED': 'limegreen', 'UNKNOWN': '#9da7f2', 'BLOCKED': '#e79a00'}
+    print("here: " + cdict)
     df[column].value_counts().sort_index().plot(
         kind="pie",
         y="%",
         ax=ax1,
+        colors=[cdict[c] for c in df[column]],
         autopct="%1.1f%%",
         startangle=30,
         shadow=False,

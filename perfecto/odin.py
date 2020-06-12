@@ -1,3 +1,4 @@
+import shutil
 from fbprophet.plot import plot_plotly
 import base64
 import html 
@@ -33,62 +34,47 @@ from openpyxl.reader.excel import load_workbook
 """
 TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
 
-def payloadNoJob(oldmilliSecs, current_time_millis, page):
-    payload = {
-        "startExecutionTime[0]": oldmilliSecs,
-        "endExecutionTime[0]": current_time_millis,
-        "_page": page,
-    }
-    return payload
+class my_dictionary(dict):  
+  
+    # __init__ function  
+    def __init__(self):  
+        self = dict()  
+          
+    # Function to add key:value  
+    def add(self, key, value):  
+        self[key] = value  
 
-def payloadJob(jobName, jobNumber, page):
-    payload = {
-        "jobName[0]": jobName,
-        "jobNumber[0]": jobNumber,
-        "_page": page,
-    }
-    return payload
-
-def payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page):
-    payload = {
-        "startExecutionTime[0]": oldmilliSecs,
-        "endExecutionTime[0]": current_time_millis,
-        "jobName[0]": jobName,
-        "_page": page,
-    }
-    return payload
-
-def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page):
-    payload = {
-        "startExecutionTime[0]": oldmilliSecs,
-        "endExecutionTime[0]": current_time_millis,
-        "jobName[0]": jobName,
-        # "jobNumber[0]": jobNumber,
-        "_page": page,
-    }
+def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, boolean):
+    payload = my_dictionary()
+    if oldmilliSecs != 0 : payload.add("startExecutionTime[0]", oldmilliSecs) 
+    if current_time_millis != 0 : payload.add("endExecutionTime[0]", current_time_millis)
+    payload.add("_page", page)
+    if jobName != "":
+        for i, job in enumerate(jobName.split(",")):
+            payload.add("jobName[" +  str(i) + "]", job)
+    if jobNumber != "" and boolean:
+        for i, job in enumerate(jobName.split(",")):
+                payload.add("jobNumber[" +  str(i) + "]", jobNumber)
     return payload
 
 """
     Retrieve a list of test executions within the last month
     :return: JSON object contains the executions
 """
-
-
 def retrieve_tests_executions(daysOlder, page):
-    endTime = datetime.strptime(str(endDate) + " 23:59:59,999", "%d/%m/%Y %H:%M:%S,%f")
-    print("endExecutionTime:" + str(endTime))
-    millisec = endTime.timestamp() * 1000
-    current_time_millis = round(int(millisec))
-    oldmilliSecs = pastDateToMS(startDate, daysOlder)
-    if not jobName:
-        payload = payloadNoJob(oldmilliSecs, current_time_millis, page)
-    elif not jobNumber:
-        payload = payloadNoJobNumber(oldmilliSecs, current_time_millis, jobName, page)
-    elif jobNumber and jobName and startDate and endDate:
-        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page)
+    current_time_millis = 0
+    oldmilliSecs = 0
+    if endDate != "" :
+        endTime = datetime.strptime(str(endDate) + " 23:59:59,999", "%Y-%m-%d %H:%M:%S,%f")
+        print("endExecutionTime:" + str(endTime))
+        millisec = endTime.timestamp() * 1000
+        current_time_millis = round(int(millisec))
+    if startDate != "":
+        oldmilliSecs = pastDateToMS(startDate, daysOlder)
+    if jobNumber != "" and jobName != "" and startDate != "" and endDate != "" :
+        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, False)
     else:
-        payload = payloadJob(jobName, jobNumber, page)
-    print(str(payload))
+        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, True)
     # creates http geat request with the url, given parameters (payload) and header (for authentication)
     r = requests.get(
         api_url, params=payload, headers={"PERFECTO_AUTHORIZATION": OFFLINE_TOKEN}
@@ -152,10 +138,18 @@ def flatten_json(nested_json, exclude=[""]):
     return out
 
 
+def get_final_df(df, files):
+    df = pandas.DataFrame()
+    for file in files:
+        if "csv" in xlformat:
+            df = df.append(pandas.read_csv(file, low_memory=False))
+        else:
+            df = df.append(pandas.read_excel(file))
+    return df
+
 """
    gets the top failed device pass count, handset errors and device/ desktop details
 """
-
 
 def getDeviceDetails(device, deviceFailCount):
     devicePassCount = 0
@@ -277,7 +271,7 @@ def percentageCalculator(part, whole):
 
 def pastDateToMS(startDate, daysOlder):
     dt_obj = datetime.strptime(
-        startDate + " 00:00:00,00", "%d/%m/%Y %H:%M:%S,%f"
+        startDate + " 00:00:00,00", "%Y-%m-%d %H:%M:%S,%f"
     ) - timedelta(days=daysOlder)
     print("startExecutionTime:" + str(dt_obj))
     millisec = dt_obj.timestamp() * 1000
@@ -332,7 +326,7 @@ def color_negative_red(value):
    gets' Perfecto reporting API responses, creates dict for top device failures, auto suggestions and top tests failures and prepared json
 """
 
-def prepareReport():
+def prepareReport(jobName, jobNumber):
     page = 1
     i = 0
     truncated = True
@@ -375,7 +369,7 @@ def prepareReport():
             executionList = executions["resources"]
         except TypeError as e:
             print(executions)
-            raise Exception("Unable to find matching records for: " + str(criteria) + ", error:" +executions['userMessage'])
+            raise Exception("Unable to find matching records for: " + str(criteria) + ", error:" + str(executions['userMessage']))
             sys.exit(-1)
         if len(executionList) == 0:
             print("0 test executions")
@@ -424,59 +418,90 @@ def prepareReport():
         df["failureReasonName"] = ""
     # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
 
+    #Filter only job and job number if dates are parameterized as well but show full histogram
+    if jobNumber != "" and jobName != "":
+        ori_df = df
+        df = df[df['job/number'].astype(str) == jobNumber]
+    if startDate != "":
+        name = startDate
+    else:
+        name = jobName + '_' + jobNumber
+    df_to_xl(df, str(name).replace("/","_"))
+    os.chdir(".")
+    files = glob.glob('*.{}'.format(xlformat))
+    if consolidate != "":
+        for file in files:
+            if os.path.isfile(file):
+                shutil.copy2(file, consolidate)
+        files = glob.iglob(os.path.join(consolidate, "*." + xlformat))
+    df = get_final_df(df, files)
+    if jobNumber != "" and jobName != "":
+        ori_df = df
+        df = df[df['job/number'].astype(str) == jobNumber]
+    df_to_xl(df, "final")   
+
     import plotly.express as px
     import plotly
     #ggplot2 #plotly_dark #simple_white
-    #weekly
-
     graphs = []
-
-    df = df.sort_values(by=['startDate'], ascending=False)
+    if jobNumber != "" and jobName != "":
+        df = ori_df.sort_values(by=['startDate'], ascending=False)
+    else:
+        df = df.sort_values(by=['startDate'], ascending=False)
     duration = "weeks"
-    delta = datetime.strptime(endDate, "%d/%m/%Y") - datetime.strptime(startDate, "%d/%m/%Y")
-    if (delta.days) <= 14:
+    if startDate != "":
+        delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(startDate, "%Y-%m-%d")
+        if (delta.days) <= 14:
+            duration = "dates"
+    else:
         duration = "dates"
-    for job in df['job/name'].dropna().unique(): 
-        if duration == "dates":
-            fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
+    joblist = []
+    if "job/name" in df.columns and jobName != "":
+        joblist = sorted(df['job/name'].dropna().unique())
+    else:
+        joblist.append("Overall!")
+    for job in joblist: 
+        predict_df = df
+        fig = []
+        if job != "Overall!":
+            if job in jobName:
+                if duration == "dates":
+                    fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
+                else:
+                    fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="status",
+                                    hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
+                predict_df = df.loc[df['job/name'] == job]
         else:
-            fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="status",
-                            hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
-        predict_df = df.loc[df['job/name'] == job]
+            fig = px.histogram(df, x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)    
         predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
-        if len(predict_df.index) > 1:
-            predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
-            predict_df['cap'] = (int(predict_df['y'].max()) * 2)
-            predict_df['floor'] = 0
-            from fbprophet import Prophet
-            with suppress_stdout_stderr():
-                m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df, algorithm='Newton')
-            future = m.make_future_dataframe(periods=30)
-            future['cap'] = (int(predict_df['y'].max()) * 2)
-            future['floor'] = 0
-            forecast = m.predict(future)
-            forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
-            
-        else:
-            print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
-        fig = update_fig(fig, "histogram", job, duration)
-        encoded = base64.b64encode(plotly.io.to_image(fig))
-        graphs.append('<img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img>")
-        with open(live_report_filename, 'a') as f:
-            f.write(fig.to_html(full_html=False, include_plotlyjs='cdn'))
-        if len(predict_df.index) > 1:
-            fig = plot_plotly(m, forecast)
-            fig = update_fig(fig, "prediction", job, duration)
+        if fig:   
+            fig = update_fig(fig, "histogram", job, duration)
             encoded = base64.b64encode(plotly.io.to_image(fig))
-            graphs.append('<div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p>")
+            graphs.append('<div id="nestle-section"><input type="radio" id="tab8" name="tabs" checked=""/><label for="tab8">Trends: ' + job + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img></div></div>")
             with open(live_report_filename, 'a') as f:
-                f.write('<div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p>")
-    
-    if jobNumber != "":
-        df = df[df['job/number'].astype(str).str.contains(jobNumber)]
-        print(df)
-    df_to_xl(df, str(startDate).replace("/","_"))
-    
+                f.write('<div id="nestle-section"><input type="radio" id="tab8" name="tabs" checked=""/><label for="tab8">Trends: ' + job + ' </label><div class="tab-content1">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + '</div></div>')
+        if job == "Overall!" or job == jobName:
+            if len(predict_df.index) > 1:
+                predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
+                predict_df['cap'] = (int(predict_df['y'].max()) * 2)
+                predict_df['floor'] = 0
+                from fbprophet import Prophet
+                with suppress_stdout_stderr():
+                    m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df, algorithm='Newton')
+                future = m.make_future_dataframe(periods=30)
+                future['cap'] = (int(predict_df['y'].max()) * 2)
+                future['floor'] = 0
+                forecast = m.predict(future)
+                forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+                fig = plot_plotly(m, forecast)
+                fig = update_fig(fig, "prediction", job, duration)
+                encoded = base64.b64encode(plotly.io.to_image(fig))
+                graphs.append('<div id="nestle-section"><input type="radio" id="tab9" name="tabs" checked=""/><label for="tab9">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div></div>")
+                with open(live_report_filename, 'a') as f:
+                    f.write('<div id="nestle-section"><input type="radio" id="tab9" name="tabs" checked=""/><label for="tab9">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p></div></div>")
+            else:
+                print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
+
     for resource in resources:
         try:
             #            totalTCCount += 1
@@ -617,7 +642,6 @@ def prepareReport():
         i += 1
     eDict = edict(
         {
-            "snapshotDate": str(finalDate),
             "last24h": int(percentageCalculator(totalPassCount, totalTCCount)),
             "lab": labIssuesCount,
             "orchestration": orchestrationIssuesCount,
@@ -790,8 +814,7 @@ def prepareReport():
                 "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
             ] = 100
         elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-            print(str(int(percentageCalculator(totalPassCount, totalTCCount))))
-            suggesstionsDict["# Great automation progress. Keep it up!"] = 0
+            suggesstionsDict["# Overall Pass% is " + str(int(percentageCalculator(totalPassCount, totalTCCount)))+ "! Keep it up!"] = 0
 
         int(percentageCalculator(totalFailCount, totalTCCount)) > 15
     print("**************#Top 5 failure reasons ")
@@ -883,7 +906,7 @@ def prepareReport():
     jsonObj = (
         str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
     )
-    return graphs
+    return graphs, df
 
 
 """
@@ -1136,8 +1159,8 @@ def get_report_details(item, temp, name, criteria):
 def update_fig(fig, type, job, duration):
     fig.update_layout(
     title={
-        'text': job,
-        'y':0.94,
+        'text': '',
+        'y':0.97,
         'x':0.5,
         'xanchor': 'center',
         'yanchor': 'top'},
@@ -1155,8 +1178,7 @@ def update_fig(fig, type, job, duration):
     ) 
     fig.update_yaxes(automargin=True)
     if type == "prediction":
-        # fig.update_xaxes(autorange='reversed')
-        fig.update_layout( title={'text': 'Monthly Prediction: ' + job ,}, yaxis_title = "Total tests executed",)
+        fig.update_layout( title={'text': ''}, yaxis_title = "Total tests executed",)
     return fig
 
 def get_html_string(graphs):
@@ -1286,377 +1308,402 @@ def get_html_string(graphs):
 
     		<meta name="viewport" content="width=device-width, initial-scale=1">
             </head>
-             <style>
+            <style>
 
-            html {{
-              height:100%;
-            }}
-            
-            .tabbed {{
-               display:  flex;
-               text-align: left;
-               flex-wrap: wrap;
-               box-shadow: 0 0 20px rgba(186, 99, 228, 0.4);
-               font-size: 12px;
-               font-family: "Trebuchet MS", Helvetica, sans-serif;
-             }}
-             .tabbed > input {{
-               display: none;
-             }}
-             .tabbed > input:checked + label {{
-               font-size: 14px;
-               text-align: center;
-               color: white;
-               background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
-             }}
-             .tabbed > input:checked + label + div {{
-               color:darkslateblue;
-               display: block;
-             }}
-             .tabbed > label {{
-               background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
-               color: white;
-               text-align: center;
-               display: block;
-               order: 1;
-               flex-grow: 1;
-               padding: .3%;
-             }}
-             .tabbed > div {{
-               order: 2;
-               flex-basis: 100%;
-               display: none;
-               padding: 10px;
-             }}
-
-             /* For presentation only */
-             .container {{
-               width: 100%;
-               margin: 0 auto;
-               background-color: black;
-               box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
-             }}
-
-             .tabbed {{
-               border: 1px solid;
-             }}
-
-             hr {{
-               background-color: white;
-               height: 5px;
-               border: 0;
-               margin: 10px 0 0;
-             }}
-             
-             hr + * {{
-               margin-top: 10px;
-             }}
-             
-             hr + hr {{
-               margin: 0 0;
-             }}
-
-            .mystyle {{
-                font-size: 12pt;
-                font-family: "Trebuchet MS", Helvetica, sans-serif;
-                border-collapse: collapse;
-                border: 2px solid black;
-                margin:auto;
-                box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                background-color: white;
-            }}
-
-            .mystyle body {{
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-                table-layout: auto;
-                position:relative;
-            }}
-
-            #slide{{
-              width:100%;
-              height:auto;
-            }}
-
-            #myInput, #myInput2, #myInput3 {{
-              background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
-              background-position: 2px 4px;
-              background-repeat: no-repeat;
-              background-size: 25px 30px;
-              width: 40%;
-              height:auto;
-              font-weight: bold;
-              font-size: 12px;
-              padding: 11px 20px 12px 40px;
-              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-            }}
-
-            p {{
-              text-align:center;
-              color:white;
-            }}
-            body {{
-              background-color: white;
-              height: 100%;
-              background-repeat:  repeat-y;
-              background-position: right;
-              background-size:  contain;
-              background-attachment: initial;
-              opacity:.93;
-            }}
-
-            h4 {{
-              font-family:monospace;
-            }}
-
-            @keyframes slide {{
-              0% {{
-                transform:translateX(-25%);
-              }}
-              100% {{
-                transform:translateX(25%);
-              }}
-            }}
-
-            .mystyle table {{
-                table-layout: auto;
-                width: 100%;
-                height: 100%;
-                position:relative;
-                border-collapse: collapse;
-            }}
-
-            tr:hover {{background-color:grey;}}
-
-            .mystyle td {{
+                html {{
+                height:100%;
+                }}
+                
+                .tabbed {{
+                display:  flex;
+                text-align: left;
+                flex-wrap: wrap;
+                box-shadow: 0 0 80px rgba(101, 242, 183, 0.4);
                 font-size: 12px;
+                font-family: "Trebuchet MS", Helvetica, sans-serif;
+                }}
+                .tabbed > input {{
+                display: none;
+                }}
+                .tabbed > input:checked + label {{
+                font-size: 14px;
+                text-align: center;
+                color: white;
+                background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
+                }}
+                .tabbed > input:checked + label + div {{
+                color:darkslateblue;
+                display: block;
+                }}
+                .tabbed > label {{
+                background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
+                color: white;
+                text-align: center;
+                display: block;
+                order: 1;
+                flex-grow: 1;
+                padding: .3%;
+                }}
+                .tabbed > div {{
+                order: 2;
+                flex-basis: 100%;
+                display: none;
+                padding: 10px;
+                }}
+
+                /* For presentation only */
+                .container {{
+                width: 100%;
+                margin: 0 auto;
+                background-color: black;
+                box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
+                }}
+
+                .tabbed {{
+                border: 1px solid;
+                }}
+
+                hr {{
+                background-color: white;
+                height: 5px;
+                border: 0;
+                margin: 10px 0 0;
+                }}
+                
+                hr + * {{
+                margin-top: 10px;
+                }}
+                
+                hr + hr {{
+                margin: 0 0;
+                }}
+
+                .mystyle {{
+                    font-size: 12pt;
+                    font-family: "Trebuchet MS", Helvetica, sans-serif;
+                    border-collapse: collapse;
+                    border: 2px solid black;
+                    margin:auto;
+                    box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+                    background-color: #fffffa;
+                }}
+
+                .mystyle body {{
+                font-family: "Trebuchet MS", Helvetica, sans-serif;
+                    table-layout: auto;
+                    position:relative;
+                }}
+
+                #slide{{
+                width:100%;
+                height:auto;
+                }}
+
+                #myInput, #myInput2, #myInput3 {{
+                background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
+                background-position: 2px 4px;
+                background-repeat: no-repeat;
+                background-size: 25px 30px;
+                width: 40%;
+                height:auto;
+                font-weight: bold;
+                font-size: 12px;
+                padding: 11px 20px 12px 40px;
+                box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+                }}
+
+                p {{
+                text-align:center;
+                color:white;
+                }}
+                body {{
+                background-color: white;
+                height: 100%;
+                background-repeat:  repeat-y;
+                background-position: right;
+                background-size:  contain;
+                background-attachment: initial;
+                opacity:.93;
+                }}
+
+                h4 {{
+                font-family:monospace;
+                }}
+
+                @keyframes slide {{
+                0% {{
+                    transform:translateX(-25%);
+                }}
+                100% {{
+                    transform:translateX(25%);
+                }}
+                }}
+
+                .mystyle table {{
+                    table-layout: auto;
+                    width: 100%;
+                    height: 100%;
+                    position:relative;
+                    border-collapse: collapse;
+                }}
+
+                tr:hover {{background-color:grey;}}
+
+                .mystyle td {{
+                    font-size: 12px;
+                    position:relative;
+                    padding: 5px;
+                    width:10%;
+                    color: black;
+                border-left: 1px solid #333;
+                border-right: 1px solid #333;
+                background: rgba(255, 253, 207, 0.58);
+                text-align: center;
+                }}
+
+                table.mystyle td:first-child {{ text-align: left; }}   
+
+                table.mystyle thead {{
+                background: #333333;
+                font-size: 14px;
                 position:relative;
-                padding: 5px;
-                width:10%;
-                color: black;
-              border-left: 1px solid #333;
-              border-right: 1px solid #333;
-              background: #fffffa;
-              text-align: center;
-            }}
+                border-bottom: 1px solid white;
+                border-left: 1px solid white;
+                border-right: 1px solid white;
+                border-top: 1px solid black;
+                }}
 
-            table.mystyle td:first-child {{ text-align: left; }}   
+                table.mystyle thead th {{
+                line-height: 200%;
+                font-size: 14px;
+                font-weight: normal;
+                color: #fffffa;
+                text-align: center;
+                transition:transform 0.25s ease;
+                }}
 
-            table.mystyle thead {{
-              background: #333333;
-              font-size: 14px;
-              position:relative;
-              border-bottom: 1px solid #DBDB40;
-              border-left: 1px solid #D8DB40;
-              border-right: 1px solid #D8DB40;
-              border-top: 1px solid black;
-            }}
+                table.mystyle thead th:hover {{
+                    -webkit-transform:scale(1.01);
+                    transform:scale(1.01);
+                }}
 
-            table.mystyle thead th {{
-              line-height: 200%;
-              font-size: 14px;
-              font-weight: normal;
-              color: #fffffa;
-              text-align: center;
-              transition:transform 0.25s ease;
-            }}
+                table.mystyle thead th:first-child {{
+                border-left: none;
+                }}
 
-            table.mystyle thead th:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
-            }}
+                .topnav {{
+                overflow: hidden;
+                background-color: black;
+                opacity: 0.9;
+                }}
 
-            table.mystyle thead th:first-child {{
-              border-left: none;
-            }}
-
-            .topnav {{
-              overflow: hidden;
-              background-color: black;
-              opacity: 0.9;
-            }}
-
-            .topnav a {{
-              float: right;
-              display: block;
-              color: #333333;
-              text-align: center;
-              padding: 12px 15px;
-              text-decoration: none;
-              font-size: 12px;
-              position: relative;
-              border: 1px solid #6c3;
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-            }}
-
-            #summary{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             width:50%;
-             cursor: pointer;
-             padding: .1%;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
-            }}
-            
-            #logo{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             cursor: pointer;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
-            }}
-
-            .topnav a.active {{
-              background-color: #333333;
-              color: white;
-              font-weight: lighter;
-            }}
-
-            .topnav .icon {{
-              display: none;
-            }}
-
-            @media screen and (max-width: 600px) {{
-              .topnav a:not(:first-child) {{display: none;}}
-              .topnav a.icon {{
-                color: #DBDB40;
+                .topnav a {{
                 float: right;
                 display: block;
-              }}
-            }}
+                color: #333333;
+                text-align: center;
+                padding: 12px 15px;
+                text-decoration: none;
+                font-size: 12px;
+                position: relative;
+                border: 1px solid #6c3;
+                font-family: "Trebuchet MS", Helvetica, sans-serif;
+                }}
 
-            @media screen and (max-width: 600px) {{
-              .topnav.responsive {{position: relative;}}
-              .topnav.responsive .icon {{
-                position: absolute;
-                right: 0;
-                top: 0;
-              }}
-              .topnav.responsive a {{
-                float: none;
-                display: block;
-                text-align: left;
-              }}
-            }}
+                #summary{{
+                box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+                position: relative;
+                width:50%;
+                cursor: pointer;
+                padding: .1%;
+                border-style: outset;
+                border-radius: 1px;
+                border-width: 1px;
+                }}
+                
+                #logo{{
+                box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+                position: relative;
+                cursor: pointer;
+                border-style: outset;
+                border-radius: 1px;
+                border-width: 1px;
+                }}
 
-            * {{
-              box-sizing: border-box;
-            }}
+                .topnav a.active {{
+                background-color: #333333;
+                color: white;
+                font-weight: lighter;
+                }}
 
-            img {{
-              vertical-align: middle;
-            }}
+                .topnav .icon {{
+                display: none;
+                }}
 
-            .containers {{
-              position: relative;
-            }}
+                @media screen and (max-width: 600px) {{
+                .topnav a:not(:first-child) {{display: none;}}
+                .topnav a.icon {{
+                    color: #DBDB40;
+                    float: right;
+                    display: block;
+                }}
+                }}
 
-            .mySlides {{
-              display:none;
-              width:90%;
-            }}
+                @media screen and (max-width: 600px) {{
+                .topnav.responsive {{position: relative;}}
+                .topnav.responsive .icon {{
+                    position: absolute;
+                    right: 0;
+                    top: 0;
+                }}
+                .topnav.responsive a {{
+                    float: none;
+                    display: block;
+                    text-align: left;
+                }}
+                }}
 
-            #slideshow {{
-              cursor: pointer;
-              margin:.01% auto;
-              position: relative;
-              width: 70%;
-              height: 55%;
-            }}
+                * {{
+                box-sizing: border-box;
+                }}
 
-            #ps{{
-              height: 10%;
-              margin-top: 0%;
-              margin-bottom: 90%;
-              background-position: center;
-              background-repeat: no-repeat;
-              background-blend-mode: saturation;
-            }}
+                img {{
+                vertical-align: middle;
+                }}
 
-            #slideshow > div {{
-              position: relative;
-              width: 90%;
-            }}
+                .containers {{
+                position: relative;
+                }}
 
-       		#download {{
-			  background-color: #333333;
-			  border: none;
-			  color: white;
-              font-size: 12px;
-              padding: 13px 20px 15px 20px;
-			  cursor: pointer;
-			}}
+                .mySlides {{
+                display:none;
+                width:90%;
+                }}
 
-			#download:hover {{
-			  background-color: RoyalBlue;
-			}}
-      .glow {{
-        font-size: 15px;
-        color: white;
-        text-align: center;
-        -webkit-animation: glow 1s ease-in-out infinite alternate;
-        -moz-animation: glow 1s ease-in-out infinite alternate;
-        animation: glow 1s ease-in-out infinite alternate;
-      }}
+                #slideshow {{
+                cursor: pointer;
+                margin:.01% auto;
+                position: relative;
+                width: 70%;
+                height: 55%;
+                }}
 
-      @-webkit-keyframes glow {{
-        from {{
-          text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
-        }}
-        
-        to {{
-          text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
-        }}
-      }}
-      .reportHeadingDiv {{
-        background-color: #4c4753; 
-        text-align: center;
-      }}
-      .reportDiv {{
-        overflow-x: auto;
-        text-align: center;
-      }}
-      .predictionDiv {{
-        overflow-x: auto;
-        text-align: center;
-        margin-left:15%;
-      }}
-      @media (min-width: 768px) {{
-        .predictionDiv{{
-            margin-left:15%!important;
-        }}
+                #ps{{
+                height: 10%;
+                margin-top: 0%;
+                margin-bottom: 90%;
+                background-position: center;
+                background-repeat: no-repeat;
+                background-blend-mode: saturation;
+                }}
 
-        @media (max-width: 767px) {{
-        .predictionDiv{{
-            margin-left:0!important;
-        }}
-     }}
-      #report{{
-        box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-        overflow-x: auto;
-        min-width:70%;
-      }}
-    </style>
+                #slideshow > div {{
+                position: relative;
+                width: 90%;
+                }}
+
+                #download {{
+                background-color: #333333;
+                border: none;
+                color: white;
+                font-size: 12px;
+                padding: 13px 20px 15px 20px;
+                cursor: pointer;
+                }}
+
+                #download:hover {{
+                background-color: RoyalBlue;
+                }}
+                .glow {{
+                    font-size: 15px;
+                    color: seashell;
+                    text-align: center;
+                }}
+                .reportDiv {{
+                    overflow-x: auto;
+                    text-align: center;
+                }}
+                .predictionDiv {{
+                    overflow-x: auto;
+                    text-align: center;
+                    margin-left:4%;
+                }}
+              
+                #report{{
+                    box-shadow: 0 0 80px rgba(87, 237, 183, 0.4);
+                    overflow-x: auto;
+                    min-width:70%;
+                }}
+
+                #nestle-section{{
+                    float:left;
+                    width:100%;
+                    position:relative;
+                }}
+
+                #nestle-section label{{
+                    float:left;
+                    width:100%;
+                    background:#333;
+                    color:#fff;
+                    padding:5px 0;
+                    text-align:center;
+                    cursor:pointer;
+                    border-bottom:1px solid #fff;
+                }}
+
+                #nestle-section .tab-content1{{
+                    padding:0 10px;
+                    height:0;
+                    -moz-transition: height 1s ease;
+                    -webkit-transition: height 1s ease;
+                    -o-transition: height 1s ease;
+                    transition: height 1s ease;
+                    overflow:hidden;
+                }}
+
+                #nestle-section  input:checked + label + .tab-content1{{
+                    padding: 10px;
+                    height: auto;
+                    -moz-transition: height 1s ease;
+                    -webkit-transition: height 1s ease;
+                    -o-transition: height 1s ease;
+                    transition: height 1s ease;
+                    overflow: scroll;
+                }}
+
+                #nestle-section input:checked + label{{
+                    background:#d5e69a;
+                    color:#333;
+
+                }}#nestle-section input{{
+                    display:none;
+                }}
+            </style>
     <body bgcolor="white">
-        <div class="reportDiv">""" + "".join(graphs) + """</div></p><div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></p>  <div style="overflow-x:auto;">""" + \
-          """ <p> <div class="reportHeadingDiv" ><h1 class="glow">Summary</h1></div><p><div class="reportDiv">""" + execution_status + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">OS Summary</h1></div> <p><div class="reportDiv">""" + monthlyStats + \
-          """ </div><p><div class="reportHeadingDiv" ><h1 class="glow">Issues</h1> </div> <p><div class="reportDiv">""" +issues + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Custom Failure Reasons</h1> </div> <p><div class="reportDiv">""" + failurereasons + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Failed Tests </h1> </div> <p><div class="reportDiv">""" +topfailedtable + \
-          """ </div><p> <div class="reportHeadingDiv" ><h1 class="glow">Top Recommendations </h1> </div> <p><div class="reportDiv">""" + recommendations + """ </div></div> </body>""")
-
-def main():
-    return prepareReport()
-
+        <div class="reportDiv">""" + "".join(graphs) + """</div>
+        <div id="nestle-section">
+        <input type="radio" id="tab1" name="tabs" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
+        <div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></div>
+        <input type="radio" id="tab2" name="tabs" checked=""/><label for="tab2">OS Summary</label><div class="tab-content1">
+          <div class="reportDiv">""" + monthlyStats + \
+          """ </div></div><input type="radio" id="tab3" name="tabs" checked=""/><label for="tab3">Issues</label><div class="tab-content1">
+          <div class="reportDiv">""" +issues + \
+          """ </div></div><input type="radio" id="tab4" name="tabs" checked=""/><label for="tab4">Custom Failure Reasons</label><div class="tab-content1">
+          <div class="reportDiv">""" + failurereasons + \
+          """ </div></div><input type="radio" id="tab5" name="tabs" checked=""/><label for="tab5">Top Failed Tests</label><div class="tab-content1">
+          <div class="reportDiv">""" +topfailedtable + \
+          """ </div>
+          </div><input type="radio" id="tab6" name="tabs" checked=""/><label for="tab6">Top Recommendations</label><div class="tab-content1">
+          <div class="reportDiv">""" + recommendations + """ </div></div>
+          <input type="radio" id="tab7" name="tabs" checked=""/><label for="tab7">Summary</label><div class="tab-content1">
+             <div><div class="reportDiv">""" + execution_status + \
+          """ </div></div></div></body>""")
 
 if __name__ == "__main__":
     start = datetime.now().replace(microsecond=0)
     live_report_filename = "live.html"
     email_report_filename = "email.html"
-    global finalDate
     try:
         CQL_NAME = str(sys.argv[1])
         OFFLINE_TOKEN = str(sys.argv[2])
@@ -1671,7 +1718,6 @@ if __name__ == "__main__":
     resources = []
     topTCFailureDict = {}
     topDeviceFailureDict = {}
-    df = pandas.DataFrame()
 
     # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv"
     report = sys.argv[3]
@@ -1704,147 +1750,10 @@ if __name__ == "__main__":
     filelist = glob.glob(os.path.join("*.html" ))
     for f in filelist:
         os.remove(f)
-    # End date
-    try:
-        if is_date(endDate):
-            finalDate = endDate
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(endDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-        elif "d" in endDate:
-            dateRange = int(endDate.split("d")[0])
-            for value in range(int(dateRange)):
-                finalDate = str(datetime.now().date() + timedelta(-value))
-                endDate = str(
-                    datetime.strptime(
-                        str(
-                            (
-                                datetime.strptime(
-                                    str(
-                                        datetime.strptime(
-                                            finalDate, "%Y-%m-%d"
-                                        ).strftime("%d/%m/%Y")
-                                    ),
-                                    "%d/%m/%Y",
-                                ).date()
-                                - timedelta(days=0)
-                            )
-                        ),
-                        "%Y-%m-%d",
-                    ).strftime("%d/%m/%Y")
-                )
-                startDate = endDate
-                main()
-            finalDate = str(datetime.now().date())
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-        else:
-            finalDate = str(datetime.today().strftime("%Y-%m-%d"))
-            endDate = str(
-                datetime.strptime(
-                    str(
-                        (
-                            datetime.strptime(
-                                str(
-                                    datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                        "%d/%m/%Y"
-                                    )
-                                ),
-                                "%d/%m/%Y",
-                            ).date()
-                            - timedelta(days=0)
-                        )
-                    ),
-                    "%Y-%m-%d",
-                ).strftime("%d/%m/%Y")
-            )
-    except Exception:
-        finalDate = str(datetime.today().strftime("%Y-%m-%d"))
-        endDate = str(
-            datetime.strptime(
-                str(
-                    (
-                        datetime.strptime(
-                            str(
-                                datetime.strptime(finalDate, "%Y-%m-%d").strftime(
-                                    "%d/%m/%Y"
-                                )
-                            ),
-                            "%d/%m/%Y",
-                        ).date()
-                        - timedelta(days=0)
-                    )
-                ),
-                "%Y-%m-%d",
-            ).strftime("%d/%m/%Y")
-        )
-    # Start date
-    try:
-        startDate = str(
-            datetime.strptime(
-                str(
-                    (
-                        datetime.strptime(
-                            str(
-                                datetime.strptime(startDate, "%Y-%m-%d").strftime(
-                                    "%d/%m/%Y"
-                                )
-                            ),
-                            "%d/%m/%Y",
-                        ).date()
-                        - timedelta(days=0)
-                    )
-                ),
-                "%Y-%m-%d",
-            ).strftime("%d/%m/%Y")
-        )
-        if not jobName:
-            criteria = "start: "  + startDate + " ; end: " + endDate
-    except Exception:
-        startDate = endDate
-        if not jobName:
-            criteria = "start: "  + endDate + " ; end: " + endDate
-
-    graphs = main()
-    os.chdir(".")
-    results = glob.glob('*.{}'.format(xlformat))
-    for result in results:
-        if "csv" in xlformat:
-            df = df.append(pandas.read_csv(result, low_memory=False))
-        else:
-            df = df.append(pandas.read_excel(result))
-    df_to_xl(df, "final")   
+    
+    if not jobName:
+        criteria = "start: "  + startDate + " ; end: " + endDate
+    graphs, df = prepareReport(jobName, jobNumber)
     execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
     failed = df[(df['status'] == "FAILED")]
     passed = df[(df['status'] == "PASSED")]
@@ -2094,12 +2003,13 @@ if __name__ == "__main__":
     issues = pandas.DataFrame.from_dict(jsonObj.issues)
     issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
     recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
-    recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
+    if totalImpact > 100:
+        recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass %']
+    else:
+        recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
+    recommendations = recommendations[recommendations.Recommendations.astype(str) != "-"]
     recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
-    print("Total impact% :" + str(round(totalImpact,2)))
     
-
-
     with open(email_report_filename, "a") as f:
         f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False , render_links=True, escape=False)))
 
