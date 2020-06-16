@@ -50,7 +50,7 @@ def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, b
     if current_time_millis != 0 : payload.add("endExecutionTime[0]", current_time_millis)
     payload.add("_page", page)
     if jobName != "":
-        for i, job in enumerate(jobName.split(",")):
+        for i, job in enumerate(jobName.split(";")):
             payload.add("jobName[" +  str(i) + "]", job)
     if jobNumber != "" and boolean:
         for i, job in enumerate(jobName.split(",")):
@@ -66,7 +66,7 @@ def retrieve_tests_executions(daysOlder, page):
     oldmilliSecs = 0
     if endDate != "" :
         endTime = datetime.strptime(str(endDate) + " 23:59:59,999", "%Y-%m-%d %H:%M:%S,%f")
-        print("endExecutionTime:" + str(endTime))
+        print("endExecutionTime: " + str(endTime))
         millisec = endTime.timestamp() * 1000
         current_time_millis = round(int(millisec))
     if startDate != "":
@@ -138,7 +138,7 @@ def flatten_json(nested_json, exclude=[""]):
     return out
 
 
-def get_final_df(df, files):
+def get_final_df(files):
     df = pandas.DataFrame()
     for file in files:
         if "csv" in xlformat:
@@ -273,7 +273,7 @@ def pastDateToMS(startDate, daysOlder):
     dt_obj = datetime.strptime(
         startDate + " 00:00:00,00", "%Y-%m-%d %H:%M:%S,%f"
     ) - timedelta(days=daysOlder)
-    print("startExecutionTime:" + str(dt_obj))
+    print("startExecutionTime: " + str(dt_obj))
     millisec = dt_obj.timestamp() * 1000
     oldmilliSecs = round(int(millisec))
     return oldmilliSecs
@@ -383,50 +383,48 @@ def prepareReport(jobName, jobNumber):
             else:
                 resources.append(executionList)
             page += 1
-    if len(executionList) == 0:
-        print("there are no test executions for that period of time for the criteria: " + criteria)
-        sys.exit(-1)
-    jsonDump = json.dumps(resources)
-    resources = json.loads(jsonDump)
-    totalTCCount = len(resources)
-    print("Total executions: " + str(len(resources)))
-    df = pandas.DataFrame([flatten_json(x) for x in resources])
-    df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
-    df["startTime"] = (
-        df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
-    )
-    df["startTime"] = df["startTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
-    df.loc[df['endTime'] < 1, 'endTime'] = int(round(time.time() * 1000)) 
-    df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
-    df["endTime"] = (
-        df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
-    )
-    df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
-    if "month" not in df.columns:
-        df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
-    if "startDate" not in df.columns:
-        df['startDate'] = pandas.to_datetime(pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D').astype(str))
-    if "week" not in df.columns:
-        df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%m/%d")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
-    if "Duration" not in df.columns:
-        df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
-            df["startTime"]
+    if len(resources) > 0:
+        jsonDump = json.dumps(resources)
+        resources = json.loads(jsonDump)
+        totalTCCount = len(resources)
+        print("Total executions: " + str(len(resources)))
+        df = pandas.DataFrame([flatten_json(x) for x in resources])
+        df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
+        df["startTime"] = (
+            df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
         )
-        df["Duration"] = df["Duration"].dt.seconds
-        df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
-    if "failureReasonName" not in df.columns: 
-        df["failureReasonName"] = ""
-    # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
+        df["startTime"] = df["startTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
+        df.loc[df['endTime'] < 1, 'endTime'] = int(round(time.time() * 1000)) 
+        df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
+        df["endTime"] = (
+            df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
+        )
+        df["endTime"] = df["endTime"].dt.strftime("%d/%m/%Y %H:%M:%S")
+        if "month" not in df.columns:
+            df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
+        if "startDate" not in df.columns:
+            df['startDate'] = pandas.to_datetime(pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D').astype(str))
+        if "week" not in df.columns:
+            df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%m/%d")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
+        if "Duration" not in df.columns:
+            df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
+                df["startTime"]
+            )
+            df["Duration"] = df["Duration"].dt.seconds
+            df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
+        if "failureReasonName" not in df.columns: 
+            df["failureReasonName"] = ""
+        # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
 
-    #Filter only job and job number if dates are parameterized as well but show full histogram
-    if jobNumber != "" and jobName != "":
-        ori_df = df
-        df = df[df['job/number'].astype(str) == jobNumber]
-    if startDate != "":
-        name = startDate
-    else:
-        name = jobName + '_' + jobNumber
-    df_to_xl(df, str(name).replace("/","_"))
+        #Filter only job and job number if dates are parameterized as well but show full histogram
+        if jobNumber != "" and jobName != "":
+            ori_df = df
+            df = df[df['job/number'].astype(str) == jobNumber]
+        if startDate != "":
+            name = startDate
+        else:
+            name = jobName + '_' + jobNumber
+        df_to_xl(df, str(name).replace("/","_"))
     os.chdir(".")
     files = glob.glob('*.{}'.format(xlformat))
     if consolidate != "":
@@ -434,20 +432,27 @@ def prepareReport(jobName, jobNumber):
             if os.path.isfile(file):
                 shutil.copy2(file, consolidate)
         files = glob.iglob(os.path.join(consolidate, "*." + xlformat))
-    df = get_final_df(df, files)
+    df = get_final_df(files)
+    df = df.sort_values(by=['startDate'], ascending=False)
     if jobNumber != "" and jobName != "":
         ori_df = df
-        df = df[df['job/number'].astype(str) == jobNumber]
+        df = df[df['job/name'].astype(str).isin(jobName.split(";"))]
+        df = df[df['job/number'].round(0).astype(int).isin(jobNumber.split(";"))]
+    if jobNumber == "" and jobName != "":
+        ori_df = df
+        df = df[df['job/name'].astype(str).isin(jobName.split(";"))]
     df_to_xl(df, "final")   
-
+    if (len(df)) < 1:
+        print("Unable to find any test executions for the criteria: " + criteria)
+        sys.exit(-1)
     import plotly.express as px
     import plotly
     #ggplot2 #plotly_dark #simple_white
     graphs = []
-    if jobNumber != "" and jobName != "":
-        df = ori_df.sort_values(by=['startDate'], ascending=False)
-    else:
-        df = df.sort_values(by=['startDate'], ascending=False)
+    graphs.append('<div id="nestle-section">')
+    counter = 8
+    with open(live_report_filename, 'a') as f:
+        f.write('<div id="nestle-section">')
     duration = "weeks"
     if startDate != "":
         delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(startDate, "%Y-%m-%d")
@@ -477,10 +482,10 @@ def prepareReport(jobName, jobNumber):
         if fig:   
             fig = update_fig(fig, "histogram", job, duration)
             encoded = base64.b64encode(plotly.io.to_image(fig))
-            graphs.append('<div id="nestle-section"><input type="radio" id="tab8" name="tabs" checked=""/><label for="tab8">Trends: ' + job + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary' id='reportDiv' onClick='zoom(this)'></img></div></div>")
+            graphs.append('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Trends: ' + job + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary of " + job + "' id='reportDiv' onClick='zoom(this)'></img></div>")
             with open(live_report_filename, 'a') as f:
-                f.write('<div id="nestle-section"><input type="radio" id="tab8" name="tabs" checked=""/><label for="tab8">Trends: ' + job + ' </label><div class="tab-content1">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + '</div></div>')
-        if job == "Overall!" or job == jobName:
+                f.write('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Trends: ' + job + ' </label><div class="tab-content1">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + '</div>')
+        if job == "Overall!" or job in jobName:
             if len(predict_df.index) > 1:
                 predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
                 predict_df['cap'] = (int(predict_df['y'].max()) * 2)
@@ -496,12 +501,16 @@ def prepareReport(jobName, jobNumber):
                 fig = plot_plotly(m, forecast)
                 fig = update_fig(fig, "prediction", job, duration)
                 encoded = base64.b64encode(plotly.io.to_image(fig))
-                graphs.append('<div id="nestle-section"><input type="radio" id="tab9" name="tabs" checked=""/><label for="tab9">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div></div>")
+                counter+=1
+                graphs.append('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>")
                 with open(live_report_filename, 'a') as f:
-                    f.write('<div id="nestle-section"><input type="radio" id="tab9" name="tabs" checked=""/><label for="tab9">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p></div></div>")
+                    f.write('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p></div>")
             else:
                 print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
-
+        counter+=1
+    graphs.append('</div>')
+    with open(live_report_filename, 'a') as f:
+        f.write('</div>')
     for resource in resources:
         try:
             #            totalTCCount += 1
@@ -1153,7 +1162,7 @@ def df_to_xl(df, filename):
 def get_report_details(item, temp, name, criteria):
     if name + "=" in item:
         temp = str(item).split("=")[1]
-        criteria += " : " + name + ": " + temp 
+        criteria += "; " + name + ": " + temp 
     return temp, criteria
 
 def update_fig(fig, type, job, duration):
@@ -1416,8 +1425,9 @@ def get_html_string(graphs):
                 text-align:center;
                 color:white;
                 }}
+
                 body {{
-                background-color: white;
+                background-color: rgba(185, 240, 218, 0.4);
                 height: 100%;
                 background-repeat:  repeat-y;
                 background-position: right;
@@ -1646,11 +1656,13 @@ def get_html_string(graphs):
                     width:100%;
                     background:#333;
                     color:#fff;
-                    padding:5px 0;
+                    padding:1px 0;
                     text-align:center;
                     cursor:pointer;
-                    border-bottom:1px solid #fff;
+                    border:1px solid #818357;
                 }}
+
+                #nestle-section label:hover {{background-color:grey;}}
 
                 #nestle-section .tab-content1{{
                     padding:0 10px;
@@ -1670,6 +1682,7 @@ def get_html_string(graphs):
                     -o-transition: height 1s ease;
                     transition: height 1s ease;
                     overflow: scroll;
+                    display: block;
                 }}
 
                 #nestle-section input:checked + label{{
@@ -1683,7 +1696,7 @@ def get_html_string(graphs):
     <body bgcolor="white">
         <div class="reportDiv">""" + "".join(graphs) + """</div>
         <div id="nestle-section">
-        <input type="radio" id="tab1" name="tabs" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
+        <input type="radio" id="tab1" name="tabs1" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
         <div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></div>
         <input type="radio" id="tab2" name="tabs" checked=""/><label for="tab2">OS Summary</label><div class="tab-content1">
           <div class="reportDiv">""" + monthlyStats + \
@@ -1697,8 +1710,7 @@ def get_html_string(graphs):
           </div><input type="radio" id="tab6" name="tabs" checked=""/><label for="tab6">Top Recommendations</label><div class="tab-content1">
           <div class="reportDiv">""" + recommendations + """ </div></div>
           <input type="radio" id="tab7" name="tabs" checked=""/><label for="tab7">Summary</label><div class="tab-content1">
-             <div><div class="reportDiv">""" + execution_status + \
-          """ </div></div></div></body>""")
+             <div><div class="reportDiv">""" + execution_status + """</div></div></div></body>""")
 
 if __name__ == "__main__":
     start = datetime.now().replace(microsecond=0)
@@ -1719,7 +1731,7 @@ if __name__ == "__main__":
     topTCFailureDict = {}
     topDeviceFailureDict = {}
 
-    # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv"
+    # report = "report|jobName=test|jobNumber=1|startDate=123|endDate=1223|consolidate=/Users/temp|xlformat=csv|PORT=8888"
     report = sys.argv[3]
     try:
         criteria = ""
@@ -1729,6 +1741,7 @@ if __name__ == "__main__":
         endDate = ""
         consolidate = ""
         xlformat = "csv"
+        port = ""
         temp = ""
         report_array = report.split("|")
         for item in report_array:
@@ -1738,6 +1751,7 @@ if __name__ == "__main__":
             if "endDate" in item: endDate, criteria =  get_report_details(item, temp, "endDate", criteria)
             if "consolidate" in item: consolidate, criteria =  get_report_details(item, temp, "consolidate", criteria)
             if "xlformat" in item: xlformat, criteria =  get_report_details(item, temp, "xlformat", criteria)
+            if "port" in item: port, criteria =  get_report_details(item, temp, "port", criteria)
     except Exception as e:
         raise Exception( "Verify parameters of report, split them by | seperator" + str(e) )
         sys.exit(-1)
@@ -1750,10 +1764,16 @@ if __name__ == "__main__":
     filelist = glob.glob(os.path.join("*.html" ))
     for f in filelist:
         os.remove(f)
-    
-    if not jobName:
-        criteria = "start: "  + startDate + " ; end: " + endDate
+
     graphs, df = prepareReport(jobName, jobNumber)
+    if not jobName:
+        criteria = "start: "  + startDate + "; end: " + endDate
+    if consolidate != "":
+        criteria = "startTime: "  + str(min(df['startTime'])) + "; endTime: " + str(max(df['startTime'])) + "; consolidate: " + consolidate
+        if jobName !="":
+            criteria += "; jobName:" + jobName
+        if jobNumber !="":
+            criteria += "; jobNumber:" + jobNumber
     execution_summary = create_summary(df, CQL_NAME.upper() + " Summary Report for " + criteria, "status", "device_summary")
     failed = df[(df['status'] == "FAILED")]
     passed = df[(df['status'] == "PASSED")]
@@ -2020,3 +2040,27 @@ if __name__ == "__main__":
 
     end = datetime.now().replace(microsecond=0)
     print("Total Time taken:" + str(end - start))
+    import http.server
+    import socketserver
+    import socket
+    import webbrowser
+    from psutil import process_iter
+    from signal import SIGTERM # or SIGKILL
+
+    if port != "":
+        PORT = int(port)
+        try:
+            for proc in process_iter():
+                for conns in proc.connections(kind='inet'):
+                    if conns.laddr.port == PORT:
+                        proc.send_signal(SIGTERM) # or SIGKILL
+        except:
+            pass
+        Handler = http.server.SimpleHTTPRequestHandler
+        url = "http://" + socket.gethostbyname(socket.gethostname()) + ":" + str(PORT) + "/" + live_report_filename
+        print("Live dashboard url: " + url)
+        with socketserver.TCPServer(("", PORT), Handler) as httpd:
+            print("serving at port", PORT)
+            httpd.serve_forever()
+
+    
