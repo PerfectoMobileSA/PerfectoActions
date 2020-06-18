@@ -1,3 +1,6 @@
+
+from perfecto.perfectoactions import as_text
+
 import shutil
 from fbprophet.plot import plot_plotly
 import base64
@@ -34,16 +37,18 @@ from openpyxl.reader.excel import load_workbook
 """
 TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
 
+"""
+    Dictionary
+"""
 class my_dictionary(dict):  
-  
-    # __init__ function  
     def __init__(self):  
         self = dict()  
-          
-    # Function to add key:value  
     def add(self, key, value):  
         self[key] = value  
 
+"""
+    Creates payload for reporting API
+"""
 def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, boolean):
     payload = my_dictionary()
     if oldmilliSecs != 0 : payload.add("startExecutionTime[0]", oldmilliSecs) 
@@ -79,38 +84,33 @@ def retrieve_tests_executions(daysOlder, page):
     r = requests.get(
         api_url, params=payload, headers={"PERFECTO_AUTHORIZATION": OFFLINE_TOKEN}
     )
-    # print entire response
     # #print(str(r.content))
     print(str(r.url))
     return r.content
 
+# """
+#     sends API request
+# """
+# def send_request_report(url):
+#     try:
+#         response = urllib.request.urlopen(url)
+#     except HTTPError as e:
+#         content = e.read()
+#         response = content
+#     return response
+
+# """
+#     sends API request and gets a json response
+# """
+# def send_request_with_json_response(url):
+#     response = send_request_report(url)
+#     text = response.read().decode("utf-8")
+#     map = json.loads(text)
+#     return map
 
 """
-    sends API request
+    flattens the json
 """
-
-
-def send_request(url):
-    try:
-        response = urllib.request.urlopen(url)
-    except HTTPError as e:
-        content = e.read()
-        response = content
-    return response
-
-
-"""
-    sends API request and gets a json response
-"""
-
-
-def send_request_with_json_response(url):
-    response = send_request(url)
-    text = response.read().decode("utf-8")
-    map = json.loads(text)
-    return map
-
-
 def flatten_json(nested_json, exclude=[""]):
     """Flatten json object with nested keys into a single level.
         Args:
@@ -137,7 +137,9 @@ def flatten_json(nested_json, exclude=[""]):
     flatten(nested_json)
     return out
 
-
+"""
+    get final dataframe
+"""
 def get_final_df(files):
     df = pandas.DataFrame()
     for file in files:
@@ -150,14 +152,11 @@ def get_final_df(files):
 """
    gets the top failed device pass count, handset errors and device/ desktop details
 """
-
 def getDeviceDetails(device, deviceFailCount):
     devicePassCount = 0
     errorsCount = 0
     i = 0
 
-
-    
     for resource in resources:
         try:
             test_execution = resource  # retrieve a test execution
@@ -198,22 +197,11 @@ def getDeviceDetails(device, deviceFailCount):
             continue
         except KeyError:
             continue
-
-        printProgressBar(
-            i + 1,
-            len(resources),
-            prefix="Fetching Device details in Progress:",
-            suffix="Complete",
-            length=50,
-        )
         i += 1
-
 
 """
    gets the total pass count of each failed case
 """
-
-
 def getPassCount(testName):
     testNamePassCount = 0
     i = 0
@@ -230,31 +218,18 @@ def getPassCount(testName):
             continue
         except KeyError:
             continue
-        printProgressBar(
-            i + 1,
-            len(resources),
-            prefix="Pass % calculation API in Progress:",
-            suffix="Complete",
-            length=50,
-        )
         i += 1
     return testNamePassCount
-
 
 """
    gets fail and pass count of each test case and assigns it to a dict
 """
-
-
 def getTCDetails(tcName, failureCount):
     topTCFailureDict[tcName] = [failureCount, getPassCount(tcName)]
-
 
 """
    calculates the percetage of a part and whole number
 """
-
-
 def percentageCalculator(part, whole):
     if int(whole) > 0:
         calc = (100 * float(part) / float(whole), 0)
@@ -263,12 +238,9 @@ def percentageCalculator(part, whole):
         calc = 0
     return calc
 
-
 """
    gets start date to milliseconds
 """
-
-
 def pastDateToMS(startDate, daysOlder):
     dt_obj = datetime.strptime(
         startDate + " 00:00:00,00", "%Y-%m-%d %H:%M:%S,%f"
@@ -278,79 +250,37 @@ def pastDateToMS(startDate, daysOlder):
     oldmilliSecs = round(int(millisec))
     return oldmilliSecs
 
-
-"""
-   gets past pass percentage of tests
-"""
-
-
-def pastPassPercentageCalculator(daysOlder):
-    totalPassCount = 0
-    totalTCCount = 0
-    i = 0
-    for resource in resources:
-        try:
-            totalTCCount += 1
-            test_execution = resource  # retrieve a test execution
-            status = test_execution["status"]
-            if status in "PASSED":
-                totalPassCount += 1
-        except IndexError:
-            continue
-        except KeyError:
-            continue
-        printProgressBar(
-            i + 1,
-            len(resources),
-            prefix="TC Pass % based on older days API in Progress:",
-            suffix="Complete",
-            length=50,
-        )
-        i += 1
-    return str(percentageCalculator(totalPassCount, totalTCCount))
-
-
 def color_negative_red(value):
-    # if "PASSED" in value:
-    #     color = 'green'
-    # elif "FAILED" in value:
-    #     color = 'red'
-    # else:
-    #     color = 'grey'
     color = 'red' if value < 1 else 'black'
     return 'color: %s' % color
-
-
 
 """
    gets' Perfecto reporting API responses, creates dict for top device failures, auto suggestions and top tests failures and prepared json
 """
-
 def prepareReport(jobName, jobNumber):
     page = 1
     i = 0
     truncated = True
-    failureList = {}
-    cleanedFailureList = {}
-    device_Dictionary = {}
-    totalFailCount = 0
-    totalPassCount = 0
-    totalUnknownCount = 0
-    totalTCCount = 0
-    labIssuesCount = 0
-    scriptingIssuesCount = 0
-    orchestrationIssuesCount = 0
-    testNameFailureList = {}
-    suggesstionsDict = {}
-    global topDeviceFailureDict
-    global topTCFailureDict
-    global resources
-    failureList.clear()
-    cleanedFailureList.clear()
-    testNameFailureList.clear()
-    device_Dictionary.clear()
+    # failureList = {}
+    # cleanedFailureList = {}
+    # totalFailCount = 0
+    # totalPassCount = 0
+    # totalUnknownCount = 0
+    # totalTCCount = 0
+    # labIssuesCount = 0
+    # scriptingIssuesCount = 0
+    # orchestrationIssuesCount = 0
+    # testNameFailureList = {}
+    # suggesstionsDict = {}
+    # global topDeviceFailureDict
+    # global topTCFailureDict
+    # global resources
+    # failureList.clear()
+    # cleanedFailureList.clear()
+    # testNameFailureList.clear()
+    # suggesstionsDict.clear()
+    resources = []
     resources.clear()
-    suggesstionsDict.clear()
     while truncated == True:
         print(
             "Retrieving all the test executions in your lab. Current page: "
@@ -415,7 +345,6 @@ def prepareReport(jobName, jobNumber):
         if "failureReasonName" not in df.columns: 
             df["failureReasonName"] = ""
         # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
-
         #Filter only job and job number if dates are parameterized as well but show full histogram
         if jobNumber != "" and jobName != "":
             ori_df = df
@@ -424,7 +353,7 @@ def prepareReport(jobName, jobNumber):
             name = startDate
         else:
             name = jobName + '_' + jobNumber
-        df_to_xl(df, str(name).replace("/","_"))
+        df = df_to_xl(df, str(name).replace("/","_"))
     os.chdir(".")
     files = glob.glob('*.{}'.format(xlformat))
     if consolidate != "":
@@ -441,7 +370,7 @@ def prepareReport(jobName, jobNumber):
     if jobNumber == "" and jobName != "":
         ori_df = df
         df = df[df['job/name'].astype(str).isin(jobName.split(";"))]
-    df_to_xl(df, "final")   
+    df = df_to_xl(df, "final")   
     if (len(df)) < 1:
         print("Unable to find any test executions for the criteria: " + criteria)
         sys.exit(-1)
@@ -511,447 +440,361 @@ def prepareReport(jobName, jobNumber):
     graphs.append('</div>')
     with open(live_report_filename, 'a') as f:
         f.write('</div>')
-    for resource in resources:
-        try:
-            #            totalTCCount += 1
-            test_execution = resource  # retrieve a test execution
-            status = test_execution["status"]
-            if status in "FAILED":
-                totalFailCount += 1
-                # get failed test names
-                name = test_execution["name"]
-                if name in testNameFailureList:
-                    testNameFailureList[name] += 1
-                else:
-                    testNameFailureList[name] = 1
-                # get devices which fails
-                platforms = test_execution["platforms"]  # retrieve the platforms
-                platform = platforms[0]
-                actual_deviceID = platform["deviceId"]
-                if actual_deviceID in device_Dictionary:
-                    device_Dictionary[actual_deviceID] += 1
-                else:
-                    device_Dictionary[actual_deviceID] = 1
-                # get error messages
-                message = test_execution["message"]
-                if message in failureList:
-                    failureList[message] += 1
-                else:
-                    failureList[message] = 1
-            elif status in "PASSED":
-                totalPassCount += 1
-            elif status in "UNKNOWN":
-                totalUnknownCount += 1
-        except IndexError:
-            continue
-        except KeyError:
-            continue
+    # for resource in resources:
+    #     try:
+    #         test_execution = resource  # retrieve a test execution
+    #         status = test_execution["status"]
+    #         if status in "FAILED":
+    #             totalFailCount += 1
+    #             # get failed test names
+    #             name = test_execution["name"]
+    #             if name in testNameFailureList:
+    #                 testNameFailureList[name] += 1
+    #             else:
+    #                 testNameFailureList[name] = 1
+    #             # get error messages
+    #             message = test_execution["message"]
+    #             if message in failureList:
+    #                 failureList[message ] += 1
+    #             else:
+    #                 failureList[message] = 1
+    #         elif status in "PASSED":
+    #             totalPassCount += 1
+    #         elif status in "UNKNOWN":
+    #             totalUnknownCount += 1
+    #     except IndexError:
+    #         continue
+    #     except KeyError:
+    #         continue
 
-    # Top 5 device which failed
-    # topDeviceFailureDict.clear()
-    # deviceFailureDict = Counter(device_Dictionary)
-    # for device, deviceFailCount in deviceFailureDict.most_common(5):
-    #     getDeviceDetails(device, deviceFailCount)
+    # # Top 5 failure tests along with pass count
+    # topTCFailureDict.clear()
+    # testNameFailureListDict = Counter(testNameFailureList)
+    # for failedTestName, failedTestNamesCount in testNameFailureListDict.most_common(5):
+    #     getTCDetails(str(failedTestName), failedTestNamesCount)
+    # print("total unique fail count:" + str(len(failureList)))
+    # i = 0
+    # failureListFileName = CQL_NAME + "_failures" + ".txt"
+    # print(
+    #     "transfering all failure reasons to: %s"
+    #     % (os.path.join(os.path.abspath(os.curdir), failureListFileName))
+    # )
+    # open(failureListFileName, "a").close
+    # for commonError, commonErrorCount in failureList.items():
+    #     for labIssue in labIssues:
+    #         if re.search(labIssue, commonError):
+    #             labIssuesCount += commonErrorCount
+    #             break
+    #     for orchestrationIssue in orchestrationIssues:
+    #         if re.search(orchestrationIssue, commonError):
+    #             orchestrationIssuesCount += commonErrorCount
+    #             break
+    #     error = commonError
+    #     regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+    #     if re.search(regEx_Filter, error):
+    #         error = str(re.compile(regEx_Filter).split(error)[0])
+    #         if "An error occurred. Stack Trace:" in error:
+    #             error = error.split("An error occurred. Stack Trace:")[1]
+    #     if re.search("error: \-\[|Fatal error:", error):
+    #         error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+    #     if error.strip() in cleanedFailureList:
+    #         cleanedFailureList[error.strip()] += 1
+    #     else:
+    #         cleanedFailureList[error.strip()] = commonErrorCount
+    #     scriptingIssuesCount = totalFailCount - (
+    #         orchestrationIssuesCount + labIssuesCount
+    #     )
+    #     with open(failureListFileName, "a", encoding="utf-8") as myfile:
+    #         myfile.write(
+    #             error.strip() + "\n*******************************************\n"
+    #         )
+    #     i += 1
 
-    # Top 5 failure tests along with pass count
-    topTCFailureDict.clear()
-    testNameFailureListDict = Counter(testNameFailureList)
-    for failedTestName, failedTestNamesCount in testNameFailureListDict.most_common(5):
-        getTCDetails(str(failedTestName), failedTestNamesCount)
+    # # Top 5 failure reasons
+    # topFailureDict = {}
 
-    # last 7/14 days pass % calculator
-    # print("14D" + str(pastPassPercentageCalculator(14)))
-    print("total unique fail count:" + str(len(failureList)))
-    i = 0
-    failureListFileName = CQL_NAME + "_failures" + ".txt"
-    print(
-        "transfering all failure reasons to: %s"
-        % (os.path.join(os.path.abspath(os.curdir), failureListFileName))
-    )
-    open(failureListFileName, "a").close
-    for commonError, commonErrorCount in failureList.items():
-        for labIssue in labIssues:
-            if re.search(labIssue, commonError):
-                labIssuesCount += commonErrorCount
-                break
-        for orchestrationIssue in orchestrationIssues:
-            if re.search(orchestrationIssue, commonError):
-                orchestrationIssuesCount += commonErrorCount
-                break
-        error = commonError
-        regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-        if re.search(regEx_Filter, error):
-            error = str(re.compile(regEx_Filter).split(error)[0])
-            if "An error occurred. Stack Trace:" in error:
-                error = error.split("An error occurred. Stack Trace:")[1]
-        if re.search("error: \-\[|Fatal error:", error):
-            error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
-        if error.strip() in cleanedFailureList:
-            cleanedFailureList[error.strip()] += 1
-        else:
-            cleanedFailureList[error.strip()] = commonErrorCount
-        scriptingIssuesCount = totalFailCount - (
-            orchestrationIssuesCount + labIssuesCount
-        )
-        with open(failureListFileName, "a", encoding="utf-8") as myfile:
-            myfile.write(
-                error.strip() + "\n*******************************************\n"
-            )
-        printProgressBar(
-            i + 1,
-            len(failureList),
-            prefix="chart preparation in Progress:",
-            suffix="Complete",
-            length=50,
-        )
-        i += 1
+    # failureDict = Counter(cleanedFailureList)
+    # for commonError, commonErrorCount in failureDict.most_common(5):
+    #     topFailureDict[commonError] = int(commonErrorCount)
 
-    # Top 5 failure reasons
-    topFailureDict = {}
+    # # reach top errors and clean them
+    # i = 0
+    # for commonError, commonErrorCount in topFailureDict.items():
+    #     if "Device not found" in error:
+    #         error = (
+    #             "Raise a support case as *|*"
+    #             + commonError.strip()
+    #             + "*|* as it occurs in *|*"
+    #             + str(commonErrorCount)
+    #             + "*|* occurrences"
+    #         )
+    #     elif "Cannot open device" in error:
+    #         error = (
+    #             "Reserve the device/ use perfecto lab auto selection feature to avoid:  *|*"
+    #             + commonError.strip()
+    #             + "*|* as it occurs in *|*"
+    #             + str(commonErrorCount)
+    #             + "*|* occurrences"
+    #         )
+    #     else:
+    #         error = (
+    #             "Fix the error: *|*"
+    #             + commonError.strip()
+    #             + "*|* as it occurs in *|*"
+    #             + str(commonErrorCount)
+    #             + "*|* occurrences"
+    #         )
+    #     suggesstionsDict[error] = commonErrorCount
+    #     i += 1
+    # eDict = edict(
+    #     {
+    #         "lab": labIssuesCount,
+    #         "orchestration": orchestrationIssuesCount,
+    #         "scripting": scriptingIssuesCount,
+    #         "unknowns": totalUnknownCount,
+    #         "executions": totalTCCount,
+    #         "recommendations": [
+    #             {
+    #                 "rank": 1,
+    #                 "recommendation": "-",
+    #                 "impact": 0,
+    #                 "impactMessage": "null",
+    #             },
+    #             {
+    #                 "rank": 2,
+    #                 "recommendation": "-",
+    #                 "impact": 0,
+    #                 "impactMessage": "null",
+    #             },
+    #             {
+    #                 "rank": 3,
+    #                 "recommendation": "-",
+    #                 "impact": 0,
+    #                 "impactMessage": "null",
+    #             },
+    #             {
+    #                 "rank": 4,
+    #                 "recommendation": "-",
+    #                 "impact": 0,
+    #                 "impactMessage": "null",
+    #             },
+    #             {
+    #                 "rank": 5,
+    #                 "recommendation": "-",
+    #                 "impact": 0,
+    #                 "impactMessage": "null",
+    #             },
+    #         ],
+    #         "topProblematicDevices": [
+    #             {
+    #                 "rank": 1,
+    #                 "model": "",
+    #                 "os": "",
+    #                 "id": "",
+    #                 "passed": 0,
+    #                 "failed": 0,
+    #                 "errors": 0,
+    #             },
+    #             {
+    #                 "rank": 2,
+    #                 "model": "",
+    #                 "os": "",
+    #                 "id": "",
+    #                 "passed": 0,
+    #                 "failed": 0,
+    #                 "errors": 0,
+    #             },
+    #             {
+    #                 "rank": 3,
+    #                 "model": "",
+    #                 "os": "",
+    #                 "id": "",
+    #                 "passed": 0,
+    #                 "failed": 0,
+    #                 "errors": 0,
+    #             },
+    #             {
+    #                 "rank": 4,
+    #                 "model": "",
+    #                 "os": "",
+    #                 "id": "",
+    #                 "passed": 0,
+    #                 "failed": 0,
+    #                 "errors": 0,
+    #             },
+    #             {
+    #                 "rank": 5,
+    #                 "model": "",
+    #                 "os": "",
+    #                 "id": "",
+    #                 "passed": 0,
+    #                 "failed": 0,
+    #                 "errors": 0,
+    #             },
+    #         ],
+    #         "topFailingTests": [
+    #             {"rank": 1, "test": "", "failures": 0, "passes": 0},
+    #             {"rank": 2, "test": "", "failures": 0, "passes": 0},
+    #             {"rank": 3, "test": "", "failures": 0, "passes": 0},
+    #             {"rank": 4, "test": "", "failures": 0, "passes": 0},
+    #             {"rank": 5, "test": "", "failures": 0, "passes": 0},
+    #         ],
+    #     }
+    # )
+    # jsonObj = edict(eDict)
 
-    failureDict = Counter(cleanedFailureList)
-    for commonError, commonErrorCount in failureDict.most_common(5):
-        topFailureDict[commonError] = int(commonErrorCount)
+    # if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
+    #     suggesstionsDict[
+    #         "# Fix the unknowns. The unknown script ratio is too high (%) : "
+    #         + str(percentageCalculator(totalUnknownCount, totalTCCount))
+    #         + "%"
+    #     ] = percentageCalculator(
+    #         totalPassCount + totalUnknownCount, totalTCCount
+    #     ) - percentageCalculator(
+    #         totalPassCount, totalTCCount
+    #     )
+    # if len(suggesstionsDict) < 5:
+    #     if (len(topTCFailureDict)) > 1:
+    #         for tcName, status in topTCFailureDict.items():
+    #             suggesstionsDict[
+    #                 "# Fix the top failing test: "
+    #                 + tcName
+    #                 + " as the failures count is: "
+    #                 + str(int((str(status).split(",")[0]).replace("[", "").strip()))
+    #             ] = 1
+    #             break
+    # if len(suggesstionsDict) < 5:
+    #     if (len(topDeviceFailureDict)) > 1:
+    #         for device, status in topDeviceFailureDict.items():
+    #             if "_" in str(status):
+    #                 suggesstionsDict[
+    #                     "# Fix the issues with top failing desktop: "
+    #                     + (str(status).split(",")[0])
+    #                     .replace("[", "")
+    #                     .replace("'", "")
+    #                     .strip()
+    #                     + " "
+    #                     + (str(status).split(",")[1]).replace("'", "").strip()
+    #                     + " as the failures count is: "
+    #                     + str(int((str(status).split(",")[3]).strip()))
+    #                 ] = 1
+    #             else:
+    #                 suggesstionsDict[
+    #                     "# Fix the top failing device: "
+    #                     + device
+    #                     + " as the failures count is: "
+    #                     + str(int((str(status).split(",")[3]).strip()))
+    #                 ] = 1
+    #             break
+    # if len(suggesstionsDict) < 5:
+    #     if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
+    #         if totalTCCount > 0:
+    #             suggesstionsDict[
+    #                 "# Fix the failures. The total failures % is too high (%) : "
+    #                 + str(percentageCalculator(totalFailCount, totalTCCount))
+    #                 + "%"
+    #             ] = totalFailCount
+    # if len(suggesstionsDict) < 5:
+    #     if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
+    #         totalTCCount > 0
+    #     ):
+    #         suggesstionsDict[
+    #             "# Fix the failures. The total pass %  is too less (%) : "
+    #             + str(int(percentageCalculator(totalPassCount, totalTCCount)))
+    #             + "%"
+    #         ] = (
+    #             100
+    #             - (
+    #                 percentageCalculator(
+    #                     totalPassCount + totalUnknownCount, totalTCCount
+    #                 )
+    #                 - percentageCalculator(totalPassCount, totalTCCount)
+    #             )
+    #         ) - int(
+    #             percentageCalculator(totalPassCount, totalTCCount)
+    #         )
+    # if len(suggesstionsDict) < 5:
+    #     if totalTCCount == 0:
+    #         suggesstionsDict[
+    #             "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
+    #         ] = 100
+    #     elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
+    #         suggesstionsDict["# Overall Pass% is " + str(int(percentageCalculator(totalPassCount, totalTCCount)))+ "! Keep it up!"] = 0
 
-    # reach top errors and clean them
-    i = 0
-    for commonError, commonErrorCount in topFailureDict.items():
-        if "Device not found" in error:
-            error = (
-                "Raise a support case as *|*"
-                + commonError.strip()
-                + "*|* as it occurs in *|*"
-                + str(commonErrorCount)
-                + "*|* occurrences"
-            )
-        elif "Cannot open device" in error:
-            error = (
-                "Reserve the device/ use perfecto lab auto selection feature to avoid:  *|*"
-                + commonError.strip()
-                + "*|* as it occurs in *|*"
-                + str(commonErrorCount)
-                + "*|* occurrences"
-            )
-        else:
-            error = (
-                "Fix the error: *|*"
-                + commonError.strip()
-                + "*|* as it occurs in *|*"
-                + str(commonErrorCount)
-                + "*|* occurrences"
-            )
-        suggesstionsDict[error] = commonErrorCount
-        printProgressBar(
-            i + 1,
-            len(topFailureDict),
-            prefix="Generation of suggestions in Progress:",
-            suffix="Complete",
-            length=50,
-        )
-        i += 1
-    eDict = edict(
-        {
-            "last24h": int(percentageCalculator(totalPassCount, totalTCCount)),
-            "lab": labIssuesCount,
-            "orchestration": orchestrationIssuesCount,
-            "scripting": scriptingIssuesCount,
-            "unknowns": totalUnknownCount,
-            "executions": totalTCCount,
-            "recommendations": [
-                {
-                    "rank": 1,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
-                },
-                {
-                    "rank": 2,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
-                },
-                {
-                    "rank": 3,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
-                },
-                {
-                    "rank": 4,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
-                },
-                {
-                    "rank": 5,
-                    "recommendation": "-",
-                    "impact": 0,
-                    "impactMessage": "null",
-                },
-            ],
-            "topProblematicDevices": [
-                {
-                    "rank": 1,
-                    "model": "",
-                    "os": "",
-                    "id": "",
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": 0,
-                },
-                {
-                    "rank": 2,
-                    "model": "",
-                    "os": "",
-                    "id": "",
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": 0,
-                },
-                {
-                    "rank": 3,
-                    "model": "",
-                    "os": "",
-                    "id": "",
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": 0,
-                },
-                {
-                    "rank": 4,
-                    "model": "",
-                    "os": "",
-                    "id": "",
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": 0,
-                },
-                {
-                    "rank": 5,
-                    "model": "",
-                    "os": "",
-                    "id": "",
-                    "passed": 0,
-                    "failed": 0,
-                    "errors": 0,
-                },
-            ],
-            "topFailingTests": [
-                {"rank": 1, "test": "", "failures": 0, "passes": 0},
-                {"rank": 2, "test": "", "failures": 0, "passes": 0},
-                {"rank": 3, "test": "", "failures": 0, "passes": 0},
-                {"rank": 4, "test": "", "failures": 0, "passes": 0},
-                {"rank": 5, "test": "", "failures": 0, "passes": 0},
-            ],
-        }
-    )
-    jsonObj = edict(eDict)
-
-    if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
-        suggesstionsDict[
-            "# Fix the unknowns. The unknown script ratio is too high (%) : "
-            + str(percentageCalculator(totalUnknownCount, totalTCCount))
-            + "%"
-        ] = percentageCalculator(
-            totalPassCount + totalUnknownCount, totalTCCount
-        ) - percentageCalculator(
-            totalPassCount, totalTCCount
-        )
-    if len(suggesstionsDict) < 5:
-        if (len(topTCFailureDict)) > 1:
-            for tcName, status in topTCFailureDict.items():
-                suggesstionsDict[
-                    "# Fix the top failing test: "
-                    + tcName
-                    + " as the failures count is: "
-                    + str(int((str(status).split(",")[0]).replace("[", "").strip()))
-                ] = 1
-                break
-    if len(suggesstionsDict) < 5:
-        if (len(topDeviceFailureDict)) > 1:
-            for device, status in topDeviceFailureDict.items():
-                if "_" in str(status):
-                    suggesstionsDict[
-                        "# Fix the issues with top failing desktop: "
-                        + (str(status).split(",")[0])
-                        .replace("[", "")
-                        .replace("'", "")
-                        .strip()
-                        + " "
-                        + (str(status).split(",")[1]).replace("'", "").strip()
-                        + " as the failures count is: "
-                        + str(int((str(status).split(",")[3]).strip()))
-                    ] = 1
-                else:
-                    suggesstionsDict[
-                        "# Fix the top failing device: "
-                        + device
-                        + " as the failures count is: "
-                        + str(int((str(status).split(",")[3]).strip()))
-                    ] = 1
-                break
-    if len(suggesstionsDict) < 5:
-        if int(percentageCalculator(totalFailCount, totalTCCount)) > 15:
-            if totalTCCount > 0:
-                suggesstionsDict[
-                    "# Fix the failures. The total failures % is too high (%) : "
-                    + str(percentageCalculator(totalFailCount, totalTCCount))
-                    + "%"
-                ] = totalFailCount
-    if len(suggesstionsDict) < 5:
-        if float(percentageCalculator(totalPassCount, totalTCCount)) < 80 and (
-            totalTCCount > 0
-        ):
-            suggesstionsDict[
-                "# Fix the failures. The total pass %  is too less (%) : "
-                + str(int(percentageCalculator(totalPassCount, totalTCCount)))
-                + "%"
-            ] = (
-                100
-                - (
-                    percentageCalculator(
-                        totalPassCount + totalUnknownCount, totalTCCount
-                    )
-                    - percentageCalculator(totalPassCount, totalTCCount)
-                )
-            ) - int(
-                percentageCalculator(totalPassCount, totalTCCount)
-            )
-    if len(suggesstionsDict) < 5:
-        if totalTCCount == 0:
-            suggesstionsDict[
-                "# There are no executions for today. Try Continuous Integration with any tools like Jenkins and schedule your jobs today. Please reach out to Professional Services team of Perfecto for any assistance :) !"
-            ] = 100
-        elif int(percentageCalculator(totalPassCount, totalTCCount)) > 80:
-            suggesstionsDict["# Overall Pass% is " + str(int(percentageCalculator(totalPassCount, totalTCCount)))+ "! Keep it up!"] = 0
-
-        int(percentageCalculator(totalFailCount, totalTCCount)) > 15
-    print("**************#Top 5 failure reasons ")
-    topSuggesstionsDict = Counter(suggesstionsDict)
-    counter = 0
-    for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
-        impact = 1
-        if sugg.startswith("# "):
-            sugg = sugg.replace("# ", "")
-            impact = commonErrorCount
-        else:
-            impact = percentageCalculator(
-                totalPassCount + commonErrorCount, totalTCCount
-            ) - percentageCalculator(totalPassCount, totalTCCount)
-        jsonObj.recommendations[counter].impact = int(impact)
-        if int(impact) < 1:
-            jsonObj.recommendations[counter].recommendation = (
-                sugg.replace('"', "*|*").replace("'", "*|*").strip()
-                + ". Impact: "
-                + str(("%.2f" % round(impact, 2)))
-                + "%"
-            )
-        else:
-            jsonObj.recommendations[counter].recommendation = (
-                sugg.replace('"', "*|*").replace("'", "*|*").strip()
-            )
-        print(str(counter + 1) + "." + str(sugg))
-        printProgressBar(
-            counter + 1,
-            5,
-            prefix="Top suggesstions in Progress:",
-            suffix="Complete",
-            length=5,
-        )
-        counter += 1
-    counter = 0
-    print("**************#Top 5 device which failed")
-    for device, status in topDeviceFailureDict.items():
-        print(str(counter + 1) + "." + device, status)
-        jsonObj.topProblematicDevices[counter].id = device.strip()
-        jsonObj.topProblematicDevices[counter].os = (
-            (str(status).split(",")[0]).replace("[", "").replace("'", "").strip()
-        )
-        jsonObj.topProblematicDevices[counter].model = (
-            (str(status).split(",")[1]).replace("'", "").strip()
-        )
-        jsonObj.topProblematicDevices[counter].passed = int(
-            (str(status).split(",")[2]).strip()
-        )
-        jsonObj.topProblematicDevices[counter].failed = int(
-            (str(status).split(",")[3]).strip()
-        )
-        jsonObj.topProblematicDevices[counter].errors = int(
-            (str(status).split(",")[4]).replace("]", "").strip()
-        )
-        printProgressBar(
-            counter + 1,
-            5,
-            prefix="Top device suggesstions in Progress:",
-            suffix="Complete",
-            length=5,
-        )
-        counter += 1
-    df_model = pandas.DataFrame(jsonObj.topProblematicDevices)
-    df_model["model"].replace("", np.nan, inplace=True)
-    df_model.dropna(subset=["model"], inplace=True)
-    counter = 0
-    print("**************#Top 5 failure tests along with pass count")
-    for tcName, status in topTCFailureDict.items():
-        print(str(counter + 1) + "." + tcName, status)
-        jsonObj.topFailingTests[counter].test = tcName.strip()
-        jsonObj.topFailingTests[counter].failures = int(
-            (str(status).split(",")[0]).replace("[", "").strip()
-        )
-        jsonObj.topFailingTests[counter].passes = int(
-            (str(status).split(",")[1]).replace("]", "").strip()
-        )
-        printProgressBar(
-            counter + 1,
-            5,
-            prefix="Top TC failures in Progress:",
-            suffix="Complete",
-            length=5,
-        )
-        counter += 1
-    df2 = pandas.DataFrame(jsonObj.topFailingTests)
-    df2["test"].replace("", np.nan, inplace=True)
-    df2.dropna(subset=["test"], inplace=True)
-    jsonObj = (
-        str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
-    )
+    #     int(percentageCalculator(totalFailCount, totalTCCount)) > 15
+    # print("**************#Top 5 failure reasons ")
+    # topSuggesstionsDict = Counter(suggesstionsDict)
+    # counter = 0
+    # for sugg, commonErrorCount in topSuggesstionsDict.most_common(5):
+    #     impact = 1
+    #     if sugg.startswith("# "):
+    #         sugg = sugg.replace("# ", "")
+    #         impact = commonErrorCount
+    #     else:
+    #         impact = percentageCalculator(
+    #             totalPassCount + commonErrorCount, totalTCCount
+    #         ) - percentageCalculator(totalPassCount, totalTCCount)
+    #     jsonObj.recommendations[counter].impact = int(impact)
+    #     if int(impact) < 1:
+    #         jsonObj.recommendations[counter].recommendation = (
+    #             sugg.replace('"', "*|*").replace("'", "*|*").strip()
+    #             + ". Impact: "
+    #             + str(("%.2f" % round(impact, 2)))
+    #             + "%"
+    #         )
+    #     else:
+    #         jsonObj.recommendations[counter].recommendation = (
+    #             sugg.replace('"', "*|*").replace("'", "*|*").strip()
+    #         )
+    #     print(str(counter + 1) + "." + str(sugg))
+    #     counter += 1
+    # counter = 0
+    # print("**************#Top 5 device which failed")
+    # for device, status in topDeviceFailureDict.items():
+    #     print(str(counter + 1) + "." + device, status)
+    #     jsonObj.topProblematicDevices[counter].id = device.strip()
+    #     jsonObj.topProblematicDevices[counter].os = (
+    #         (str(status).split(",")[0]).replace("[", "").replace("'", "").strip()
+    #     )
+    #     jsonObj.topProblematicDevices[counter].model = (
+    #         (str(status).split(",")[1]).replace("'", "").strip()
+    #     )
+    #     jsonObj.topProblematicDevices[counter].passed = int(
+    #         (str(status).split(",")[2]).strip()
+    #     )
+    #     jsonObj.topProblematicDevices[counter].failed = int(
+    #         (str(status).split(",")[3]).strip()
+    #     )
+    #     jsonObj.topProblematicDevices[counter].errors = int(
+    #         (str(status).split(",")[4]).replace("]", "").strip()
+    #     )
+    #     counter += 1
+    # df_model = pandas.DataFrame(jsonObj.topProblematicDevices)
+    # df_model["model"].replace("", np.nan, inplace=True)
+    # df_model.dropna(subset=["model"], inplace=True)
+    # counter = 0
+    # print("**************#Top 5 failure tests along with pass count")
+    # for tcName, status in topTCFailureDict.items():
+    #     print(str(counter + 1) + "." + tcName, status)
+    #     jsonObj.topFailingTests[counter].test = tcName.strip()
+    #     jsonObj.topFailingTests[counter].failures = int(
+    #         (str(status).split(",")[0]).replace("[", "").strip()
+    #     )
+    #     jsonObj.topFailingTests[counter].passes = int(
+    #         (str(status).split(",")[1]).replace("]", "").strip()
+    #     )
+    #     counter += 1
+    # df2 = pandas.DataFrame(jsonObj.topFailingTests)
+    # df2["test"].replace("", np.nan, inplace=True)
+    # df2.dropna(subset=["test"], inplace=True)
+    # jsonObj = (
+    #     str(jsonObj).replace("'", '"').replace('"null"', "null").replace("*|*", "'")
+    # )
     return graphs, df
 
-
 """
-   shows the progress bar
+   suppress prophet logs
 """
-
-def as_text(value):
-    """as texts"""
-    if value is None:
-        return ""
-    return str(value)
-
-def printProgressBar(
-    iteration, total, prefix="", suffix="", decimals=1, length=10, fill="#"
-):
-    """
-    Call in a loop to create terminal progress bar
-    @params:
-        iteration   - Required  : current iteration (Int)
-        total       - Required  : total iterations (Int)
-        prefix      - Optional  : prefix string (Str)
-        suffix      - Optional  : suffix string (Str)
-        decimals    - Optional  : positive number of decimals in percent complete (Int)
-        length      - Optional  : character length of bar (Int)
-        fill        - Optional  : bar fill character (Str)
-    """
-    # percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    # filledLength = int(length * iteration // total)
-    # bar = fill * filledLength + '-' * (length - filledLength)
-    # print('\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix), end = '\r')
-    # Print New Line on Complete
-
-
-#    if iteration == total:
-#        print()
-
 class suppress_stdout_stderr(object):
     '''
     A context manager for doing a "deep suppression" of stdout and stderr in
@@ -984,8 +827,6 @@ class suppress_stdout_stderr(object):
 """
    returns a boolean if the provided string is a date or nots
 """
-
-
 def is_date(string):
     try:
         parse(string)
@@ -993,6 +834,9 @@ def is_date(string):
     except ValueError:
         return False
 
+"""
+   converts datafame to excel
+"""
 def df_to_xl(df, filename):
     custom_columns = [
         "name",
@@ -1158,13 +1002,20 @@ def df_to_xl(df, filename):
             ws.column_dimensions[column_cells[0].column_letter].width = length + 5
         newfilename = os.path.abspath("".join(filename))
         wb.save(newfilename)
+    return df
 
+"""
+  get criteria details and values
+"""
 def get_report_details(item, temp, name, criteria):
     if name + "=" in item:
         temp = str(item).split("=")[1]
         criteria += "; " + name + ": " + temp 
     return temp, criteria
 
+"""
+  update figure
+"""
 def update_fig(fig, type, job, duration):
     fig.update_layout(
     title={
@@ -1190,6 +1041,9 @@ def update_fig(fig, type, job, duration):
         fig.update_layout( title={'text': ''}, yaxis_title = "Total tests executed",)
     return fig
 
+"""
+ get html string
+"""
 def get_html_string(graphs):
     return (
         """
@@ -1764,12 +1618,11 @@ if __name__ == "__main__":
     filelist = glob.glob(os.path.join("*.html" ))
     for f in filelist:
         os.remove(f)
-
     graphs, df = prepareReport(jobName, jobNumber)
     if not jobName:
         criteria = "start: "  + startDate + "; end: " + endDate
     if consolidate != "":
-        criteria = "startTime: "  + str(min(df['startTime'])) + "; endTime: " + str(max(df['startTime'])) + "; consolidate: " + consolidate
+        criteria = "startTime: "  + str(df['startTime'].iloc[-1]) + "; endTime: " + str(df['startTime'].iloc[0]) + "; consolidate: " + consolidate 
         if jobName !="":
             criteria += "; jobName:" + jobName
         if jobNumber !="":
