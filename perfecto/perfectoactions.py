@@ -12,7 +12,7 @@ import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 import io
 import base64
-import html 
+import html
 import pylab as pl
 import requests
 import time
@@ -60,6 +60,7 @@ endDate = ""
 port = ""
 temp = ""
 
+
 def send_request(url):
     """send request"""
     #     print("Submitting", url)
@@ -83,9 +84,12 @@ def send_request_with_json_response(url):
     maps = json.loads(text)
     return maps
 
+
 """
    returns as text if none
 """
+
+
 def as_text(value):
     """as texts"""
     if value is None:
@@ -140,6 +144,7 @@ def convertxmlToXls(xml, dict_keys, filename):
     wb.save(newfilename)
     return
 
+
 def user_condition(df):
     cols = list(df)
     if len(cols) > 0:
@@ -149,6 +154,7 @@ def user_condition(df):
         df = df[~df["email"].str.contains("perfectomobile.com")]
         df = df.sort_values(by="firstName")
     return df
+
 
 def convertjsonToXls(json_text, dict_keys, filename):
     jsonfile = "user_results.json"
@@ -183,7 +189,8 @@ def convertjsonToXls(json_text, dict_keys, filename):
             errors="ignore",
         )
     df = user_condition(df)
-    df.to_excel(filename, index=False)
+    # Save original file to local by enabling the below
+    # df.to_excel(filename, index=False)
     wb = Workbook()
     wb = load_workbook(filename)
     ws = wb.worksheets[0]
@@ -194,12 +201,14 @@ def convertjsonToXls(json_text, dict_keys, filename):
     wb.save(newfilename)
     return df
 
+
 def send_request_with_xml_response(url):
     """send request"""
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     xmldoc = minidom.parseString(decoded)
     return xmldoc
+
 
 def send_request_to_xlsx(url, filename):
     """send_request_to_xlsx"""
@@ -208,6 +217,7 @@ def send_request_to_xlsx(url, filename):
     if any(["=list" in url, "=users" in url]):
         filename = os.path.join(TEMP_DIR, "output", filename)
         convertxmlToXls(decoded, None, filename)
+
 
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
@@ -223,11 +233,13 @@ def send_jsonrequest_to_xlsx(url, filename):
         filename = os.path.join(TEMP_DIR, "output", filename)
         return convertjsonToXls(decoded, None, filename)
 
+
 def send_request2(url):
     """send request"""
     response = send_request(url)
     text = response.read().decode("utf-8")
     return text
+
 
 def get_url(resource, resource_id, operation):
     """get url """
@@ -252,6 +264,7 @@ def get_url(resource, resource_id, operation):
     url += "?" + query
     return url
 
+
 def getregex_output(response, pattern1, pattern2):
     """regex"""
     matches = re.finditer(pattern1, response, re.MULTILINE)
@@ -267,6 +280,7 @@ def getregex_output(response, pattern1, pattern2):
         )
         return str(match_item)
 
+
 def device_command(exec_id, device_id, operation):
     """Runs device command"""
     url = get_url("executions/" + str(exec_id), "", "command")
@@ -275,10 +289,12 @@ def device_command(exec_id, device_id, operation):
     url += "&param.deviceId=" + device_id
     send_request_with_json_response(url)
 
+
 def end_execution(exec_id):
     """End execution"""
     url = get_url("executions/" + str(exec_id), "", "end")
     send_request_with_json_response(url)
+
 
 def start_exec():
     """start execution"""
@@ -286,6 +302,7 @@ def start_exec():
     response = send_request2(url)
     exec_id = getregex_output(response, r"executionId\"\:\"[\w\d@.-]+\"", ':".*$')
     return exec_id
+
 
 def get_device_list_response(resource, command, status, in_use):
     """get_device_list_response"""
@@ -300,11 +317,13 @@ def get_device_list_response(resource, command, status, in_use):
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
+
 def get_xml_to_xlsx(resource, command, filename):
     """get_xml_to_xlsx"""
     url = get_url(resource, "", command)
     send_request_to_xlsx(url, filename)
     sys.stdout.flush()
+
 
 def get_json_to_xlsx(resource, command, filename):
     """get_json_to_xlsx"""
@@ -316,15 +335,18 @@ def get_json_to_xlsx(resource, command, filename):
                     url += "&" + item.split(":")[0] + "=" + item.split(":")[1]
     return send_jsonrequest_to_xlsx(url.replace(" ", "%20"), filename)
 
+
 def get_device_ids(xmldoc):
     """get_device_ids"""
     device_ids = xmldoc.getElementsByTagName("deviceId")
     return device_ids
 
+
 def get_handset_count(xmldoc):
     """get_handset_count"""
     handset_elements = xmldoc.getElementsByTagName("handset")
     return len(handset_elements)
+
 
 def exec_command(exec_id, device_id, cmd, subcmd):
     """exec_commands"""
@@ -339,6 +361,7 @@ def exec_command(exec_id, device_id, cmd, subcmd):
         ':".*$',
     )
     return str(status)
+
 
 def perform_actions(deviceid_color):
     """perform_actions"""
@@ -654,51 +677,65 @@ def prepare_graph(df, column):
 """
     Dictionary
 """
-class my_dictionary(dict):  
-    def __init__(self):  
-        self = dict()  
-    def add(self, key, value):  
-        self[key] = value  
+
+
+class my_dictionary(dict):
+    def __init__(self):
+        self = dict()
+
+    def add(self, key, value):
+        self[key] = value
+
 
 """
     Creates payload for reporting API
 """
+
+
 def payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, boolean):
     payload = my_dictionary()
-    if oldmilliSecs != 0 : payload.add("startExecutionTime[0]", oldmilliSecs) 
-    if current_time_millis != 0 : payload.add("endExecutionTime[0]", current_time_millis)
+    if oldmilliSecs != 0:
+        payload.add("startExecutionTime[0]", oldmilliSecs)
+    if current_time_millis != 0:
+        payload.add("endExecutionTime[0]", current_time_millis)
     payload.add("_page", page)
     if jobName != "":
         for i, job in enumerate(jobName.split(";")):
-            payload.add("jobName[" +  str(i) + "]", job)
+            payload.add("jobName[" + str(i) + "]", job)
     if jobNumber != "" and boolean:
         for i, job in enumerate(jobName.split(",")):
-                payload.add("jobNumber[" +  str(i) + "]", jobNumber)
+            payload.add("jobNumber[" + str(i) + "]", jobNumber)
+    print(str(payload))
     return payload
+
 
 """
     Retrieve a list of test executions within the last month
     :return: JSON object contains the executions
 """
+
+
 def retrieve_tests_executions(daysOlder, page):
     current_time_millis = 0
     oldmilliSecs = 0
     global endDate
-    print(endDate)
-    print(startDate)
-    print(jobNumber)
-    print(jobName)
-    if endDate != "" :
-        endTime = datetime.strptime(str(endDate) + " 23:59:59,999", "%Y-%m-%d %H:%M:%S,%f")
+    if endDate != "":
+        endTime = datetime.strptime(
+            str(endDate) + " 23:59:59,999", "%Y-%m-%d %H:%M:%S,%f"
+        )
         print("endExecutionTime: " + str(endTime))
         millisec = endTime.timestamp() * 1000
         current_time_millis = round(int(millisec))
     if startDate != "":
         oldmilliSecs = pastDateToMS(startDate, daysOlder)
-    if jobNumber != "" and jobName != "" and startDate != "" and endDate != "" :
-        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, False)
+    if jobNumber != "" and jobName != "" and startDate != "" and endDate != "":
+        payload = payloadJobAll(
+            oldmilliSecs, current_time_millis, jobName, jobNumber, page, False
+        )
     else:
-        payload = payloadJobAll(oldmilliSecs, current_time_millis, jobName, jobNumber, page, True)
+        payload = payloadJobAll(
+            oldmilliSecs, current_time_millis, jobName, jobNumber, page, True
+        )
     url = "https://" + os.environ["CLOUDNAME"] + ".reporting.perfectomobile.com"
     api_url = url + "/export/api/v1/test-executions"
     # creates http geat request with the url, given parameters (payload) and header (for authentication)
@@ -709,10 +746,12 @@ def retrieve_tests_executions(daysOlder, page):
     print(str(r.url))
     return r.content
 
+
 def df_formatter(df):
+    if len(df) == 0:
+        raise Exception("Unable to find any executions for criteria: " + criteria)
     try:
         df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
-        print( "------------------" + str(df["startTime"]))
         df["startTime"] = (
             df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
         )
@@ -720,7 +759,7 @@ def df_formatter(df):
     except:
         pass
     try:
-        df.loc[df['endTime'] < 1, 'endTime'] = int(round(time.time() * 1000)) 
+        df.loc[df["endTime"] < 1, "endTime"] = int(round(time.time() * 1000))
         df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
         df["endTime"] = (
             df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
@@ -729,34 +768,47 @@ def df_formatter(df):
     except:
         pass
     if "month" not in df.columns:
-        df["month"] = pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('M')
+        df["month"] = pandas.to_datetime(
+            df["startTime"], format="%d/%m/%Y %H:%M:%S"
+        ).dt.to_period("M")
     if "startDate" not in df.columns:
-        df['startDate'] = pandas.to_datetime(pandas.to_datetime(df["startTime"], format='%d/%m/%Y %H:%M:%S').dt.to_period('D').astype(str))
+        df["startDate"] = pandas.to_datetime(
+            pandas.to_datetime(df["startTime"], format="%d/%m/%Y %H:%M:%S")
+            .dt.to_period("D")
+            .astype(str)
+        )
     if "week" not in df.columns:
-        df['week'] = pandas.to_datetime(df['startDate'].dt.strftime("%Y/%m/%d")) - df['startDate'].dt.weekday.astype('timedelta64[D]')
+        df["week"] = pandas.to_datetime(df["startDate"].dt.strftime("%Y/%m/%d")) - df[
+            "startDate"
+        ].dt.weekday.astype("timedelta64[D]")
     if "Duration" not in df.columns:
         df["Duration"] = pandas.to_datetime(df["endTime"]) - pandas.to_datetime(
             df["startTime"]
         )
         df["Duration"] = df["Duration"].dt.seconds
-        df["Duration"] = pandas.to_datetime(df["Duration"], unit='s').dt.strftime("%H:%M:%S")
-    if "failureReasonName" not in df.columns: 
+        df["Duration"] = pandas.to_datetime(df["Duration"], unit="s").dt.strftime(
+            "%H:%M:%S"
+        )
+    if "failureReasonName" not in df.columns:
         df["failureReasonName"] = ""
     # df["name"] = '=HYPERLINK("'+df["reportURL"]+'", "'+df["name"]+'")'  # has the ability to hyperlink name in csv'
-        #Filter only job and job number if dates are parameterized as well but show full histogram
+    # Filter only job and job number if dates are parameterized as well but show full histogram
     if jobNumber != "" and jobName != "":
         ori_df = df
-        df = df[df['job/number'].astype(str) == jobNumber]
+        df = df[df["job/number"].astype(str) == jobNumber]
     if startDate != "":
         name = startDate
     else:
-        name = jobName + '_' + jobNumber
-    df = df_to_xl(df, str(name).replace("/","_"))
+        name = jobName + "_" + jobNumber
+    df = df_to_xl(df, str(name).replace("/", "_"))
     return df
+
 
 """
     flattens the json
 """
+
+
 def flatten_json(nested_json, exclude=[""]):
     """Flatten json object with nested keys into a single level.
         Args:
@@ -783,9 +835,12 @@ def flatten_json(nested_json, exclude=[""]):
     flatten(nested_json)
     return out
 
+
 """
     get final dataframe
 """
+
+
 def get_final_df(files):
     df = pandas.DataFrame()
     for file in files:
@@ -796,9 +851,12 @@ def get_final_df(files):
     df = df_formatter(df)
     return df
 
+
 """
    gets the top failed device pass count, handset errors and device/ desktop details
 """
+
+
 def getDeviceDetails(device, deviceFailCount):
     devicePassCount = 0
     errorsCount = 0
@@ -846,9 +904,12 @@ def getDeviceDetails(device, deviceFailCount):
             continue
         i += 1
 
+
 """
    gets the total pass count of each failed case
 """
+
+
 def getPassCount(testName):
     testNamePassCount = 0
     i = 0
@@ -868,15 +929,21 @@ def getPassCount(testName):
         i += 1
     return testNamePassCount
 
+
 """
    gets fail and pass count of each test case and assigns it to a dict
 """
+
+
 def getTCDetails(tcName, failureCount):
     topTCFailureDict[tcName] = [failureCount, getPassCount(tcName)]
+
 
 """
    calculates the percetage of a part and whole number
 """
+
+
 def percentageCalculator(part, whole):
     if int(whole) > 0:
         calc = (100 * float(part) / float(whole), 0)
@@ -885,9 +952,12 @@ def percentageCalculator(part, whole):
         calc = 0
     return calc
 
+
 """
    gets start date to milliseconds
 """
+
+
 def pastDateToMS(startDate, daysOlder):
     dt_obj = datetime.strptime(
         startDate + " 00:00:00,00", "%Y-%m-%d %H:%M:%S,%f"
@@ -897,19 +967,27 @@ def pastDateToMS(startDate, daysOlder):
     oldmilliSecs = round(int(millisec))
     return oldmilliSecs
 
+
 def color_negative_red(value):
-    color = 'red' if value < 1 else 'black'
-    return 'color: %s' % color
+    color = "red" if value < 1 else "black"
+    return "color: %s" % color
+
 
 """
    gets' Perfecto reporting API responses, creates dict for top device failures, auto suggestions and top tests failures and prepared json
 """
+
+
 def prepareReport(jobName, jobNumber):
     page = 1
     i = 0
     truncated = True
     resources = []
     resources.clear()
+    print("endDate: " + endDate)
+    print("startDate: " + startDate)
+    print("jobName: " + jobName)
+    print("jobNumber: " + jobNumber)
     while truncated == True:
         print(
             "Retrieving all the test executions in your lab. Current page: "
@@ -928,7 +1006,12 @@ def prepareReport(jobName, jobNumber):
             executionList = executions["resources"]
         except TypeError:
             print(executions)
-            raise Exception("Unable to find matching records for: " + str(criteria) + ", error:" + str(executions['userMessage']))
+            raise Exception(
+                "Unable to find matching records for: "
+                + str(criteria)
+                + ", error:"
+                + str(executions["userMessage"])
+            )
             sys.exit(-1)
         if len(executionList) == 0:
             print("0 test executions")
@@ -949,9 +1032,9 @@ def prepareReport(jobName, jobNumber):
         print("Total executions: " + str(len(resources)))
         df = pandas.DataFrame([flatten_json(x) for x in resources])
         df = df_formatter(df)
-        
+
     os.chdir(".")
-    files = glob.glob('*.{}'.format(os.environ["xlformat"]))
+    files = glob.glob("*.{}".format(os.environ["xlformat"]))
     consolidate = os.environ["consolidate"]
     if consolidate != "":
         for file in files:
@@ -959,91 +1042,195 @@ def prepareReport(jobName, jobNumber):
                 shutil.copy2(file, consolidate)
         files = glob.iglob(os.path.join(consolidate, "*." + os.environ["xlformat"]))
     df = get_final_df(files)
-    df = df.sort_values(by=['startDate'], ascending=False)
+    df = df.sort_values(by=["startDate"], ascending=False)
     if jobNumber != "" and jobName != "":
         ori_df = df
-        df = df[df['job/name'].astype(str).isin(jobName.split(";"))]
-        df = df[df['job/number'].round(0).astype(int).isin(jobNumber.split(";"))]
+        df = df[df["job/name"].astype(str).isin(jobName.split(";"))]
+        df = df[df["job/number"].round(0).astype(int).isin(jobNumber.split(";"))]
     if jobNumber == "" and jobName != "":
         ori_df = df
-        df = df[df['job/name'].astype(str).isin(jobName.split(";"))]
-    df = df_to_xl(df, "final")   
+        df = df[df["job/name"].astype(str).isin(jobName.split(";"))]
+    df = df_to_xl(df, "final")
     if (len(df)) < 1:
         print("Unable to find any test executions for the criteria: " + criteria)
         sys.exit(-1)
     import plotly.express as px
     import plotly
-    #ggplot2 #plotly_dark #simple_white
+
+    # ggplot2 #plotly_dark #simple_white
     graphs = []
     graphs.append('<div id="nestle-section">')
     counter = 8
-    with open(live_report_filename, 'a') as f:
+    with open(live_report_filename, "a") as f:
         f.write('<div id="nestle-section">')
     duration = "weeks"
     if startDate != "":
-        delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(startDate, "%Y-%m-%d")
+        delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(
+            startDate, "%Y-%m-%d"
+        )
         if (delta.days) <= 14:
             duration = "dates"
     else:
         duration = "dates"
     joblist = []
     if "job/name" in df.columns and jobName != "":
-        joblist = sorted(df['job/name'].dropna().unique())
+        joblist = sorted(df["job/name"].dropna().unique())
     else:
         joblist.append("Overall!")
-    for job in joblist: 
+    for job in joblist:
         predict_df = df
         fig = []
         if job != "Overall!":
             if job in jobName:
                 if duration == "dates":
-                    fig = px.histogram(df.loc[df['job/name'] == job], x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)  
+                    fig = px.histogram(
+                        df.loc[df["job/name"] == job],
+                        x="startDate",
+                        color="status",
+                        color_discrete_map={
+                            "PASSED": "limegreen",
+                            "FAILED": "crimson",
+                            "UNKNOWN": "#9da7f2",
+                            "BLOCKED": "#e79a00",
+                        },
+                        hover_data=df.columns,
+                        template="seaborn",
+                        opacity=0.5,
+                    )
                 else:
-                    fig = px.histogram(df.loc[df['job/name'] == job], x="week", color="status",
-                                    hover_data=df.columns, color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, template="seaborn", opacity=0.5)
-                predict_df = df.loc[df['job/name'] == job]
+                    fig = px.histogram(
+                        df.loc[df["job/name"] == job],
+                        x="week",
+                        color="status",
+                        hover_data=df.columns,
+                        color_discrete_map={
+                            "PASSED": "limegreen",
+                            "FAILED": "crimson",
+                            "UNKNOWN": "#9da7f2",
+                            "BLOCKED": "#e79a00",
+                        },
+                        template="seaborn",
+                        opacity=0.5,
+                    )
+                predict_df = df.loc[df["job/name"] == job]
         else:
-            fig = px.histogram(df, x="startDate", color="status", color_discrete_map= {"PASSED":"limegreen","FAILED":"crimson","UNKNOWN":"#9da7f2","BLOCKED":"#e79a00"}, hover_data=df.columns, template="seaborn", opacity=0.5)    
-        predict_df = predict_df.groupby(['startDate']).size().reset_index(name='#status').sort_values('#status', ascending=False)
-        if fig:   
+            fig = px.histogram(
+                df,
+                x="startDate",
+                color="status",
+                color_discrete_map={
+                    "PASSED": "limegreen",
+                    "FAILED": "crimson",
+                    "UNKNOWN": "#9da7f2",
+                    "BLOCKED": "#e79a00",
+                },
+                hover_data=df.columns,
+                template="seaborn",
+                opacity=0.5,
+            )
+        predict_df = (
+            predict_df.groupby(["startDate"])
+            .size()
+            .reset_index(name="#status")
+            .sort_values("#status", ascending=False)
+        )
+        if fig:
             fig = update_fig(fig, "histogram", job, duration)
             encoded = base64.b64encode(plotly.io.to_image(fig))
-            graphs.append('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Trends: ' + job + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='days or weeks summary of " + job + "' id='reportDiv' onClick='zoom(this)'></img></div>")
-            with open(live_report_filename, 'a') as f:
-                f.write('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Trends: ' + job + ' </label><div class="tab-content1">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + '</div>')
+            graphs.append(
+                '<input type="radio" id="tab'
+                + str(counter)
+                + '" name="tabs" checked=""/><label for="tab'
+                + str(counter)
+                + '">Trends: '
+                + job
+                + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(
+                    encoded.decode("ascii")
+                )
+                + " alt='days or weeks summary of "
+                + job
+                + "' id='reportDiv' onClick='zoom(this)'></img></div>"
+            )
+            with open(live_report_filename, "a") as f:
+                f.write(
+                    '<input type="radio" id="tab'
+                    + str(counter)
+                    + '" name="tabs" checked=""/><label for="tab'
+                    + str(counter)
+                    + '">Trends: '
+                    + job
+                    + ' </label><div class="tab-content1">'
+                    + fig.to_html(full_html=False, include_plotlyjs="cdn")
+                    + "</div>"
+                )
         if job == "Overall!" or job in jobName:
             if len(predict_df.index) > 1:
-                predict_df = predict_df.rename(columns={'startDate': 'ds', '#status' : 'y'})
-                predict_df['cap'] = (int(predict_df['y'].max()) * 2)
-                predict_df['floor'] = 0
+                predict_df = predict_df.rename(
+                    columns={"startDate": "ds", "#status": "y"}
+                )
+                predict_df["cap"] = int(predict_df["y"].max()) * 2
+                predict_df["floor"] = 0
                 from fbprophet import Prophet
+
                 with suppress_stdout_stderr():
-                    m = Prophet(seasonality_mode='additive', growth='logistic', changepoint_prior_scale = 0.001 ).fit(predict_df, algorithm='Newton')
+                    m = Prophet(
+                        seasonality_mode="additive",
+                        growth="logistic",
+                        changepoint_prior_scale=0.001,
+                    ).fit(predict_df, algorithm="Newton")
                 future = m.make_future_dataframe(periods=30)
-                future['cap'] = (int(predict_df['y'].max()) * 2)
-                future['floor'] = 0
+                future["cap"] = int(predict_df["y"].max()) * 2
+                future["floor"] = 0
                 forecast = m.predict(future)
-                forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail()
+                forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
                 fig = plot_plotly(m, forecast)
                 fig = update_fig(fig, "prediction", job, duration)
                 encoded = base64.b64encode(plotly.io.to_image(fig))
-                counter+=1
-                graphs.append('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(encoded.decode("ascii")) + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>")
-                with open(live_report_filename, 'a') as f:
-                    f.write('<input type="radio" id="tab' + str(counter) + '" name="tabs" checked=""/><label for="tab' + str(counter) + '">Monthly Prediction: ' + job + '</label><div class="tab-content1"><div class="predictionDiv">' + fig.to_html(full_html=False, include_plotlyjs='cdn') + " </img></div></p></div>")
+                counter += 1
+                graphs.append(
+                    '<input type="radio" id="tab'
+                    + str(counter)
+                    + '" name="tabs" checked=""/><label for="tab'
+                    + str(counter)
+                    + '">Monthly Prediction: '
+                    + job
+                    + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
+                        encoded.decode("ascii")
+                    )
+                    + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
+                )
+                with open(live_report_filename, "a") as f:
+                    f.write(
+                        '<input type="radio" id="tab'
+                        + str(counter)
+                        + '" name="tabs" checked=""/><label for="tab'
+                        + str(counter)
+                        + '">Monthly Prediction: '
+                        + job
+                        + '</label><div class="tab-content1"><div class="predictionDiv">'
+                        + fig.to_html(full_html=False, include_plotlyjs="cdn")
+                        + " </img></div></p></div>"
+                    )
             else:
-                print("Note: AI Prediction for job: " + job + " requires more than 2 days of data to analyze!")
-        counter+=1
-    graphs.append('</div>')
-    with open(live_report_filename, 'a') as f:
-        f.write('</div>')
+                print(
+                    "Note: AI Prediction for job: "
+                    + job
+                    + " requires more than 2 days of data to analyze!"
+                )
+        counter += 1
+    graphs.append("</div>")
+    with open(live_report_filename, "a") as f:
+        f.write("</div>")
     return graphs, df
+
 
 """
    suppress prophet logs
 """
+
+
 class suppress_stdout_stderr(object):
-    '''
+    """
     A context manager for doing a "deep suppression" of stdout and stderr in
     Python, i.e. will suppress all print, even if the print originates in a
     compiled C/Fortran sub-function.
@@ -1051,7 +1238,8 @@ class suppress_stdout_stderr(object):
     to stderr just before a script exits, and after the context manager has
     exited (at least, I think that is why it lets exceptions through).
 
-    '''
+    """
+
     def __init__(self):
         # Open a pair of null files
         self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
@@ -1071,9 +1259,12 @@ class suppress_stdout_stderr(object):
         os.close(self.null_fds[0])
         os.close(self.null_fds[1])
 
+
 """
    returns a boolean if the provided string is a date or nots
 """
+
+
 def is_date(string):
     try:
         parse(string)
@@ -1081,9 +1272,12 @@ def is_date(string):
     except ValueError:
         return False
 
+
 """
    converts datafame to excel
 """
+
+
 def df_to_xl(df, filename):
     custom_columns = [
         "name",
@@ -1127,7 +1321,7 @@ def df_to_xl(df, filename):
         "tags/6",
         "tags/7",
         "tags/8",
-        "tags/9",        
+        "tags/9",
         "tags/10",
         "tags/11",
         "tags/12",
@@ -1174,7 +1368,7 @@ def df_to_xl(df, filename):
         "parameters/11/name",
         "parameters/11/value",
         "parameters/12/name",
-        "parameters/12/value",        
+        "parameters/12/value",
         "parameters/13/name",
         "parameters/13/value",
         "platforms/0/mobileInfo/operator",
@@ -1235,12 +1429,12 @@ def df_to_xl(df, filename):
     df = df[df.columns.intersection(custom_columns)]
     df = df.reindex(columns=custom_columns)
     df = df.dropna(axis=1, how="all")
-    filename = [filename,".",os.environ["xlformat"]]
+    filename = [filename, ".", os.environ["xlformat"]]
     if "csv" in os.environ["xlformat"]:
         df.to_csv("".join(filename), index=False)
     else:
-        df.to_excel("".join(filename), index=False)    
-    if "csv"  not in os.environ["xlformat"]:
+        df.to_excel("".join(filename), index=False)
+    if "csv" not in os.environ["xlformat"]:
         wb = Workbook()
         wb = load_workbook("".join(filename))
         ws = wb.worksheets[0]
@@ -1251,48 +1445,52 @@ def df_to_xl(df, filename):
         wb.save(newfilename)
     return df
 
+
 """
   get criteria details and values
 """
+
+
 def get_report_details(item, temp, name, criteria):
     if name + "=" in item:
         temp = str(item).split("=")[1]
-        criteria += "; " + name + ": " + temp 
+        criteria += "; " + name + ": " + temp
     return temp, criteria
+
 
 """
   update figure
 """
+
+
 def update_fig(fig, type, job, duration):
     fig.update_layout(
-    title={
-        'text': '',
-        'y':0.97,
-        'x':0.5,
-        'xanchor': 'center',
-        'yanchor': 'top'},
-    xaxis_title = duration,
-    yaxis_title = "Test Status",
-    font=dict(
-        family = "Trebuchet MS, Helvetica, sans-serif",
-        size = 12,
-        color = 'black',
-    ),
-    autosize =True,
-    hovermode = "x unified",
-    yaxis={ 'tickformat' : '.0f' },
-    xaxis_tickformat = '%d/%b/%y',
-    ) 
+        title={"text": "", "y": 0.97, "x": 0.5, "xanchor": "center", "yanchor": "top"},
+        xaxis_title=duration,
+        yaxis_title="Test Status",
+        font=dict(
+            family="Trebuchet MS, Helvetica, sans-serif", size=12, color="black",
+        ),
+        autosize=True,
+        hovermode="x unified",
+        yaxis={"tickformat": ".0f"},
+        xaxis_tickformat="%d/%b/%y",
+    )
     fig.update_yaxes(automargin=True)
     if type == "prediction":
-        fig.update_layout( title={'text': ''}, yaxis_title = "Total tests executed",)
+        fig.update_layout(
+            title={"text": ""}, yaxis_title="Total tests executed",
+        )
     return fig
+
 
 """
  get html string
 """
+
+
 def get_html_string(graphs):
-    string =  (
+    string = (
         """
     <html lang="en">
        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
@@ -1795,24 +1993,38 @@ def get_html_string(graphs):
                 }}
             </style>
     <body bgcolor="white">
-        <div class="reportDiv">""" + "".join(graphs) + """</div>
+        <div class="reportDiv">"""
+        + "".join(graphs)
+        + """</div>
         <div id="nestle-section">
         <input type="radio" id="tab1" name="tabs1" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
-        <div class="reportDiv"> """ + execution_summary  + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></div>
+        <div class="reportDiv"> """
+        + execution_summary
+        + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></div>
         <input type="radio" id="tab2" name="tabs" checked=""/><label for="tab2">OS Summary</label><div class="tab-content1">
-          <div class="reportDiv">""" + monthlyStats + \
-          """ </div></div><input type="radio" id="tab3" name="tabs" checked=""/><label for="tab3">Issues</label><div class="tab-content1">
-          <div class="reportDiv">""" + issues + \
-          """ </div></div><input type="radio" id="tab4" name="tabs" checked=""/><label for="tab4">Custom Failure Reasons</label><div class="tab-content1">
-          <div class="reportDiv">""" + failurereasons + \
-          """ </div></div><input type="radio" id="tab5" name="tabs" checked=""/><label for="tab5">Top Failed Tests</label><div class="tab-content1">
-          <div class="reportDiv">""" + topfailedtable + \
-          """ </div>
+          <div class="reportDiv">"""
+        + monthlyStats
+        + """ </div></div><input type="radio" id="tab3" name="tabs" checked=""/><label for="tab3">Issues</label><div class="tab-content1">
+          <div class="reportDiv">"""
+        + issues
+        + """ </div></div><input type="radio" id="tab4" name="tabs" checked=""/><label for="tab4">Custom Failure Reasons</label><div class="tab-content1">
+          <div class="reportDiv">"""
+        + failurereasons
+        + """ </div></div><input type="radio" id="tab5" name="tabs" checked=""/><label for="tab5">Top Failed Tests</label><div class="tab-content1">
+          <div class="reportDiv">"""
+        + topfailedtable
+        + """ </div>
           </div><input type="radio" id="tab6" name="tabs" checked=""/><label for="tab6">Top Recommendations</label><div class="tab-content1">
-          <div class="reportDiv">""" + recommendations + """ </div></div>
+          <div class="reportDiv">"""
+        + recommendations
+        + """ </div></div>
           <input type="radio" id="tab7" name="tabs" checked=""/><label for="tab7">Summary</label><div class="tab-content1">
-             <div><div class="reportDiv">""" + execution_status + """</div></div></div></body>""")
+             <div><div class="reportDiv">"""
+        + execution_status
+        + """</div></div></div></body>"""
+    )
     return str(string)
+
 
 def prepare_html(user_html, table3, day):
     """ prepare_html """
@@ -2606,6 +2818,7 @@ def prepare_html(user_html, table3, day):
         webbrowser.open("file://" + os.path.join(os.getcwd(), "live.html"), new=0)
         print("Results: file://" + os.path.join(os.getcwd(), "live.html"))
 
+
 def send_request_repo(url, content):
     try:
         response = urllib.request.urlopen(url.replace(" ", "%20"))
@@ -3013,86 +3226,181 @@ def main():
                 temp = ""
                 report_array = report.split("|")
                 for item in report_array:
-                    if "jobName" in item: jobName, criteria =  get_report_details(item, temp, "jobName", criteria)
-                    if "jobNumber" in item: jobNumber, criteria =  get_report_details(item, temp, "jobNumber", criteria)
-                    if "startDate" in item: startDate, criteria =  get_report_details(item, temp, "startDate", criteria)
-                    if "endDate" in item: endDate, criteria =  get_report_details(item, temp, "endDate", criteria)
-                    if "consolidate" in item: consolidate, criteria =  get_report_details(item, temp, "consolidate", criteria)
-                    if "xlformat" in item: xlformat, criteria =  get_report_details(item, temp, "xlformat", criteria)
-                    if "port" in item: port, criteria =  get_report_details(item, temp, "port", criteria)
+                    if "jobName" in item:
+                        jobName, criteria = get_report_details(
+                            item, temp, "jobName", criteria
+                        )
+                    if "jobNumber" in item:
+                        jobNumber, criteria = get_report_details(
+                            item, temp, "jobNumber", criteria
+                        )
+                    if "startDate" in item:
+                        startDate, criteria = get_report_details(
+                            item, temp, "startDate", criteria
+                        )
+                    if "endDate" in item:
+                        endDate, criteria = get_report_details(
+                            item, temp, "endDate", criteria
+                        )
+                    if "consolidate" in item:
+                        consolidate, criteria = get_report_details(
+                            item, temp, "consolidate", criteria
+                        )
+                    if "xlformat" in item:
+                        xlformat, criteria = get_report_details(
+                            item, temp, "xlformat", criteria
+                        )
+                    if "port" in item:
+                        port, criteria = get_report_details(
+                            item, temp, "port", criteria
+                        )
             except Exception as e:
-                raise Exception( "Verify parameters of report, split them by | seperator" + str(e) )
+                raise Exception(
+                    "Verify parameters of report, split them by | seperator" + str(e)
+                )
                 sys.exit(-1)
             os.environ["xlformat"] = xlformat
+            os.environ["consolidate"] = ""
             os.environ["consolidate"] = consolidate
             filelist = glob.glob(os.path.join("*." + xlformat))
             for f in filelist:
                 os.remove(f)
-            filelist = glob.glob(os.path.join("*_failures.txt" ))
+            filelist = glob.glob(os.path.join("*_failures.txt"))
             for f in filelist:
                 os.remove(f)
-            filelist = glob.glob(os.path.join("*.html" ))
+            filelist = glob.glob(os.path.join("*.html"))
             for f in filelist:
                 os.remove(f)
 
             graphs, df = prepareReport(jobName, jobNumber)
             if not jobName:
-                criteria = "start: "  + startDate + "; end: " + endDate
+                criteria = "start: " + startDate + "; end: " + endDate
             if os.environ["consolidate"] != "":
-                
-                criteria = "startTime: "  + str(df['startTime'].iloc[-1]) + "; endTime: " + str(df['startTime'].iloc[0]) + "; consolidate: " + os.environ["consolidate"]
-                if jobName !="":
+
+                criteria = (
+                    "startTime: "
+                    + str(df["startTime"].iloc[-1])
+                    + "; endTime: "
+                    + str(df["startTime"].iloc[0])
+                    + "; consolidate: "
+                    + os.environ["consolidate"]
+                )
+                if jobName != "":
                     criteria += "; jobName:" + jobName
-                if jobNumber !="":
+                if jobNumber != "":
                     criteria += "; jobNumber:" + jobNumber
             global execution_summary
-            execution_summary = create_summary(df, os.environ["CLOUDNAME"].upper() + " Summary Report for " + criteria, "status", "device_summary")
-            failed = df[(df['status'] == "FAILED")]
-            passed = df[(df['status'] == "PASSED")]
-            blocked = df[(df['status'] == "BLOCKED")]
-            failed_blocked = df[(df['status'] == "FAILED") | (df['status'] == "BLOCKED")]
-            totalUnknownCount = df[(df['status'] == "UNKNOWN")].shape[0]
+            execution_summary = create_summary(
+                df,
+                os.environ["CLOUDNAME"].upper() + " Summary Report for " + criteria,
+                "status",
+                "device_summary",
+            )
+            failed = df[(df["status"] == "FAILED")]
+            passed = df[(df["status"] == "PASSED")]
+            blocked = df[(df["status"] == "BLOCKED")]
+            failed_blocked = df[
+                (df["status"] == "FAILED") | (df["status"] == "BLOCKED")
+            ]
+            totalUnknownCount = df[(df["status"] == "UNKNOWN")].shape[0]
             totalTCCount = df.shape[0]
-            #monthly stats
-            df['platforms/0/deviceType'] = df['platforms/0/deviceType'].fillna('Others')
-            df['platforms/0/os'] = df['platforms/0/os'].fillna('Others')
-            df = df.rename(columns={'platforms/0/deviceType': 'Platform', 'platforms/0/os' : 'OS', 'status' : 'Test Status', 'failureReasonName' : 'Custom Failure Reason'})
+            # monthly stats
+            df["platforms/0/deviceType"] = df["platforms/0/deviceType"].fillna("Others")
+            df["platforms/0/os"] = df["platforms/0/os"].fillna("Others")
+            df = df.rename(
+                columns={
+                    "platforms/0/deviceType": "Platform",
+                    "platforms/0/os": "OS",
+                    "status": "Test Status",
+                    "failureReasonName": "Custom Failure Reason",
+                }
+            )
             global monthlyStats
-            monthlyStats = df.pivot_table(index = ["month",  "week", "Platform", "OS"], 
-                        columns = "Test Status" , 
-                        values = "name", 
-                        aggfunc = "count", margins=True, fill_value=0)\
-                    .fillna('')
+            monthlyStats = df.pivot_table(
+                index=["month", "week", "Platform", "OS"],
+                columns="Test Status",
+                values="name",
+                aggfunc="count",
+                margins=True,
+                fill_value=0,
+            ).fillna("")
             for column in monthlyStats.columns:
-                monthlyStats[column] = monthlyStats[column].astype(str).replace('\.0', '', regex=True)
-            monthlyStats = monthlyStats.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False ).replace('<tr>', '<tr align="center">')
+                monthlyStats[column] = (
+                    monthlyStats[column].astype(str).replace("\.0", "", regex=True)
+                )
+            monthlyStats = monthlyStats.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=True,
+                render_links=True,
+                escape=False,
+            ).replace("<tr>", '<tr align="center">')
             global failurereasons
-            failurereasons = pandas.crosstab(df['Custom Failure Reason'],df['Test Status'])
+            failurereasons = pandas.crosstab(
+                df["Custom Failure Reason"], df["Test Status"]
+            )
             # print (failurereasons)
-            failurereasons = failurereasons.to_html( classes="mystyle", table_id="report", index=True, render_links=True, escape=False )
-            #top failed TCs
-            topfailedTCNames = failed.groupby(['name']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False).head(5)
+            failurereasons = failurereasons.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=True,
+                render_links=True,
+                escape=False,
+            )
+            # top failed TCs
+            topfailedTCNames = (
+                failed.groupby(["name"])
+                .size()
+                .reset_index(name="#Failed")
+                .sort_values("#Failed", ascending=False)
+                .head(5)
+            )
             reportURLs = []
             for ind in topfailedTCNames.index:
-                reportURLs.append(failed.loc[failed['name'] == topfailedTCNames['name'][ind], 'reportURL'].iloc[0])
-            topfailedTCNames['Result'] = reportURLs
-            topfailedTCNames['Result'] = topfailedTCNames['Result'].apply(lambda x: '{0}'.format(x))
+                reportURLs.append(
+                    failed.loc[
+                        failed["name"] == topfailedTCNames["name"][ind], "reportURL"
+                    ].iloc[0]
+                )
+            topfailedTCNames["Result"] = reportURLs
+            topfailedTCNames["Result"] = topfailedTCNames["Result"].apply(
+                lambda x: "{0}".format(x)
+            )
             for ind in topfailedTCNames.index:
-                topfailedTCNames.loc[topfailedTCNames['name'].index == ind, 'name']  = '<a target="_blank" href="' + topfailedTCNames['Result'][ind] + '">' + topfailedTCNames['name'][ind] + '</a>'
-            topfailedTCNames = topfailedTCNames.drop('Result', 1)
-            topfailedTCNames.columns = ['Top 5 Failed Tests', '#Failed']
+                topfailedTCNames.loc[topfailedTCNames["name"].index == ind, "name"] = (
+                    '<a target="_blank" href="'
+                    + topfailedTCNames["Result"][ind]
+                    + '">'
+                    + topfailedTCNames["name"][ind]
+                    + "</a>"
+                )
+            topfailedTCNames = topfailedTCNames.drop("Result", 1)
+            topfailedTCNames.columns = ["Top 5 Failed Tests", "#Failed"]
             # print(str(topfailedTCNames))
             global topfailedtable
-            topfailedtable = topfailedTCNames.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+            topfailedtable = topfailedTCNames.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=False,
+                render_links=True,
+                escape=False,
+            )
 
-            #recommendations
+            # recommendations
             totalFailCount = failed.shape[0]
             totalPassCount = passed.shape[0]
             blockedCount = blocked.shape[0]
             # failures count
-            failuresmessage = failed_blocked.groupby(['message']).size().reset_index(name='#Failed').sort_values('#Failed', ascending=False)
+            failuresmessage = (
+                failed_blocked.groupby(["message"])
+                .size()
+                .reset_index(name="#Failed")
+                .sort_values("#Failed", ascending=False)
+            )
 
-            for commonError, commonErrorCount in failuresmessage.itertuples(index=False):
+            for commonError, commonErrorCount in failuresmessage.itertuples(
+                index=False
+            ):
                 for labIssue in labIssues:
                     if re.search(labIssue, commonError):
                         labIssuesCount += commonErrorCount
@@ -3113,7 +3421,9 @@ def main():
                     cleanedFailureList[error.strip()] += 1
                 else:
                     cleanedFailureList[error.strip()] = commonErrorCount
-                scriptingIssuesCount = (totalFailCount + blockedCount) - (orchestrationIssuesCount + labIssuesCount)
+                scriptingIssuesCount = (totalFailCount + blockedCount) - (
+                    orchestrationIssuesCount + labIssuesCount
+                )
 
             # Top 5 failure reasons
             topFailureDict = {}
@@ -3141,14 +3451,17 @@ def main():
                         + str(commonErrorCount)
                         + "*|* occurrences"
                     )
-                elif '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)' in commonError:
+                elif (
+                    '(UnknownError) Failed to execute command button-text click: Needle not found for expected value: "Allow" (java.lang.RuntimeException)'
+                    in commonError
+                ):
                     error = (
-                    "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
-                    + commonError.strip()
-                    + "*|* occurs in *|*"
-                    + str(commonErrorCount)
-                    + "*|* occurrences"
-                )
+                        "Allow text/popup was not displayed as expected. It could be an environment issue as the error: *|*"
+                        + commonError.strip()
+                        + "*|* occurs in *|*"
+                        + str(commonErrorCount)
+                        + "*|* occurrences"
+                    )
                 else:
                     error = (
                         "Fix the error: *|*"
@@ -3159,55 +3472,38 @@ def main():
                     )
                 suggesstionsDict[error] = commonErrorCount
             eDict = edict(
-                    {
-                        "status": [
-                            {
+                {
+                    "status": [
+                        {
                             "#Total": "Count ->",
                             "#Executions": totalTCCount,
-                            "#Pass" : totalPassCount,
-                            "#Failed" : totalFailCount,
-                            "#Blocked" : blockedCount,
+                            "#Pass": totalPassCount,
+                            "#Failed": totalFailCount,
+                            "#Blocked": blockedCount,
                             "#Unknowns": totalUnknownCount,
-                            "Overall Pass %": str(int(percentageCalculator(totalPassCount, totalTCCount))) + "%",
-                            },
-                        ],
-                        "issues": [
+                            "Overall Pass %": str(
+                                int(percentageCalculator(totalPassCount, totalTCCount))
+                            )
+                            + "%",
+                        },
+                    ],
+                    "issues": [
                         {
                             "#Issues": "Count ->",
                             "#Scripting": scriptingIssuesCount,
                             "#Lab": labIssuesCount,
                             "#Orchestration": orchestrationIssuesCount,
-                            },
-                        ],
-                        "recommendation": [
-                            {
-                            "Recommendations": "-",
-                            "Rank": 1,
-                                "impact": "0",
-                            },
-                            {
-                            "Recommendations": "-",
-                                "Rank": 2,
-                                "impact": "0",
-                            },
-                            {
-                                "Recommendations": "-",
-                                "Rank": 3,
-                                "impact": "0",
-                            },
-                            {
-                                "Recommendations": "-",
-                                "Rank": 4,
-                                "impact": "0",
-                            },
-                            {
-                                "Recommendations": "-",
-                                "Rank": 5,
-                                "impact": "0",
-                            },
-                        ],
-                    }
-                )
+                        },
+                    ],
+                    "recommendation": [
+                        {"Recommendations": "-", "Rank": 1, "impact": "0",},
+                        {"Recommendations": "-", "Rank": 2, "impact": "0",},
+                        {"Recommendations": "-", "Rank": 3, "impact": "0",},
+                        {"Recommendations": "-", "Rank": 4, "impact": "0",},
+                        {"Recommendations": "-", "Rank": 5, "impact": "0",},
+                    ],
+                }
+            )
             jsonObj = edict(eDict)
             if float(percentageCalculator(totalUnknownCount, totalTCCount)) >= 30:
                 suggesstionsDict[
@@ -3226,7 +3522,11 @@ def main():
                             "# Fix the top failing test: "
                             + tcName
                             + " as the failures count is: "
-                            + str(int((str(status).split(",")[0]).replace("[", "").strip()))
+                            + str(
+                                int(
+                                    (str(status).split(",")[0]).replace("[", "").strip()
+                                )
+                            )
                         ] = 1
                         break
 
@@ -3279,50 +3579,110 @@ def main():
                     impact = percentageCalculator(
                         totalPassCount + commonErrorCount, totalTCCount
                     ) - percentageCalculator(totalPassCount, totalTCCount)
-                jsonObj.recommendation[counter].impact = str(("%.2f" % round(impact, 2))) + "%"
-                jsonObj.recommendation[counter].Recommendations = (
-                    html.escape(sugg.replace("*|*", "'").replace("{","{{").replace("}","}}").strip())
+                jsonObj.recommendation[counter].impact = (
+                    str(("%.2f" % round(impact, 2))) + "%"
+                )
+                jsonObj.recommendation[counter].Recommendations = html.escape(
+                    sugg.replace("*|*", "'")
+                    .replace("{", "{{")
+                    .replace("}", "}}")
+                    .strip()
                 )
                 totalImpact += round(impact, 2)
                 counter += 1
             global execution_status
             execution_status = pandas.DataFrame.from_dict(jsonObj.status)
-            execution_status = execution_status.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+            execution_status = execution_status.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=False,
+                render_links=True,
+                escape=False,
+            )
             global issues
             issues = pandas.DataFrame.from_dict(jsonObj.issues)
-            issues = issues.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+            issues = issues.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=False,
+                render_links=True,
+                escape=False,
+            )
             global recommendations
             recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
             if totalImpact > 100:
-                recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass %']
+                recommendations.columns = [
+                    "Recommendations",
+                    "Rank",
+                    "Impact to Pass %",
+                ]
             else:
-                recommendations.columns = ['Recommendations', 'Rank', 'Impact to Pass % [Total - ' + str(round(totalImpact,2)) + '%]']
-            recommendations = recommendations[recommendations.Recommendations.astype(str) != "-"]
-            recommendations = recommendations.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False )
+                recommendations.columns = [
+                    "Recommendations",
+                    "Rank",
+                    "Impact to Pass % [Total - " + str(round(totalImpact, 2)) + "%]",
+                ]
+            recommendations = recommendations[
+                recommendations.Recommendations.astype(str) != "-"
+            ]
+            recommendations = recommendations.to_html(
+                classes="mystyle",
+                table_id="report",
+                index=False,
+                render_links=True,
+                escape=False,
+            )
             with open(email_report_filename, "a") as f:
-                f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False)))
+                f.write(
+                    get_html_string(graphs).format(
+                        table=df.to_html(
+                            classes="mystyle",
+                            table_id="report",
+                            index=False,
+                            render_links=True,
+                            escape=False,
+                        )
+                    )
+                )
             graphs.clear()
             with open(live_report_filename, "a") as f:
-                f.write(get_html_string(graphs).format(table=df.to_html( classes="mystyle", table_id="report", index=False, render_links=True, escape=False)))
+                f.write(
+                    get_html_string(graphs).format(
+                        table=df.to_html(
+                            classes="mystyle",
+                            table_id="report",
+                            index=False,
+                            render_links=True,
+                            escape=False,
+                        )
+                    )
+                )
 
             import webbrowser
             import http.server
             import socketserver
             import socket
             from psutil import process_iter
-            from signal import SIGTERM # or SIGKILL
+            from signal import SIGTERM  # or SIGKILL
 
             if port != "":
                 PORT = int(port)
                 try:
                     for proc in process_iter():
-                        for conns in proc.connections(kind='inet'):
+                        for conns in proc.connections(kind="inet"):
                             if conns.laddr.port == PORT:
-                                proc.send_signal(SIGTERM) # or SIGKILL
+                                proc.send_signal(SIGTERM)  # or SIGKILL
                 except:
                     pass
                 Handler = http.server.SimpleHTTPRequestHandler
-                url = "http://" + socket.gethostbyname(socket.gethostname()) + ":" + str(PORT) + "/" + live_report_filename
+                url = (
+                    "http://"
+                    + socket.gethostbyname(socket.gethostname())
+                    + ":"
+                    + str(PORT)
+                    + "/"
+                    + live_report_filename
+                )
                 print("Live dashboard url: " + url)
                 with socketserver.TCPServer(("", PORT), Handler) as httpd:
                     print("serving at port", PORT)
@@ -3433,7 +3793,7 @@ def main():
             userlist.close()
             print(traceback.format_exc())
             sys.exit(-1)
-        if args["device_status"]: 
+        if args["device_status"]:
             #             may require for debug single threads
             #             get_list("list;connected;false;green;Available")
             #             get_list("list;connected;true;red;Busy")
