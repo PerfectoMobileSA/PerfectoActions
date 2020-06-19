@@ -44,10 +44,14 @@ from urllib.error import HTTPError
 import configparser
 import glob
 import tzlocal
-import xlwt
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
+live_report_filename = "Live_Report.html"
+email_report_filename = "email.html"
+orchestrationIssues = ["already in use"]
+labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
+regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
 RESOURCE_TYPE_USERS = "users"
@@ -59,6 +63,21 @@ startDate = ""
 endDate = ""
 port = ""
 temp = ""
+resources = []
+topTCFailureDict = {}
+topDeviceFailureDict = {}
+labIssuesCount = 0
+scriptingIssuesCount = 0
+orchestrationIssuesCount = 0
+cleanedFailureList = {}
+suggesstionsDict = {}
+failurereasons = {}
+issues = {}
+topfailedtable = {}
+monthlyStats = {}
+execution_summary = {}
+recommendations = {}
+execution_status = {}
 
 
 def send_request(url):
@@ -189,8 +208,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
             errors="ignore",
         )
     df = user_condition(df)
-    # Save original file to local by enabling the below
-    # df.to_excel(filename, index=False)
+    df.to_excel(filename, index=False)
     wb = Workbook()
     wb = load_workbook(filename)
     ws = wb.worksheets[0]
@@ -1164,59 +1182,60 @@ def prepareReport(jobName, jobNumber):
                     + "</div>"
                 )
         if job == "Overall!" or job in jobName:
-            if len(predict_df.index) > 1:
-                predict_df = predict_df.rename(
-                    columns={"startDate": "ds", "#status": "y"}
-                )
-                predict_df["cap"] = int(predict_df["y"].max()) * 2
-                predict_df["floor"] = 0
-                from fbprophet import Prophet
-
-                with suppress_stdout_stderr():
-                    m = Prophet(
-                        seasonality_mode="additive",
-                        growth="logistic",
-                        changepoint_prior_scale=0.001,
-                    ).fit(predict_df, algorithm="Newton")
-                future = m.make_future_dataframe(periods=30)
-                future["cap"] = int(predict_df["y"].max()) * 2
-                future["floor"] = 0
-                forecast = m.predict(future)
-                forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
-                fig = plot_plotly(m, forecast)
-                fig = update_fig(fig, "prediction", job, duration)
-                encoded = base64.b64encode(plotly.io.to_image(fig))
-                counter += 1
-                graphs.append(
-                    '<input type="radio" id="tab'
-                    + str(counter)
-                    + '" name="tabs" checked=""/><label for="tab'
-                    + str(counter)
-                    + '">Monthly Prediction: '
-                    + job
-                    + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
-                        encoded.decode("ascii")
+            if jobNumber == "":
+                if len(predict_df.index) > 1:
+                    predict_df = predict_df.rename(
+                        columns={"startDate": "ds", "#status": "y"}
                     )
-                    + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
-                )
-                with open(live_report_filename, "a") as f:
-                    f.write(
+                    predict_df["cap"] = int(predict_df["y"].max()) * 2
+                    predict_df["floor"] = 0
+                    from fbprophet import Prophet
+
+                    with suppress_stdout_stderr():
+                        m = Prophet(
+                            seasonality_mode="additive",
+                            growth="logistic",
+                            changepoint_prior_scale=0.001,
+                        ).fit(predict_df, algorithm="Newton")
+                    future = m.make_future_dataframe(periods=30)
+                    future["cap"] = int(predict_df["y"].max()) * 2
+                    future["floor"] = 0
+                    forecast = m.predict(future)
+                    forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
+                    fig = plot_plotly(m, forecast)
+                    fig = update_fig(fig, "prediction", job, duration)
+                    encoded = base64.b64encode(plotly.io.to_image(fig))
+                    counter += 1
+                    graphs.append(
                         '<input type="radio" id="tab'
                         + str(counter)
                         + '" name="tabs" checked=""/><label for="tab'
                         + str(counter)
                         + '">Monthly Prediction: '
                         + job
-                        + '</label><div class="tab-content1"><div class="predictionDiv">'
-                        + fig.to_html(full_html=False, include_plotlyjs="cdn")
-                        + " </img></div></p></div>"
+                        + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
+                            encoded.decode("ascii")
+                        )
+                        + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
                     )
-            else:
-                print(
-                    "Note: AI Prediction for job: "
-                    + job
-                    + " requires more than 2 days of data to analyze!"
-                )
+                    with open(live_report_filename, "a") as f:
+                        f.write(
+                            '<input type="radio" id="tab'
+                            + str(counter)
+                            + '" name="tabs" checked=""/><label for="tab'
+                            + str(counter)
+                            + '">Monthly Prediction: '
+                            + job
+                            + '</label><div class="tab-content1"><div class="predictionDiv">'
+                            + fig.to_html(full_html=False, include_plotlyjs="cdn")
+                            + " </img></div></p></div>"
+                        )
+                else:
+                    print(
+                        "Note: AI Prediction for job: "
+                        + job
+                        + " requires more than 2 days of data to analyze!"
+                    )
         counter += 1
     graphs.append("</div>")
     with open(live_report_filename, "a") as f:
@@ -2815,8 +2834,8 @@ def prepare_html(user_html, table3, day):
             "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
         )
         print("Results: file://" + os.path.join(TEMP_DIR, "output", "result.html"))
-        webbrowser.open("file://" + os.path.join(os.getcwd(), "live.html"), new=0)
-        print("Results: file://" + os.path.join(os.getcwd(), "live.html"))
+        webbrowser.open("file://" + os.path.join(os.getcwd(), live_report_filename), new=0)
+        print("Results: file://" + os.path.join(os.getcwd(), live_report_filename))
 
 
 def send_request_repo(url, content):
@@ -3385,7 +3404,6 @@ def main():
                 render_links=True,
                 escape=False,
             )
-
             # recommendations
             totalFailCount = failed.shape[0]
             totalPassCount = passed.shape[0]
@@ -3397,7 +3415,8 @@ def main():
                 .reset_index(name="#Failed")
                 .sort_values("#Failed", ascending=False)
             )
-
+            global labIssues
+            global orchestrationIssues
             for commonError, commonErrorCount in failuresmessage.itertuples(
                 index=False
             ):
@@ -3662,18 +3681,9 @@ def main():
             import http.server
             import socketserver
             import socket
-            from psutil import process_iter
-            from signal import SIGTERM  # or SIGKILL
 
             if port != "":
                 PORT = int(port)
-                try:
-                    for proc in process_iter():
-                        for conns in proc.connections(kind="inet"):
-                            if conns.laddr.port == PORT:
-                                proc.send_signal(SIGTERM)  # or SIGKILL
-                except:
-                    pass
                 Handler = http.server.SimpleHTTPRequestHandler
                 url = (
                     "http://"
@@ -3846,25 +3856,5 @@ def main():
 
 
 if __name__ == "__main__":
-    live_report_filename = "live.html"
-    email_report_filename = "email.html"
-    resources = []
-    topTCFailureDict = {}
-    topDeviceFailureDict = {}
-    orchestrationIssues = ["already in use"]
-    labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
-    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-    labIssuesCount = 0
-    scriptingIssuesCount = 0
-    orchestrationIssuesCount = 0
-    cleanedFailureList = {}
-    suggesstionsDict = {}
-    failurereasons = {}
-    issues = {}
-    topfailedtable = {}
-    monthlyStats = {}
-    execution_summary = {}
-    recommendations = {}
-    execution_status = {}
     main()
     sys.exit()
