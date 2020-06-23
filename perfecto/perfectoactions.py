@@ -47,7 +47,7 @@ import tzlocal
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
-live_report_filename = "Live_Report.html"
+live_report_filename = "Interactive_Report.html"
 email_report_filename = "email.html"
 orchestrationIssues = ["already in use"]
 labIssues = ["HANDSET_ERROR", "ERROR: No device was found"]
@@ -61,6 +61,7 @@ jobName = ""
 jobNumber = ""
 startDate = ""
 endDate = ""
+consolidate = ""
 port = ""
 temp = ""
 resources = []
@@ -1002,6 +1003,7 @@ def prepareReport(jobName, jobNumber):
     truncated = True
     resources = []
     resources.clear()
+    print("#Parameters:")
     print("endDate: " + endDate)
     print("startDate: " + startDate)
     print("jobName: " + jobName)
@@ -1502,139 +1504,12 @@ def update_fig(fig, type, job, duration):
         )
     return fig
 
-
+""" 
+get styles
 """
- get html string
-"""
 
-
-def get_html_string(graphs):
-    string = (
-        """
-    <html lang="en">
-       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title> Cloud Status</title>
-          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-            <script>
-              $(document).ready(function(){{
-                document.getElementById("tabbed-device").click();
-            }});
-            $(document).ready(function(){{
-                // Add smooth scrolling to all links
-                $("a").on('click', function(event) {{
-
-                    // Make sure this.hash has a value before overriding default behavior
-                    if (this.hash !== "") {{
-                    // Prevent default anchor click behavior
-                    event.preventDefault();
-
-                    // Store hash
-                    var hash = this.hash;
-
-                    // Using jQuery's animate() method to add smooth page scroll
-                    // The optional number (800) specifies the number of milliseconds it takes to scroll to the specified area
-                    $('html, body').animate({{
-                        scrollTop: $(hash).offset().top
-                    }}, 800, function(){{
-                
-                        // Add hash (#) to URL when done scrolling (default click behavior)
-                        window.location.hash = hash;
-                    }});
-                    }} // End if
-                }});
-            }});
-            $(document).ready(function(){{
-              $("#myInput").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#devicetable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-                      $(document).ready(function(){{
-              $("#myInput2").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#usertable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-            $(document).ready(function(){{
-              $("#myInput3").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#repotable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-            </script>
-    		<script type="text/javascript">
-    	           $(document).ready(function(){{
-                   $("#slideshow > div:gt(0)").show();
-    				$("tbody tr:contains('Disconnected')").css('background-color','#fcc');
-    				$("tbody tr:contains('ERROR')").css('background-color','#fcc');
-    				$("tbody tr:contains('Un-available')").css('background-color','#fcc');
-    				$("tbody tr:contains('Busy')").css('background-color','#fcc');
-                    var table = document.getElementById("devicetable");
-    				var rowCount = table.rows.length;
-    				for (var i = 0; i < rowCount; i++) {{
-    					if ( i >=1){{
-                        available_column_number = 0;
-                        device_id_column_number = 1;
-    						if (table.rows[i].cells[available_column_number].innerHTML == "Available") {{
-                                for(j = 0; j < table.rows[0].cells.length; j++) {{
-    								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
-                                        if(j=table.rows[0].cells.length){{
-                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
-                                                        table.rows[i].cells[j].style.color = '#660001';
-                                                        table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-                                                }}
-    							}}
-                                 }}
-    							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
-    							var url = 'http';
-    							var row = $('<tr></tr>')
-    							var link = document.createElement("a");
-    							link.href = url;
-    							link.innerHTML = txt;
-    							link.target = "_blank";
-    							table.rows[i].cells[device_id_column_number].innerHTML = "";
-    							table.rows[i].cells[device_id_column_number].appendChild(link);
-    						}}else{{
-    							for(j = 0; j < table.rows[0].cells.length; j++) {{
-    								table.rows[i].cells[j].style.color = '#660001';
-                                         table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-    							}}
-    						}}
-    					}}
-    				}}
-                 }});
-                 function myFunction() {{
-                  var x = document.getElementById("myTopnav");
-                  if (x.className === "topnav") {{
-                    x.className += " responsive";
-                  }} else {{
-                    x.className = "topnav";
-                  }}
-                }}
-                function zoom(element) {{
-				         var data = element.getAttribute("src");
-						 let w = window.open('about:blank');
-						 let image = new Image();
-						 image.src = data;
-						 setTimeout(function(){{
-						   w.document.write(image.outerHTML);
-						 }}, 0);
-				     }}
-                function autoselect(element) {{
-                     var data = element.getAttribute("id");
-                     document.getElementById(data + "-1").checked = true;
-                }}     
-    		</script>
-
-    		<meta name="viewport" content="width=device-width, initial-scale=1">
-            </head>
+def get_style():
+    return """
             <style>
 
                 html {{
@@ -1656,7 +1531,7 @@ def get_html_string(graphs):
                 font-size: 14px;
                 text-align: center;
                 color: white;
-                background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
+                background-image: linear-gradient(to left, #bfee90, #bfee90, black, black,black, #bfee90, #bfee90);
                 }}
                 .tabbed > input:checked + label + div {{
                 color:darkslateblue;
@@ -1682,7 +1557,7 @@ def get_html_string(graphs):
                 .container {{
                 width: 100%;
                 margin: 0 auto;
-                background-color: black;
+                background-color: """ + os.environ["bgcolor"] + """;
                 box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
                 }}
 
@@ -1745,7 +1620,7 @@ def get_html_string(graphs):
                 }}
 
                 body {{
-                background-color: rgba(185, 240, 218, 0.4);
+                background-color: """ + os.environ["bgcolor"] + """;
                 height: 100%;
                 background-repeat:  repeat-y;
                 background-position: right;
@@ -1972,8 +1847,8 @@ def get_html_string(graphs):
                 #nestle-section label{{
                     float:left;
                     width:100%;
-                    background:#333;
-                    color:#fff;
+                    background:linear-gradient(to left, #40403b,  #333333, #40403b, #333333, #40403b);
+                    color:white;
                     padding:1px 0;
                     text-align:center;
                     cursor:pointer;
@@ -2004,13 +1879,30 @@ def get_html_string(graphs):
                 }}
 
                 #nestle-section input:checked + label{{
-                    background:#d5e69a;
-                    color:#333;
-
+                    background:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
+                    color:white;
+                    font-size:16px;
                 }}#nestle-section input{{
                     display:none;
                 }}
-            </style>
+            </style>"""
+
+
+"""
+ get html string
+"""
+
+
+def get_html_string(graphs):
+    string = (
+        """
+    <html lang="en">
+       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    		     <head><title> Cloud Status</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head>
+            """ + get_style() + """
     <body bgcolor="white">
         <div class="reportDiv">"""
         + "".join(graphs)
@@ -2312,347 +2204,7 @@ def prepare_html(user_html, table3, day):
 
     		<meta name="viewport" content="width=device-width, initial-scale=1">
             </head>
-             <style>
-
-            html {{
-              height:100%;
-            }}
-            
-            .tabbed {{
-               display:  flex;
-               text-align: left;
-               flex-wrap: wrap;
-               box-shadow: 0 0 20px rgba(186, 99, 228, 0.4);
-               font-size: 12px;
-               font-family: "Trebuchet MS", Helvetica, sans-serif;
-             }}
-             .tabbed > input {{
-               display: none;
-             }}
-             .tabbed > input:checked + label {{
-               font-size: 14px;
-               text-align: center;
-               color: white;
-               background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
-             }}
-             .tabbed > input:checked + label + div {{
-               color:darkslateblue;
-               display: block;
-             }}
-             .tabbed > label {{
-               background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
-               color: white;
-               text-align: center;
-               display: block;
-               order: 1;
-               flex-grow: 1;
-               padding: .3%;
-             }}
-             .tabbed > div {{
-               order: 2;
-               flex-basis: 100%;
-               display: none;
-               padding: 10px;
-               overflow-x: auto;
-             }}
-
-             /* For presentation only */
-             .container {{
-               width: 100%;
-               margin: 0 auto;
-               background-color: black;
-               box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
-             }}
-
-             .tabbed {{
-               border: 1px solid;
-             }}
-
-             hr {{
-               background-color: white;
-               height: 5px;
-               border: 0;
-               margin: 10px 0 0;
-             }}
-             
-             hr + * {{
-               margin-top: 10px;
-             }}
-             
-             hr + hr {{
-               margin: 0 0;
-             }}
-
-            .mystyle {{
-                font-size: 12pt;
-                font-family: "Trebuchet MS", Helvetica, sans-serif;
-                border-collapse: collapse;
-                border: 2px solid black;
-                margin:auto;
-                box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                background-color: white;
-            }}
-
-            .mystyle body {{
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-                table-layout: auto;
-                position:relative;
-            }}
-
-            #slide{{
-              width:100%;
-              height:auto;
-            }}
-
-            #myInput, #myInput2, #myInput3 {{
-              background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
-              background-position: 2px 4px;
-              background-repeat: no-repeat;
-              background-size: 25px 30px;
-              width: 40%;
-              height:auto;
-              font-weight: bold;
-              font-size: 12px;
-              padding: 11px 20px 12px 40px;
-              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-            }}
-
-            body {{
-              background-color: #ffffff;
-              background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
-              height: 100%;
-              background-repeat:  repeat-y;
-              background-position: right;
-              background-size:  contain;
-              background-attachment: initial;
-              opacity:.93;
-            }}
-
-            h4 {{
-              font-family:monospace;
-            }}
-
-            @keyframes slide {{
-              0% {{
-                transform:translateX(-25%);
-              }}
-              100% {{
-                transform:translateX(25%);
-              }}
-            }}
-
-            .mystyle table {{
-                table-layout: auto;
-                width: 100%;
-                height: 100%;
-                position:relative;
-                border-collapse: collapse;
-            }}
-
-            tr:hover {{background-color:grey;}}
-
-            .mystyle td {{
-                font-size: 12px;
-                position:relative;
-                padding: 5px;
-                width:10%;
-                color: black;
-              border-left: 1px solid #333;
-              border-right: 1px solid #333;
-              background: #fffffa;
-              text-align: center;
-            }}
-
-           table.mystyle td:first-child {{ text-align: left; }}   
-
-            table.mystyle thead {{
-              background: #333333;
-              font-size: 14px;
-              position:relative;
-              border-bottom: 1px solid #DBDB40;
-              border-left: 1px solid #D8DB40;
-              border-right: 1px solid #D8DB40;
-              border-top: 1px solid black;
-            }}
-
-            table.mystyle thead th {{
-              line-height: 200%;
-              font-size: 13px;
-              font-weight: normal;
-              color: #fffffa;
-              text-align: center;
-              transition:transform 0.25s ease;
-            }}
-
-            table.mystyle thead th:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
-            }}
-
-            table.mystyle thead th:first-child {{
-              border-left: none;
-            }}
-
-            .topnav {{
-              overflow: hidden;
-              background-color: black;
-              opacity: 0.9;
-            }}
-
-            .topnav a {{
-              float: right;
-              display: block;
-              color: #333333;
-              text-align: center;
-              padding: 12px 15px;
-              text-decoration: none;
-              font-size: 12px;
-              position: relative;
-              border: 1px solid #6c3;
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-            }}
-
-            #summary{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             cursor: pointer;
-             padding: .1%;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
-            }}
-            
-            #logo{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             cursor: pointer;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
-            }}
-
-            .topnav a.active {{
-              background-color: #333333;
-              color: white;
-              font-weight: lighter;
-            }}
-
-            .topnav .icon {{
-              display: none;
-            }}
-
-            @media screen and (max-width: 600px) {{
-              .topnav a:not(:first-child) {{display: none;}}
-              .topnav a.icon {{
-                color: #DBDB40;
-                float: right;
-                display: block;
-              }}
-            }}
-
-            @media screen and (max-width: 600px) {{
-              .topnav.responsive {{position: relative;}}
-              .topnav.responsive .icon {{
-                position: absolute;
-                right: 0;
-                top: 0;
-              }}
-              .topnav.responsive a {{
-                float: none;
-                display: block;
-                text-align: left;
-              }}
-            }}
-
-            * {{
-              box-sizing: border-box;
-            }}
-
-            img {{
-              vertical-align: middle;
-            }}
-
-            .containers {{
-              position: relative;
-            }}
-
-            .mySlides {{
-              display:none;
-              width:90%;
-            }}
-
-            #slideshow {{
-              cursor: pointer;
-              margin:.01% auto;
-              position: relative;
-              width: 70%;
-              height: 55%;
-            }}
-
-            #ps{{
-              height: 10%;
-              margin-top: 0%;
-              margin-bottom: 90%;
-              background-position: center;
-              background-repeat: no-repeat;
-              background-blend-mode: saturation;
-            }}
-
-            #slideshow > div {{
-              position: relative;
-              width: 90%;
-            }}
-
-       		#download {{
-			  background-color: #333333;
-			  border: none;
-			  color: white;
-              font-size: 12px;
-              padding: 13px 20px 15px 20px;
-			  cursor: pointer;
-			}}
-
-			#download:hover {{
-			  background-color: RoyalBlue;
-			}}
-
-            .glow {{
-                font-size: 15px;
-                color: white;
-                text-align: center;
-                -webkit-animation: glow 1s ease-in-out infinite alternate;
-                -moz-animation: glow 1s ease-in-out infinite alternate;
-                animation: glow 1s ease-in-out infinite alternate;
-            }}
-
-            @-webkit-keyframes glow {{
-                from {{
-                text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
-                }}
-                
-                to {{
-                text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
-                }}
-            }}
-
-            .reportHeadingDiv {{
-                background-color: #333333; 
-                text-align: center;
-            }}
-
-            .reportDiv {{
-                overflow-x: auto;
-                align:center;
-                text-align: center;
-            }}
-
-            #report{{
-                box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-                overflow-x: auto;
-                min-width:100%;
-            }}
-            
-            </style>
+            """ + get_style() + """
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
     		  <a href="result.html" class="active">Home</a>
@@ -2834,8 +2386,6 @@ def prepare_html(user_html, table3, day):
             "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
         )
         print("Results: file://" + os.path.join(TEMP_DIR, "output", "result.html"))
-        webbrowser.open("file://" + os.path.join(os.getcwd(), live_report_filename), new=0)
-        print("Results: file://" + os.path.join(os.getcwd(), live_report_filename))
 
 
 def send_request_repo(url, content):
@@ -3207,6 +2757,14 @@ def main():
             metavar="prepares AI based emailable and live report along with statistics & recommendations",
             help="creates a downloadable csv/xlsx of reporting data along with AI emailable & live report with live charts, AI predictions and recommendations.",
             nargs="?",
+        ) 
+        parser.add_argument(
+            "-b",
+            "--bgcolor",
+            type=str,
+            metavar="sets the background color in report",
+            help="creates a downloadable csv/xlsx of reporting data along with AI emailable & live report with live charts, AI predictions and recommendations.",
+            nargs="?",
         )
         args = vars(parser.parse_args())
         if not args["cloud_name"]:
@@ -3224,6 +2782,9 @@ def main():
         os.environ["CLOUDNAME"] = args["cloud_name"]
         os.environ["TOKEN"] = args["security_token"]
         if args["email"]:
+            os.environ["bgcolor"] = "rgba(63, 69, 66, 0.91)"
+            if(args["bgcolor"]):
+                os.environ["bgcolor"] = args["bgcolor"]
             report = args["email"]
             labIssuesCount = 0
             totalFailCount = 0
@@ -3698,159 +3259,169 @@ def main():
                     print("serving at port", PORT)
                     webbrowser.open(url, new=0)
                     httpd.serve_forever()
-        if args["device_list_parameters"]:
-            device_list_parameters = args["device_list_parameters"]
-        else:
-            device_list_parameters = "All devices"
-        os.environ["DEVICE_LIST_PARAMETERS"] = device_list_parameters
-        os.environ["USER_LIST_PARAMETERS"] = "All users"
-        if args["user_list_parameters"]:
-            os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
-        os.environ[
-            "perfecto_logo"
-        ] = "https://logo.clearbit.com/www.perforce.com?size=120"
-        if args["logo"]:
-            if str("www.").lower() not in str(args["logo"]).lower():
-                raise Exception(
-                    "Kindly provide valid client website url. Sample format: www.perfecto.io"
-                )
             else:
-                new_logo = "https://logo.clearbit.com/" + args["logo"] + "?size=120"
-                validate_logo(new_logo)
-                os.environ["company_logo"] = new_logo
+                webbrowser.open("file://" + os.path.join(os.getcwd(), live_report_filename), new=0)
+                print("Interactive Report: file://" + os.path.join(os.getcwd(), live_report_filename))
+                print("Emailable Report: file://" + os.path.join(os.getcwd(), email_report_filename))
+                end = datetime.now().replace(microsecond=0)
+                print("Total Time taken:" + str(end - start_time))  
         else:
-            os.environ["company_logo"] = os.environ["perfecto_logo"]
-        os.environ["GET_NETWORK_SETTINGS"] = "False"
-        reboot = "False"
-        cleanup = "False"
-        start_execution = "False"
-        clean_repo = "NA"
-        if args["actions"]:
-            if "get_network_settings:true" in args["actions"]:
-                os.environ["GET_NETWORK_SETTINGS"] = "True"
-            if "reboot:true" in args["actions"]:
-                reboot = "True"
-            if "cleanup:true" in args["actions"]:
-                cleanup = "True"
-            if "clean_repo" in args["actions"]:
-                clean_repo = args["actions"]
+            os.environ["bgcolor"] = "black"
+            if(args["bgcolor"]):
+                os.environ["bgcolor"] = args["bgcolor"]
+            if args["device_list_parameters"]:
+                device_list_parameters = args["device_list_parameters"]
             else:
-                os.environ["clean_repo"] = "NA"
-        os.environ["clean_repo"] = clean_repo
-        # manage repo:
-        clean_repo = os.environ["clean_repo"]
-        if "NA" != clean_repo:
-            try:
-                clean_repo_var = clean_repo.split("|")
-                if ";" in str(clean_repo_var[4]):
-                    day = str(clean_repo_var[4]).split(";")[0]
+                device_list_parameters = "All devices"
+            os.environ["DEVICE_LIST_PARAMETERS"] = device_list_parameters
+            os.environ["USER_LIST_PARAMETERS"] = "All users"
+            if args["user_list_parameters"]:
+                os.environ["USER_LIST_PARAMETERS"] = args["user_list_parameters"]
+            os.environ[
+                "perfecto_logo"
+            ] = "https://logo.clearbit.com/www.perforce.com?size=120"
+            if args["logo"]:
+                if str("www.").lower() not in str(args["logo"]).lower():
+                    raise Exception(
+                        "Kindly provide valid client website url. Sample format: www.perfecto.io"
+                    )
                 else:
-                    day = str(clean_repo_var[4])
-                repo_html = deleteOlderFiles(
-                    REPOSITORY_RESOURCE_TYPE,
-                    clean_repo_var[1],
-                    clean_repo_var[2],
-                    clean_repo_var[3],
-                    day,
-                )
-            except Exception as e:
-                raise Exception(
-                    "Verify parameters of clean_repo, split them by | seperator"
-                    + str(e)
-                )
-                sys.exit(-1)
-        os.environ["CLEANUP"] = cleanup
-        os.environ["REBOOT"] = reboot
-        if (
-            "True" in os.environ["GET_NETWORK_SETTINGS"]
-            or "True" in reboot
-            or "True" in cleanup
-        ):
-            start_execution = "True"
-        os.environ["START_EXECUTION"] = start_execution
-        os.environ["PREPARE_ACTIONS_HTML"] = "true"
-        if args["output"]:
-            if "false" in str(args["output"]).lower():
-                os.environ["PREPARE_ACTIONS_HTML"] = "false"
-        os.environ["perfecto_actions_refresh"] = "false"
-        if args["refresh"]:
-            if int(args["refresh"]) >= 0:
-                os.environ["perfecto_actions_refresh"] = args["refresh"]
-        # create results path and files
-        create_dir(os.path.join(TEMP_DIR, "results"), True)
-        create_dir(os.path.join(TEMP_DIR, "repo_results"), True)
-        create_dir(os.path.join(TEMP_DIR, "output"), True)
-        # result = get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
-        # get device list to excel
-        devlist = Pool(processes=1)
-        try:
-            result = devlist.apply_async(
-                get_xml_to_xlsx, [RESOURCE_TYPE, "list", "get_devices_list.xlsx"]
-            )
-        except Exception:
-            devlist.close()
-            print(traceback.format_exc())
-            sys.exit(-1)
-        # user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
-        userlist = Pool(processes=1)
-        try:
-            user_html = userlist.apply_async(
-                get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"]
-            ).get()
-            userlist.close()
-            userlist.terminate()
-        except Exception:
-            userlist.close()
-            print(traceback.format_exc())
-            sys.exit(-1)
-        if args["device_status"]:
-            #             may require for debug single threads
-            #             get_list("list;connected;false;green;Available")
-            #             get_list("list;connected;true;red;Busy")
-            #             get_list("list;disconnected;;red;Disconnected")
-            #             get_list("list;unavailable;;red;Un-available")
-            get_dev_list = [
-                "list;connected;true;red;Busy",
-                "list;disconnected;;red;Disconnected",
-                "list;unavailable;;red;Un-available",
-                "list;connected;false;green;Available",
-            ]
+                    new_logo = "https://logo.clearbit.com/" + args["logo"] + "?size=120"
+                    validate_logo(new_logo)
+                    os.environ["company_logo"] = new_logo
+            else:
+                os.environ["company_logo"] = os.environ["perfecto_logo"]
+            os.environ["GET_NETWORK_SETTINGS"] = "False"
+            reboot = "False"
+            cleanup = "False"
+            start_execution = "False"
+            clean_repo = "NA"
+            if args["actions"]:
+                if "get_network_settings:true" in args["actions"]:
+                    os.environ["GET_NETWORK_SETTINGS"] = "True"
+                if "reboot:true" in args["actions"]:
+                    reboot = "True"
+                if "cleanup:true" in args["actions"]:
+                    cleanup = "True"
+                if "clean_repo" in args["actions"]:
+                    clean_repo = args["actions"]
+                else:
+                    os.environ["clean_repo"] = "NA"
+            os.environ["clean_repo"] = clean_repo
+            # manage repo:
+            clean_repo = os.environ["clean_repo"]
+            if "NA" != clean_repo:
+                try:
+                    clean_repo_var = clean_repo.split("|")
+                    if ";" in str(clean_repo_var[4]):
+                        day = str(clean_repo_var[4]).split(";")[0]
+                    else:
+                        day = str(clean_repo_var[4])
+                    repo_html = deleteOlderFiles(
+                        REPOSITORY_RESOURCE_TYPE,
+                        clean_repo_var[1],
+                        clean_repo_var[2],
+                        clean_repo_var[3],
+                        day,
+                    )
+                except Exception as e:
+                    raise Exception(
+                        "Verify parameters of clean_repo, split them by | seperator"
+                        + str(e)
+                    )
+                    sys.exit(-1)
+            os.environ["CLEANUP"] = cleanup
+            os.environ["REBOOT"] = reboot
+            if (
+                "True" in os.environ["GET_NETWORK_SETTINGS"]
+                or "True" in reboot
+                or "True" in cleanup
+            ):
+                start_execution = "True"
+            os.environ["START_EXECUTION"] = start_execution
+            os.environ["PREPARE_ACTIONS_HTML"] = "true"
+            if args["output"]:
+                if "false" in str(args["output"]).lower():
+                    os.environ["PREPARE_ACTIONS_HTML"] = "false"
+            os.environ["perfecto_actions_refresh"] = "false"
+            if args["refresh"]:
+                if int(args["refresh"]) >= 0:
+                    os.environ["perfecto_actions_refresh"] = args["refresh"]
+            # create results path and files
+            create_dir(os.path.join(TEMP_DIR, "results"), True)
+            create_dir(os.path.join(TEMP_DIR, "repo_results"), True)
+            create_dir(os.path.join(TEMP_DIR, "output"), True)
+            # result = get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
+            # get device list to excel
+            devlist = Pool(processes=1)
             try:
-                procs = []
-                for li in get_dev_list:
-                    proc = Process(target=get_list, args=(str(li),))
-                    procs.append(proc)
-                    proc.start()
-                for proc in procs:
-                    proc.join()
-                for proc in procs:
-                    proc.terminate()
+                result = devlist.apply_async(
+                    get_xml_to_xlsx, [RESOURCE_TYPE, "list", "get_devices_list.xlsx"]
+                )
             except Exception:
-                proc.terminate()
+                devlist.close()
                 print(traceback.format_exc())
                 sys.exit(-1)
-        else:
-            if not args["device_list_parameters"]:
-                os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
-            get_list("list;connected;false;green;Available")
-        if "NA" != clean_repo:
-            prepare_html(user_html, repo_html, day)
-        else:
-            prepare_html(user_html, "", "")
-        end = datetime.now().replace(microsecond=0)
-        print("Total Time taken:" + str(end - start_time))
-        # Keeps refreshing page with expected arguments with a sleep of provided seconds
-        while "false" not in os.environ["perfecto_actions_refresh"]:
-            time.sleep(int(os.environ["perfecto_actions_refresh"]))
-            main()
-        devlist.close()
-        devlist.terminate()
+            # user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
+            userlist = Pool(processes=1)
+            try:
+                user_html = userlist.apply_async(
+                    get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"]
+                ).get()
+                userlist.close()
+                userlist.terminate()
+            except Exception:
+                userlist.close()
+                print(traceback.format_exc())
+                sys.exit(-1)
+            if args["device_status"]:
+                #             may require for debug single threads
+                #             get_list("list;connected;false;green;Available")
+                #             get_list("list;connected;true;red;Busy")
+                #             get_list("list;disconnected;;red;Disconnected")
+                #             get_list("list;unavailable;;red;Un-available")
+                get_dev_list = [
+                    "list;connected;true;red;Busy",
+                    "list;disconnected;;red;Disconnected",
+                    "list;unavailable;;red;Un-available",
+                    "list;connected;false;green;Available",
+                ]
+                try:
+                    procs = []
+                    for li in get_dev_list:
+                        proc = Process(target=get_list, args=(str(li),))
+                        procs.append(proc)
+                        proc.start()
+                    for proc in procs:
+                        proc.join()
+                    for proc in procs:
+                        proc.terminate()
+                except Exception:
+                    proc.terminate()
+                    print(traceback.format_exc())
+                    sys.exit(-1)
+            else:
+                if not args["device_list_parameters"]:
+                    os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
+                get_list("list;connected;false;green;Available")
+            if "NA" != clean_repo:
+                prepare_html(user_html, repo_html, day)
+            else:
+                prepare_html(user_html, "", "")
+            end = datetime.now().replace(microsecond=0)
+            print("Total Time taken:" + str(end - start_time))
+            # Keeps refreshing page with expected arguments with a sleep of provided seconds
+            while "false" not in os.environ["perfecto_actions_refresh"]:
+                time.sleep(int(os.environ["perfecto_actions_refresh"]))
+                main()
+            devlist.close()
+            devlist.terminate()
 
-        try:
-            if not platform.system() == "Darwin":
-                os.system("taskkill /f /im perfectoactions.exe")
-        except:
-            pass
+            try:
+                if not platform.system() == "Darwin":
+                    os.system("taskkill /f /im perfectoactions.exe")
+            except:
+                pass
     except Exception as e:
         raise Exception("Oops!", e)
 

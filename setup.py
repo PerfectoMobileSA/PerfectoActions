@@ -15,7 +15,7 @@ with open("README.md", "r") as fh:
 
 setup(
      name='perfectoactions',
-     version='1.0.19', #testpypi
+     version='1.0.23', #testpypi
     #  version='2.0.1',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
@@ -26,7 +26,7 @@ setup(
      keywords = ['Perfecto', 'appium', 'selenium', 'testing', 'api', 'automation'],
      url="https://github.com/PerfectoMobileSA/Device_actions_reporter",
      install_requires=[
-            'requests','configparser','termcolor', 'cython','pandas','retrying','ephem','pymeeus','easydict','korean-lunar-calendar','MarkupSafe','jinja2','matplotlib', 'colorama','LunarCalendar','holidays','cmdstanpy','convertdate','openpyxl','wheel','pystan','xlrd','jinja2','tzlocal','plotly','fbprophet'
+            'requests','configparser','termcolor','numpy','cython','pandas','retrying','ephem','pymeeus','easydict','korean-lunar-calendar','MarkupSafe','jinja2','matplotlib', 'colorama','LunarCalendar','holidays','cmdstanpy','convertdate','openpyxl','wheel','pystan','xlrd','jinja2','tzlocal','plotly','fbprophet'
       ],
      packages=find_packages(),
      include_package_data=True,
