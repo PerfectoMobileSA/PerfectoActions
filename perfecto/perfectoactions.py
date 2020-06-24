@@ -56,12 +56,15 @@ regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page
 RESOURCE_TYPE = "handsets"
 RESOURCE_TYPE_USERS = "users"
 REPOSITORY_RESOURCE_TYPE = "repositories/media"
+report = "Report: "
+tags = ""
 criteria = ""
 jobName = ""
 jobNumber = ""
 startDate = ""
 endDate = ""
 consolidate = ""
+trends = "false"
 port = ""
 temp = ""
 resources = []
@@ -1074,174 +1077,176 @@ def prepareReport(jobName, jobNumber):
     if (len(df)) < 1:
         print("Unable to find any test executions for the criteria: " + criteria)
         sys.exit(-1)
-    import plotly.express as px
-    import plotly
+  
 
     # ggplot2 #plotly_dark #simple_white
     graphs = []
-    graphs.append('<div id="nestle-section">')
-    counter = 8
-    with open(live_report_filename, "a") as f:
-        f.write('<div id="nestle-section">')
-    duration = "weeks"
-    if startDate != "":
-        delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(
-            startDate, "%Y-%m-%d"
-        )
-        if (delta.days) <= 14:
-            duration = "dates"
-    else:
-        duration = "dates"
-    joblist = []
-    if "job/name" in df.columns and jobName != "":
-        joblist = sorted(df["job/name"].dropna().unique())
-    else:
-        joblist.append("Overall!")
-    for job in joblist:
-        predict_df = df
-        fig = []
-        if job != "Overall!":
-            if job in jobName:
-                if duration == "dates":
-                    fig = px.histogram(
-                        df.loc[df["job/name"] == job],
-                        x="startDate",
-                        color="status",
-                        color_discrete_map={
-                            "PASSED": "limegreen",
-                            "FAILED": "crimson",
-                            "UNKNOWN": "#9da7f2",
-                            "BLOCKED": "#e79a00",
-                        },
-                        hover_data=df.columns,
-                        template="seaborn",
-                        opacity=0.5,
-                    )
-                else:
-                    fig = px.histogram(
-                        df.loc[df["job/name"] == job],
-                        x="week",
-                        color="status",
-                        hover_data=df.columns,
-                        color_discrete_map={
-                            "PASSED": "limegreen",
-                            "FAILED": "crimson",
-                            "UNKNOWN": "#9da7f2",
-                            "BLOCKED": "#e79a00",
-                        },
-                        template="seaborn",
-                        opacity=0.5,
-                    )
-                predict_df = df.loc[df["job/name"] == job]
+    if trends == "true":
+        import plotly.express as px
+        import plotly
+        graphs.append('<div id="nestle-section">')
+        counter = 8
+        with open(live_report_filename, "a") as f:
+            f.write('<div id="nestle-section">')
+        duration = "weeks"
+        if startDate != "":
+            delta = datetime.strptime(endDate, "%Y-%m-%d") - datetime.strptime(
+                startDate, "%Y-%m-%d"
+            )
+            if (delta.days) <= 14:
+                duration = "dates"
         else:
-            fig = px.histogram(
-                df,
-                x="startDate",
-                color="status",
-                color_discrete_map={
-                    "PASSED": "limegreen",
-                    "FAILED": "crimson",
-                    "UNKNOWN": "#9da7f2",
-                    "BLOCKED": "#e79a00",
-                },
-                hover_data=df.columns,
-                template="seaborn",
-                opacity=0.5,
-            )
-        predict_df = (
-            predict_df.groupby(["startDate"])
-            .size()
-            .reset_index(name="#status")
-            .sort_values("#status", ascending=False)
-        )
-        if fig:
-            fig = update_fig(fig, "histogram", job, duration)
-            encoded = base64.b64encode(plotly.io.to_image(fig))
-            graphs.append(
-                '<input type="radio" id="tab'
-                + str(counter)
-                + '" name="tabs" checked=""/><label for="tab'
-                + str(counter)
-                + '">Trends: '
-                + job
-                + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(
-                    encoded.decode("ascii")
+            duration = "dates"
+        joblist = []
+        if "job/name" in df.columns and jobName != "":
+            joblist = sorted(df["job/name"].dropna().unique())
+        else:
+            joblist.append("Overall!")
+        for job in joblist:
+            predict_df = df
+            fig = []
+            if job != "Overall!":
+                if job in jobName:
+                    if duration == "dates":
+                        fig = px.histogram(
+                            df.loc[df["job/name"] == job],
+                            x="startDate",
+                            color="status",
+                            color_discrete_map={
+                                "PASSED": "limegreen",
+                                "FAILED": "crimson",
+                                "UNKNOWN": "#9da7f2",
+                                "BLOCKED": "#e79a00",
+                            },
+                            hover_data=df.columns,
+                            template="seaborn",
+                            opacity=0.5,
+                        )
+                    else:
+                        fig = px.histogram(
+                            df.loc[df["job/name"] == job],
+                            x="week",
+                            color="status",
+                            hover_data=df.columns,
+                            color_discrete_map={
+                                "PASSED": "limegreen",
+                                "FAILED": "crimson",
+                                "UNKNOWN": "#9da7f2",
+                                "BLOCKED": "#e79a00",
+                            },
+                            template="seaborn",
+                            opacity=0.5,
+                        )
+                    predict_df = df.loc[df["job/name"] == job]
+            else:
+                fig = px.histogram(
+                    df,
+                    x="startDate",
+                    color="status",
+                    color_discrete_map={
+                        "PASSED": "limegreen",
+                        "FAILED": "crimson",
+                        "UNKNOWN": "#9da7f2",
+                        "BLOCKED": "#e79a00",
+                    },
+                    hover_data=df.columns,
+                    template="seaborn",
+                    opacity=0.5,
                 )
-                + " alt='days or weeks summary of "
-                + job
-                + "' id='reportDiv' onClick='zoom(this)'></img></div>"
+            predict_df = (
+                predict_df.groupby(["startDate"])
+                .size()
+                .reset_index(name="#status")
+                .sort_values("#status", ascending=False)
             )
-            with open(live_report_filename, "a") as f:
-                f.write(
+            if fig:
+                fig = update_fig(fig, "histogram", job, duration)
+                encoded = base64.b64encode(plotly.io.to_image(fig))
+                graphs.append(
                     '<input type="radio" id="tab'
                     + str(counter)
                     + '" name="tabs" checked=""/><label for="tab'
                     + str(counter)
                     + '">Trends: '
                     + job
-                    + ' </label><div class="tab-content1">'
-                    + fig.to_html(full_html=False, include_plotlyjs="cdn")
-                    + "</div>"
-                )
-        if job == "Overall!" or job in jobName:
-            if jobNumber == "":
-                if len(predict_df.index) > 1:
-                    predict_df = predict_df.rename(
-                        columns={"startDate": "ds", "#status": "y"}
+                    + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(
+                        encoded.decode("ascii")
                     )
-                    predict_df["cap"] = int(predict_df["y"].max()) * 2
-                    predict_df["floor"] = 0
-                    from fbprophet import Prophet
-
-                    with suppress_stdout_stderr():
-                        m = Prophet(
-                            seasonality_mode="additive",
-                            growth="logistic",
-                            changepoint_prior_scale=0.001,
-                        ).fit(predict_df, algorithm="Newton")
-                    future = m.make_future_dataframe(periods=30)
-                    future["cap"] = int(predict_df["y"].max()) * 2
-                    future["floor"] = 0
-                    forecast = m.predict(future)
-                    forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
-                    fig = plot_plotly(m, forecast)
-                    fig = update_fig(fig, "prediction", job, duration)
-                    encoded = base64.b64encode(plotly.io.to_image(fig))
-                    counter += 1
-                    graphs.append(
+                    + " alt='days or weeks summary of "
+                    + job
+                    + "' id='reportDiv' onClick='zoom(this)'></img></div>"
+                )
+                with open(live_report_filename, "a") as f:
+                    f.write(
                         '<input type="radio" id="tab'
                         + str(counter)
                         + '" name="tabs" checked=""/><label for="tab'
                         + str(counter)
-                        + '">Monthly Prediction: '
+                        + '">Trends: '
                         + job
-                        + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
-                            encoded.decode("ascii")
-                        )
-                        + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
+                        + ' </label><div class="tab-content1">'
+                        + fig.to_html(full_html=False, include_plotlyjs="cdn")
+                        + "</div>"
                     )
-                    with open(live_report_filename, "a") as f:
-                        f.write(
+            if job == "Overall!" or job in jobName:
+                if jobNumber == "":
+                    if len(predict_df.index) > 1:
+                        predict_df = predict_df.rename(
+                            columns={"startDate": "ds", "#status": "y"}
+                        )
+                        predict_df["cap"] = int(predict_df["y"].max()) * 2
+                        predict_df["floor"] = 0
+                        from fbprophet import Prophet
+
+                        with suppress_stdout_stderr():
+                            m = Prophet(
+                                seasonality_mode="additive",
+                                growth="logistic",
+                                changepoint_prior_scale=0.001,
+                            ).fit(predict_df, algorithm="Newton")
+                        future = m.make_future_dataframe(periods=30)
+                        future["cap"] = int(predict_df["y"].max()) * 2
+                        future["floor"] = 0
+                        forecast = m.predict(future)
+                        forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
+                        fig = plot_plotly(m, forecast)
+                        fig = update_fig(fig, "prediction", job, duration)
+                        encoded = base64.b64encode(plotly.io.to_image(fig))
+                        counter += 1
+                        graphs.append(
                             '<input type="radio" id="tab'
                             + str(counter)
                             + '" name="tabs" checked=""/><label for="tab'
                             + str(counter)
                             + '">Monthly Prediction: '
                             + job
-                            + '</label><div class="tab-content1"><div class="predictionDiv">'
-                            + fig.to_html(full_html=False, include_plotlyjs="cdn")
-                            + " </img></div></p></div>"
+                            + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
+                                encoded.decode("ascii")
+                            )
+                            + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
                         )
-                else:
-                    print(
-                        "Note: AI Prediction for job: "
-                        + job
-                        + " requires more than 2 days of data to analyze!"
-                    )
-        counter += 1
-    graphs.append("</div>")
-    with open(live_report_filename, "a") as f:
-        f.write("</div>")
+                        with open(live_report_filename, "a") as f:
+                            f.write(
+                                '<input type="radio" id="tab'
+                                + str(counter)
+                                + '" name="tabs" checked=""/><label for="tab'
+                                + str(counter)
+                                + '">Monthly Prediction: '
+                                + job
+                                + '</label><div class="tab-content1"><div class="predictionDiv">'
+                                + fig.to_html(full_html=False, include_plotlyjs="cdn")
+                                + " </img></div></p></div>"
+                            )
+                    else:
+                        print(
+                            "Note: AI Prediction for job: "
+                            + job
+                            + " requires more than 2 days of data to analyze!"
+                        )
+            counter += 1
+        graphs.append("</div>")
+        with open(live_report_filename, "a") as f:
+            f.write("</div>")
     return graphs, df
 
 
@@ -1474,9 +1479,8 @@ def df_to_xl(df, filename):
 
 def get_report_details(item, temp, name, criteria):
     if name + "=" in item:
-        temp = str(item).split("=")[1]
-        criteria += "; " + name + ": " + temp
-    return temp, criteria
+        temp = str(item).split("=", 1)[1]
+    return str(temp), criteria
 
 
 """
@@ -1833,7 +1837,7 @@ def get_style():
                 }}
               
                 #report{{
-                    box-shadow: 0 0 80px rgba(87, 237, 183, 0.4);
+                    box-shadow: 0 0 80px rgba(145, 11, 11, 0.4);
                     overflow-x: auto;
                     min-width:70%;
                 }}
@@ -1847,8 +1851,8 @@ def get_style():
                 #nestle-section label{{
                     float:left;
                     width:100%;
-                    background:linear-gradient(to left, #40403b,  #333333, #40403b, #333333, #40403b);
-                    color:white;
+                    background:linear-gradient(398grad, #e6e6e6, #413535, #40403b, #333333, #e7e7e7);
+                    color:rgba(245, 217, 217, 0.99);
                     padding:1px 0;
                     text-align:center;
                     cursor:pointer;
@@ -1880,7 +1884,7 @@ def get_style():
 
                 #nestle-section input:checked + label{{
                     background:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
-                    color:white;
+                    color:rgb(197, 236, 198);
                     font-size:16px;
                 }}#nestle-section input{{
                     display:none;
@@ -1904,9 +1908,6 @@ def get_html_string(graphs):
             </head>
             """ + get_style() + """
     <body bgcolor="white">
-        <div class="reportDiv">"""
-        + "".join(graphs)
-        + """</div>
         <div id="nestle-section">
         <input type="radio" id="tab1" name="tabs1" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
         <div class="reportDiv"> """
@@ -1932,7 +1933,10 @@ def get_html_string(graphs):
           <input type="radio" id="tab7" name="tabs" checked=""/><label for="tab7">Summary</label><div class="tab-content1">
              <div><div class="reportDiv">"""
         + execution_status
-        + """</div></div></div></body>"""
+        + """</div></div></div>
+         <div class="reportDiv">"""
+        + "".join(graphs)
+        + """</div></body>"""
     )
     return str(string)
 
@@ -2782,10 +2786,10 @@ def main():
         os.environ["CLOUDNAME"] = args["cloud_name"]
         os.environ["TOKEN"] = args["security_token"]
         if args["email"]:
-            os.environ["bgcolor"] = "rgba(63, 69, 66, 0.91)"
+            os.environ["bgcolor"] = "rgba(221, 192, 160, 1)"
             if(args["bgcolor"]):
                 os.environ["bgcolor"] = args["bgcolor"]
-            report = args["email"]
+            email_report = args["email"]
             labIssuesCount = 0
             totalFailCount = 0
             totalPassCount = 0
@@ -2800,12 +2804,20 @@ def main():
                 global startDate
                 global endDate
                 global consolidate
+                global trends
+                global report
+                global tags
+                global live_report_filename
                 consolidate = ""
                 xlformat = "csv"
                 port = ""
                 temp = ""
-                report_array = report.split("|")
+                report_array = email_report.split("|")
                 for item in report_array:
+                    if "report" in item:
+                        report, criteria = get_report_details(
+                            item, temp, "report", criteria
+                        )
                     if "jobName" in item:
                         jobName, criteria = get_report_details(
                             item, temp, "jobName", criteria
@@ -2834,11 +2846,26 @@ def main():
                         port, criteria = get_report_details(
                             item, temp, "port", criteria
                         )
+                    if "trends" in item:
+                        trends, criteria = get_report_details(
+                        item, temp, "trends", criteria
+                    )
+                    if "tags" in item:
+                        tags, criteria = get_report_details(
+                        item, temp, "tags", criteria
+                    )
+                    if "attachmentName" in item:
+                        live_report_filename, criteria = get_report_details(
+                        item, temp, "attachmentName", criteria
+                        
+                    )
             except Exception as e:
                 raise Exception(
                     "Verify parameters of report, split them by | seperator" + str(e)
                 )
                 sys.exit(-1)
+            if "attachmentName=" in email_report:
+                live_report_filename = live_report_filename + ".html"
             os.environ["xlformat"] = xlformat
             os.environ["consolidate"] = ""
             os.environ["consolidate"] = consolidate
@@ -2854,25 +2881,34 @@ def main():
 
             graphs, df = prepareReport(jobName, jobNumber)
             if not jobName:
-                criteria = "start: " + startDate + "; end: " + endDate
+                criteria = "start: " + startDate + ", end: " + endDate
+            else:
+                criteria += jobName
+            if jobNumber != "":
+                criteria += " (Build Number: " + jobNumber
+     
             if os.environ["consolidate"] != "":
+                criteria += (
+                "start: "
+                + str(df["startTime"].iloc[-1])
+                + ", end: "
+                + str(df["startTime"].iloc[0])
+            )
+            elif startDate != "":
+                criteria += " (start: " + startDate + ", end:" + endDate
 
-                criteria = (
-                    "startTime: "
-                    + str(df["startTime"].iloc[-1])
-                    + "; endTime: "
-                    + str(df["startTime"].iloc[0])
-                    + "; consolidate: "
-                    + os.environ["consolidate"]
-                )
-                if jobName != "":
-                    criteria += "; jobName:" + jobName
-                if jobNumber != "":
-                    criteria += "; jobNumber:" + jobNumber
             global execution_summary
+            title = ""
+            if  tags != "":
+                title = report + criteria + ", " + tags + ")"
+            elif "(" in criteria:
+                title = report + criteria + ")"
+            else:
+                title = report + criteria
+            print("TTT" + title)
             execution_summary = create_summary(
                 df,
-                os.environ["CLOUDNAME"].upper() + " Summary Report for " + criteria,
+                title,
                 "status",
                 "device_summary",
             )
