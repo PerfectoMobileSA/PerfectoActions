@@ -2889,10 +2889,10 @@ def main():
      
             if os.environ["consolidate"] != "":
                 criteria += (
-                "start: "
-                + str(df["startTime"].iloc[-1])
+                " (start: "
+                + str(df["startTime"].iloc[-1]).split(" ", 1)[0]
                 + ", end: "
-                + str(df["startTime"].iloc[0])
+                + str(df["startTime"].iloc[0]).split(" ", 1)[0]
             )
             elif startDate != "":
                 criteria += " (start: " + startDate + ", end:" + endDate
@@ -2952,6 +2952,8 @@ def main():
                 escape=False,
             ).replace("<tr>", '<tr align="center">')
             global failurereasons
+            if "Custom Failure Reason" not in df.columns:
+                df["Custom Failure Reason"] = ""
             failurereasons = pandas.crosstab(
                 df["Custom Failure Reason"], df["Test Status"]
             )
@@ -3006,40 +3008,42 @@ def main():
             totalPassCount = passed.shape[0]
             blockedCount = blocked.shape[0]
             # failures count
-            failuresmessage = (
-                failed_blocked.groupby(["message"])
-                .size()
-                .reset_index(name="#Failed")
-                .sort_values("#Failed", ascending=False)
-            )
-            global labIssues
-            global orchestrationIssues
-            for commonError, commonErrorCount in failuresmessage.itertuples(
-                index=False
-            ):
-                for labIssue in labIssues:
-                    if re.search(labIssue, commonError):
-                        labIssuesCount += commonErrorCount
-                        break
-                for orchestrationIssue in orchestrationIssues:
-                    if re.search(orchestrationIssue, commonError):
-                        orchestrationIssuesCount += commonErrorCount
-                        break
-                error = commonError
-                regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
-                if re.search(regEx_Filter, error):
-                    error = str(re.compile(regEx_Filter).split(error)[0])
-                    if "An error occurred. Stack Trace:" in error:
-                        error = error.split("An error occurred. Stack Trace:")[1]
-                if re.search("error: \-\[|Fatal error:", error):
-                    error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
-                if error.strip() in cleanedFailureList:
-                    cleanedFailureList[error.strip()] += 1
-                else:
-                    cleanedFailureList[error.strip()] = commonErrorCount
-                scriptingIssuesCount = (totalFailCount + blockedCount) - (
-                    orchestrationIssuesCount + labIssuesCount
+            failuresmessage = []
+            if len(failed_blocked) > 0: 
+                failuresmessage = (
+                    failed_blocked.groupby(["message"])
+                    .size()
+                    .reset_index(name="#Failed")
+                    .sort_values("#Failed", ascending=False)
                 )
+                global labIssues
+                global orchestrationIssues
+                for commonError, commonErrorCount in failuresmessage.itertuples(
+                    index=False
+                ):
+                    for labIssue in labIssues:
+                        if re.search(labIssue, commonError):
+                            labIssuesCount += commonErrorCount
+                            break
+                    for orchestrationIssue in orchestrationIssues:
+                        if re.search(orchestrationIssue, commonError):
+                            orchestrationIssuesCount += commonErrorCount
+                            break
+                    error = commonError
+                    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+                    if re.search(regEx_Filter, error):
+                        error = str(re.compile(regEx_Filter).split(error)[0])
+                        if "An error occurred. Stack Trace:" in error:
+                            error = error.split("An error occurred. Stack Trace:")[1]
+                    if re.search("error: \-\[|Fatal error:", error):
+                        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+                    if error.strip() in cleanedFailureList:
+                        cleanedFailureList[error.strip()] += 1
+                    else:
+                        cleanedFailureList[error.strip()] = commonErrorCount
+                    scriptingIssuesCount = (totalFailCount + blockedCount) - (
+                        orchestrationIssuesCount + labIssuesCount
+                    )
 
             # Top 5 failure reasons
             topFailureDict = {}
