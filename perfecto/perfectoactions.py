@@ -1077,15 +1077,14 @@ def prepareReport(jobName, jobNumber):
     if (len(df)) < 1:
         print("Unable to find any test executions for the criteria: " + criteria)
         sys.exit(-1)
-  
 
     # ggplot2 #plotly_dark #simple_white
     graphs = []
     if trends == "true":
         import plotly.express as px
         import plotly
-        graphs.append('<div id="nestle-section">')
-        counter = 8
+
+        counter = 7
         with open(live_report_filename, "a") as f:
             f.write('<div id="nestle-section">')
         duration = "weeks"
@@ -1159,22 +1158,30 @@ def prepareReport(jobName, jobNumber):
                 .reset_index(name="#status")
                 .sort_values("#status", ascending=False)
             )
+            radio = 'style="box-sizing: border-box; display: none;"'
+            tabcontent = 'style="box-sizing: border-box; padding: 10px; height: auto; -moz-transition: height 1s ease; -webkit-transition: height 1s ease; -o-transition: height 1s ease; transition: height 1s ease; overflow: scroll; display: block;"'
+            reportDiv = (
+                'style="box-sizing: border-box; overflow-x: auto; text-align: center;"'
+            )
+            header = 'align=center; style="box-sizing: border-box; float: left; width: 100%; padding: 1px 0; text-align: center; cursor: pointer; font-size: 16px; color: darkslategray; background-color: darkkhaki; border: 3px solid antiquewhite;"'
             if fig:
                 fig = update_fig(fig, "histogram", job, duration)
                 encoded = base64.b64encode(plotly.io.to_image(fig))
-                graphs.append(
-                    '<input type="radio" id="tab'
-                    + str(counter)
-                    + '" name="tabs" checked=""/><label for="tab'
-                    + str(counter)
-                    + '">Trends: '
+                graphs.append('<div '
+                    + header
+                    + '><b><center>'
                     + job
-                    + '</label><div class="tab-content1"><img src="data:image/png;base64, {}"'.format(
+                    + ' trend</center></b></label></div><div align="center" class="tab-content1" '
+                    + tabcontent
+                    + ">"
+                    + '<img src="data:image/png;base64, {}"'.format(
                         encoded.decode("ascii")
                     )
                     + " alt='days or weeks summary of "
                     + job
-                    + "' id='reportDiv' onClick='zoom(this)'></img></div>"
+                    + "' id='reportDiv' "
+                    + reportDiv
+                    + "> </img></div><br>"
                 )
                 with open(live_report_filename, "a") as f:
                     f.write(
@@ -1182,9 +1189,9 @@ def prepareReport(jobName, jobNumber):
                         + str(counter)
                         + '" name="tabs" checked=""/><label for="tab'
                         + str(counter)
-                        + '">Trends: '
+                        + '">'
                         + job
-                        + ' </label><div class="tab-content1">'
+                        + ' trend</label><div class="tab-content1">'
                         + fig.to_html(full_html=False, include_plotlyjs="cdn")
                         + "</div>"
                     )
@@ -1213,17 +1220,21 @@ def prepareReport(jobName, jobNumber):
                         fig = update_fig(fig, "prediction", job, duration)
                         encoded = base64.b64encode(plotly.io.to_image(fig))
                         counter += 1
-                        graphs.append(
-                            '<input type="radio" id="tab'
-                            + str(counter)
-                            + '" name="tabs" checked=""/><label for="tab'
-                            + str(counter)
-                            + '">Monthly Prediction: '
+                        graphs.append('<div '
+                            + header
+                            + '><b><center>'
                             + job
-                            + '</label><div class="tab-content1"><div class="reportDiv"><img src="data:image/png;base64, {}"'.format(
+                            + ' Prediction</center></b></label></div><div align="center" class="tab-content1" '
+                            + tabcontent
+                            + ">"
+                            + '<img src="data:image/png;base64, {}"'.format(
                                 encoded.decode("ascii")
                             )
-                            + " alt='prediction summary' id='reportDiv' onClick='zoom(this)'></img></div></p></div>"
+                            + " alt='prediction of "
+                            + job
+                            + "' id='reportDiv' "
+                            + reportDiv
+                            + "> </img></div><br>"
                         )
                         with open(live_report_filename, "a") as f:
                             f.write(
@@ -1231,9 +1242,9 @@ def prepareReport(jobName, jobNumber):
                                 + str(counter)
                                 + '" name="tabs" checked=""/><label for="tab'
                                 + str(counter)
-                                + '">Monthly Prediction: '
+                                + '">'
                                 + job
-                                + '</label><div class="tab-content1"><div class="predictionDiv">'
+                                + ' Prediction</label><div class="tab-content1"><div class="predictionDiv">'
                                 + fig.to_html(full_html=False, include_plotlyjs="cdn")
                                 + " </img></div></p></div>"
                             )
@@ -1508,12 +1519,15 @@ def update_fig(fig, type, job, duration):
         )
     return fig
 
+
 """ 
 get styles
 """
 
+
 def get_style():
-    return """
+    return (
+        """
             <style>
 
                 html {{
@@ -1527,6 +1541,8 @@ def get_style():
                 box-shadow: 0 0 80px rgba(101, 242, 183, 0.4);
                 font-size: 12px;
                 font-family: "Trebuchet MS", Helvetica, sans-serif;
+                margin:5px;
+                width: calc(100% - 10px);
                 }}
                 .tabbed > input {{
                 display: none;
@@ -1551,6 +1567,7 @@ def get_style():
                 padding: .3%;
                 }}
                 .tabbed > div {{
+                width: calc(100% - 10px);
                 order: 2;
                 flex-basis: 100%;
                 display: none;
@@ -1561,7 +1578,9 @@ def get_style():
                 .container {{
                 width: 100%;
                 margin: 0 auto;
-                background-color: """ + os.environ["bgcolor"] + """;
+                background-color: """
+        + os.environ["bgcolor"]
+        + """;
                 box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
                 }}
 
@@ -1624,7 +1643,9 @@ def get_style():
                 }}
 
                 body {{
-                background-color: """ + os.environ["bgcolor"] + """;
+                background-color: """
+        + os.environ["bgcolor"]
+        + """;
                 height: 100%;
                 background-repeat:  repeat-y;
                 background-position: right;
@@ -1662,22 +1683,19 @@ def get_style():
                     padding: 5px;
                     width:10%;
                     color: black;
-                border-left: 1px solid #333;
-                border-right: 1px solid #333;
-                background: rgba(255, 253, 207, 0.58);
-                text-align: center;
+                    border-left: 1px solid #333;
+                    border-right: 1px solid #333;
+                    background: rgba(255, 253, 207, 0.58);
+                    text-align: center;
                 }}
 
                 table.mystyle td:first-child {{ text-align: left; }}   
 
                 table.mystyle thead {{
-                background: #333333;
-                font-size: 14px;
-                position:relative;
-                border-bottom: 1px solid white;
-                border-left: 1px solid white;
-                border-right: 1px solid white;
-                border-top: 1px solid black;
+                    background: grey;
+                    font-size: 14px;
+                    position:relative;
+                    border: 1px solid black;
                 }}
 
                 table.mystyle thead th {{
@@ -1720,7 +1738,7 @@ def get_style():
                 #summary{{
                 box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
                 position: relative;
-                width:50%;
+                overflow-x: scroll;
                 cursor: pointer;
                 padding: .1%;
                 border-style: outset;
@@ -1791,8 +1809,6 @@ def get_style():
                 cursor: pointer;
                 margin:.01% auto;
                 position: relative;
-                width: 70%;
-                height: 55%;
                 }}
 
                 #ps{{
@@ -1814,7 +1830,6 @@ def get_style():
                 border: none;
                 color: white;
                 font-size: 12px;
-                padding: 13px 20px 15px 20px;
                 cursor: pointer;
                 }}
 
@@ -1851,7 +1866,7 @@ def get_style():
                 #nestle-section label{{
                     float:left;
                     width:100%;
-                    background:linear-gradient(398grad, #e6e6e6, #413535, #40403b, #333333, #e7e7e7);
+                    background:#333333;
                     color:rgba(245, 217, 217, 0.99);
                     padding:1px 0;
                     text-align:center;
@@ -1883,13 +1898,14 @@ def get_style():
                 }}
 
                 #nestle-section input:checked + label{{
-                    background:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
-                    color:rgb(197, 236, 198);
+                    background-color:darkkhaki;
+                    color:rgb(15, 61, 16);
                     font-size:16px;
                 }}#nestle-section input{{
                     display:none;
                 }}
             </style>"""
+    )
 
 
 """
@@ -1898,22 +1914,31 @@ def get_style():
 
 
 def get_html_string(graphs):
+    bg = os.environ["bgcolor"]
     string = (
         """
     <html lang="en">
        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
             <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title> Cloud Status</title>
+    		     <head><title aria-label="Report">"""
+        + str(os.environ["CLOUDNAME"]).upper()
+        + """ Report</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
             </head>
-            """ + get_style() + """
-    <body bgcolor="white">
+    <body style="background-color:"""
+        + bg
+        + """;">
+    """
+        + get_style()
+        + """
         <div id="nestle-section">
         <input type="radio" id="tab1" name="tabs1" checked=""/><label for="tab1">Summary Details</label><div class="tab-content1">
         <div class="reportDiv"> """
         + execution_summary
-        + """ alt='execution summary' id='reportDiv' onClick='zoom(this)'></img></br></div></div>
-        <input type="radio" id="tab2" name="tabs" checked=""/><label for="tab2">OS Summary</label><div class="tab-content1">
+        + """ alt='execution summary' id='reportDiv'> </img></br></div></div>"""
+        + """<div class="reportDiv">"""
+        + execution_status
+        + """ </div></br><input type="radio" id="tab2" name="tabs" checked=""/><label for="tab2">OS Summary</label><div class="tab-content1">
           <div class="reportDiv">"""
         + monthlyStats
         + """ </div></div><input type="radio" id="tab3" name="tabs" checked=""/><label for="tab3">Issues</label><div class="tab-content1">
@@ -1929,14 +1954,104 @@ def get_html_string(graphs):
           </div><input type="radio" id="tab6" name="tabs" checked=""/><label for="tab6">Top Recommendations</label><div class="tab-content1">
           <div class="reportDiv">"""
         + recommendations
-        + """ </div></div>
-          <input type="radio" id="tab7" name="tabs" checked=""/><label for="tab7">Summary</label><div class="tab-content1">
-             <div><div class="reportDiv">"""
-        + execution_status
-        + """</div></div></div>
-         <div class="reportDiv">"""
+        + """ </div></div><div class="reportDiv">"""
         + "".join(graphs)
         + """</div></body>"""
+    )
+    return str(string)
+
+
+"""
+ get html string email
+"""
+
+
+def get_html_string_email(graphs):
+    bg = os.environ["bgcolor"]
+    header = 'style="box-sizing: border-box; float: left; width: 100%; padding: 1px 0; text-align: center; cursor: pointer; font-size: 16px; color: darkslategray; background-color: darkkhaki; border: 3px solid antiquewhite;"'
+    tabcontent = (
+        'style="box-sizing: border-box; padding: 10px; height: auto; -moz-transition: height 1s ease; -webkit-transition: height 1s ease; -o-transition: height 1s ease; transition: height 1s ease; overflow: scroll; display: block;background-color:'
+        + bg
+        + ';"'
+    )
+    reportDiv = 'style="box-sizing: border-box; overflow-x: auto; text-align: center;"'
+
+    string = (
+        """
+    <html lang="en">
+       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+    		     <head><title aria-label="Report">"""
+        + str(os.environ["CLOUDNAME"]).upper()
+        + """ Report</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+            </head>
+    <body style="box-sizing: border-box; height: 100%; background-repeat: repeat-y; background-position: right; background-size: contain; background-attachment: initial; opacity: .93; background-color:"""
+        + bg
+        + """;">
+        <div """
+        + header
+        + """><b><center>Summary Details</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """> """
+        + execution_summary
+        + """ alt='execution summary' id='reportDiv' """
+        + reportDiv
+        + """> </img></br></div></div><div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + execution_status
+        + """<br></div><div """
+        + header
+        + """><b><center>OS Summary</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + monthlyStats
+        + """<br></div><div """
+        + header
+        + """><b><center>Issues</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + issues
+        + """<br></div></div><div """
+        + header
+        + """><b><center>Custom Failure Reasons</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + failurereasons
+        + """<br></div></div><div """
+        + header
+        + """><b><center>Top Failed Tests</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + topfailedtable
+        + """<br></div></div><div """
+        + header
+        + """><b><center>Top Recommendations</center></b></label></div><div class="tab-content1" """
+        + tabcontent
+        + """>
+        <div class="reportDiv" """
+        + reportDiv
+        + """>"""
+        + recommendations
+        + """ </div></div></div><br><div class="reportDiv">"""
+        + "".join(graphs)
+        + """</div><br></body>"""
     )
     return str(string)
 
@@ -2208,7 +2323,9 @@ def prepare_html(user_html, table3, day):
 
     		<meta name="viewport" content="width=device-width, initial-scale=1">
             </head>
-            """ + get_style() + """
+            """
+            + get_style()
+            + """
           <body bgcolor="#FFFFED">
     	  	<div class="topnav" id="myTopnav">
     		  <a href="result.html" class="active">Home</a>
@@ -2671,6 +2788,29 @@ def create_dir(directory, delete):
         sys.exit(-1)
 
 
+def style_df_email(df):
+    return (
+        df.replace(
+            '<table border="1" class="dataframe mystyle" id="report">',
+            '<table border="1" class="dataframe mystyle" id="report" style="box-sizing: border-box; font-size: 12pt; font-family:Trebuchet MS, Helvetica, sans-serif; border-collapse: collapse; border: 2px solid black; margin: auto; background-color: #fffffa; box-shadow: 0 0 30px rgba(145, 11, 11, 0.4); overflow-x: auto; min-width: 70%;" bgcolor="#fffffa">',
+        )
+        .replace("<tr>", '<tr style="box-sizing: border-box;" align="center">')
+        .replace(
+            "<thead>",
+            '<thead style="box-sizing: border-box; background: tan; color:black;font-size: 14px; position: relative; border: 1px solid black;">',
+        )
+        .replace(
+            "<th>",
+            '<th style="box-sizing: border-box; line-height: 200%; font-size: 14px; background: tan; font-weight: bold; color: black; text-align: center; transition: transform 0.25s ease;" align="center">',
+        )
+        .replace("<tbody>", '<tbody style="box-sizing: border-box;">')
+        .replace(
+            "<td>",
+            '<td style="box-sizing: border-box; font-size: 12px; position: relative; padding: 5px; width: 10%; color: black; border-left: 1px solid #333; border-right: 1px solid #333; background: rgba(255, 253, 207, 0.58);" width="15%" align="center">',
+        )
+    )
+
+
 def main():
     """
     Runs the perfecto actions and reports
@@ -2761,7 +2901,7 @@ def main():
             metavar="prepares AI based emailable and live report along with statistics & recommendations",
             help="creates a downloadable csv/xlsx of reporting data along with AI emailable & live report with live charts, AI predictions and recommendations.",
             nargs="?",
-        ) 
+        )
         parser.add_argument(
             "-b",
             "--bgcolor",
@@ -2786,8 +2926,8 @@ def main():
         os.environ["CLOUDNAME"] = args["cloud_name"]
         os.environ["TOKEN"] = args["security_token"]
         if args["email"]:
-            os.environ["bgcolor"] = "rgba(221, 192, 160, 1)"
-            if(args["bgcolor"]):
+            os.environ["bgcolor"] = "beige"
+            if args["bgcolor"]:
                 os.environ["bgcolor"] = args["bgcolor"]
             email_report = args["email"]
             labIssuesCount = 0
@@ -2848,17 +2988,16 @@ def main():
                         )
                     if "trends" in item:
                         trends, criteria = get_report_details(
-                        item, temp, "trends", criteria
-                    )
+                            item, temp, "trends", criteria
+                        )
                     if "tags" in item:
                         tags, criteria = get_report_details(
-                        item, temp, "tags", criteria
-                    )
+                            item, temp, "tags", criteria
+                        )
                     if "attachmentName" in item:
                         live_report_filename, criteria = get_report_details(
-                        item, temp, "attachmentName", criteria
-                        
-                    )
+                            item, temp, "attachmentName", criteria
+                        )
             except Exception as e:
                 raise Exception(
                     "Verify parameters of report, split them by | seperator" + str(e)
@@ -2886,32 +3025,26 @@ def main():
                 criteria += jobName
             if jobNumber != "":
                 criteria += " (Build Number: " + jobNumber
-     
+
             if os.environ["consolidate"] != "":
                 criteria += (
-                " (start: "
-                + str(df["startTime"].iloc[-1]).split(" ", 1)[0]
-                + ", end: "
-                + str(df["startTime"].iloc[0]).split(" ", 1)[0]
-            )
+                    " (start: "
+                    + str(df["startTime"].iloc[-1]).split(" ", 1)[0]
+                    + ", end: "
+                    + str(df["startTime"].iloc[0]).split(" ", 1)[0]
+                )
             elif startDate != "":
                 criteria += " (start: " + startDate + ", end:" + endDate
 
             global execution_summary
             title = ""
-            if  tags != "":
+            if tags != "":
                 title = report + criteria + ", " + tags + ")"
             elif "(" in criteria:
                 title = report + criteria + ")"
             else:
                 title = report + criteria
-            print("TTT" + title)
-            execution_summary = create_summary(
-                df,
-                title,
-                "status",
-                "device_summary",
-            )
+            execution_summary = create_summary(df, title, "status", "device_summary",)
             failed = df[(df["status"] == "FAILED")]
             passed = df[(df["status"] == "PASSED")]
             blocked = df[(df["status"] == "BLOCKED")]
@@ -2950,7 +3083,8 @@ def main():
                 index=True,
                 render_links=True,
                 escape=False,
-            ).replace("<tr>", '<tr align="center">')
+            )
+            monthlyStats = style_df_email(monthlyStats)
             global failurereasons
             if "Custom Failure Reason" not in df.columns:
                 df["Custom Failure Reason"] = ""
@@ -2965,6 +3099,7 @@ def main():
                 render_links=True,
                 escape=False,
             )
+            failurereasons = style_df_email(failurereasons)
             # top failed TCs
             topfailedTCNames = (
                 failed.groupby(["name"])
@@ -2993,7 +3128,7 @@ def main():
                     + "</a>"
                 )
             topfailedTCNames = topfailedTCNames.drop("Result", 1)
-            topfailedTCNames.columns = ["Top 5 Failed Tests", "#Failed"]
+            topfailedTCNames.columns = ["Top Failed Tests", "#Failed"]
             # print(str(topfailedTCNames))
             global topfailedtable
             topfailedtable = topfailedTCNames.to_html(
@@ -3003,13 +3138,14 @@ def main():
                 render_links=True,
                 escape=False,
             )
+            topfailedtable = style_df_email(topfailedtable)
             # recommendations
             totalFailCount = failed.shape[0]
             totalPassCount = passed.shape[0]
             blockedCount = blocked.shape[0]
             # failures count
             failuresmessage = []
-            if len(failed_blocked) > 0: 
+            if len(failed_blocked) > 0:
                 failuresmessage = (
                     failed_blocked.groupby(["message"])
                     .size()
@@ -3036,7 +3172,9 @@ def main():
                         if "An error occurred. Stack Trace:" in error:
                             error = error.split("An error occurred. Stack Trace:")[1]
                     if re.search("error: \-\[|Fatal error:", error):
-                        error = str(re.compile("error: \-\[|Fatal error:").split(error)[1])
+                        error = str(
+                            re.compile("error: \-\[|Fatal error:").split(error)[1]
+                        )
                     if error.strip() in cleanedFailureList:
                         cleanedFailureList[error.strip()] += 1
                     else:
@@ -3219,6 +3357,7 @@ def main():
                 render_links=True,
                 escape=False,
             )
+            execution_status = style_df_email(execution_status)
             global issues
             issues = pandas.DataFrame.from_dict(jsonObj.issues)
             issues = issues.to_html(
@@ -3228,19 +3367,20 @@ def main():
                 render_links=True,
                 escape=False,
             )
+            issues = style_df_email(issues)
             global recommendations
             recommendations = pandas.DataFrame.from_dict(jsonObj.recommendation)
             if totalImpact > 100:
                 recommendations.columns = [
                     "Recommendations",
                     "Rank",
-                    "Impact to Pass %",
+                    "Pass% Increase",
                 ]
             else:
                 recommendations.columns = [
                     "Recommendations",
                     "Rank",
-                    "Impact to Pass % [Total - " + str(round(totalImpact, 2)) + "%]",
+                    "Pass% Increase - " + str(round(totalImpact, 2)) + "%",
                 ]
             recommendations = recommendations[
                 recommendations.Recommendations.astype(str) != "-"
@@ -3252,9 +3392,10 @@ def main():
                 render_links=True,
                 escape=False,
             )
+            recommendations = style_df_email(recommendations)
             with open(email_report_filename, "a") as f:
                 f.write(
-                    get_html_string(graphs).format(
+                    get_html_string_email(graphs).format(
                         table=df.to_html(
                             classes="mystyle",
                             table_id="report",
@@ -3300,14 +3441,22 @@ def main():
                     webbrowser.open(url, new=0)
                     httpd.serve_forever()
             else:
-                webbrowser.open("file://" + os.path.join(os.getcwd(), live_report_filename), new=0)
-                print("Interactive Report: file://" + os.path.join(os.getcwd(), live_report_filename))
-                print("Emailable Report: file://" + os.path.join(os.getcwd(), email_report_filename))
+                webbrowser.open(
+                    "file://" + os.path.join(os.getcwd(), live_report_filename), new=0
+                )
+                print(
+                    "Interactive Report: file://"
+                    + os.path.join(os.getcwd(), live_report_filename)
+                )
+                print(
+                    "Emailable Report: file://"
+                    + os.path.join(os.getcwd(), email_report_filename)
+                )
                 end = datetime.now().replace(microsecond=0)
-                print("Total Time taken:" + str(end - start_time))  
+                print("Total Time taken:" + str(end - start_time))
         else:
             os.environ["bgcolor"] = "black"
-            if(args["bgcolor"]):
+            if args["bgcolor"]:
                 os.environ["bgcolor"] = args["bgcolor"]
             if args["device_list_parameters"]:
                 device_list_parameters = args["device_list_parameters"]
@@ -3406,7 +3555,8 @@ def main():
             userlist = Pool(processes=1)
             try:
                 user_html = userlist.apply_async(
-                    get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"]
+                    get_json_to_xlsx,
+                    [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"],
                 ).get()
                 userlist.close()
                 userlist.terminate()
