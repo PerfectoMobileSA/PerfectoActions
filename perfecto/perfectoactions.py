@@ -773,7 +773,7 @@ def df_formatter(df):
     if len(df) == 0:
         raise Exception("Unable to find any executions for criteria: " + criteria)
     try:
-        df["startTime"] = pandas.to_datetime(df["startTime"].astype(int), unit="ms")
+        df["startTime"] = pandas.to_datetime(df["startTime"], unit="ms")
         df["startTime"] = (
             df["startTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
         )
@@ -782,7 +782,7 @@ def df_formatter(df):
         pass
     try:
         df.loc[df["endTime"] < 1, "endTime"] = int(round(time.time() * 1000))
-        df["endTime"] = pandas.to_datetime(df["endTime"].astype(int), unit="ms")
+        df["endTime"] = pandas.to_datetime(df["endTime"], unit="ms")
         df["endTime"] = (
             df["endTime"].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
         )
@@ -999,7 +999,6 @@ def color_negative_red(value):
    gets' Perfecto reporting API responses, creates dict for top device failures, auto suggestions and top tests failures and prepared json
 """
 
-
 def prepareReport(jobName, jobNumber):
     page = 1
     i = 0
@@ -1011,6 +1010,8 @@ def prepareReport(jobName, jobNumber):
     print("startDate: " + startDate)
     print("jobName: " + jobName)
     print("jobNumber: " + jobNumber)
+    json_raw = os.environ["CLOUDNAME"] + "_API_output" +'.txt'
+    open(json_raw, 'w').close
     while truncated == True:
         print(
             "Retrieving all the test executions in your lab. Current page: "
@@ -1052,9 +1053,13 @@ def prepareReport(jobName, jobNumber):
         jsonDump = json.dumps(resources)
         resources = json.loads(jsonDump)
         totalTCCount = len(resources)
+        with open(json_raw, "a", encoding="utf-8") as myfile:
+            myfile.write(str(resources)+'\n*******************************************\n')
         print("Total executions: " + str(len(resources)))
         df = pandas.DataFrame([flatten_json(x) for x in resources])
         df = df_formatter(df)
+
+
 
     os.chdir(".")
     files = glob.glob("*.{}".format(os.environ["xlformat"]))
@@ -1083,7 +1088,14 @@ def prepareReport(jobName, jobNumber):
     if trends == "true":
         import plotly.express as px
         import plotly
-
+        import subprocess
+        if os.name == 'nt':
+            DETACHED_PROCESS = 0x00000008
+            subprocess.call('taskkill /F /IM Electron.exe', creationflags=DETACHED_PROCESS)
+            orcaport = os.environ["orcaport"]
+            subprocess.Popen(["orca", "serve", "-p", orcaport], stdout=subprocess.PIPE, shell=True)
+            plotly.io.orca.config.server_url = "http://localhost:" + orcaport
+            plotly.io.orca.status._props["state"] = "validated" 
         counter = 7
         with open(live_report_filename, "a") as f:
             f.write('<div id="nestle-section">')
@@ -1213,7 +1225,10 @@ def prepareReport(jobName, jobNumber):
                             ).fit(predict_df, algorithm="Newton")
                         future = m.make_future_dataframe(periods=30)
                         future["cap"] = int(predict_df["y"].max()) * 2
-                        future["floor"] = 0
+                        floor = 0
+                        if (int(predict_df["y"].min()) / 2) > 0:
+                            floor = int(predict_df["y"].min())
+                        future["floor"] = floor
                         forecast = m.predict(future)
                         forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail()
                         fig = plot_plotly(m, forecast)
@@ -1258,6 +1273,10 @@ def prepareReport(jobName, jobNumber):
         graphs.append("</div>")
         with open(live_report_filename, "a") as f:
             f.write("</div>")
+    if os.name == 'nt':
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        subprocess.call('taskkill /F /IM Electron.exe', startupinfo=si)
     return graphs, df
 
 
@@ -2526,7 +2545,7 @@ def send_request_for_repository(url, content, key):
         raise RuntimeError(
             "Failed to list repository items - Repository item: "
             + key
-            + "  was not found in media repository, url:"
+            + "  was not found in media repository, url: "
             + str(url)
         )
         sys.exit(-1)
@@ -2554,9 +2573,14 @@ def getPastDate(days):
 
 def sendAPI(resource_type, resource_key, operation):
     url = get_url(str(resource_type), resource_key, operation)
-    admin = os.environ["repo_admin"]
-    if "true" in admin.lower():
-        url += "&admin=" + "true"
+    # admin = os.environ["repo_admin"]
+    # if "true" in admin.lower():
+    #     url += "&admin=" + "true"
+    return send_request_for_repository(url, "", resource_key)
+
+def sendAPI_repo(resource_type, resource_key, operation):
+    url = get_url(str(resource_type), "", operation)
+    print("\nRepository API Raw url: \n" + url)
     return send_request_for_repository(url, "", resource_key)
 
 
@@ -2576,6 +2600,7 @@ def run_commands(value):
     DAYS = os.environ["repo_days"]
     DELETE = os.environ["repo_delete"]
     map = sendAPI(os.environ["repo_resource_type"], value, "info")
+    print(str(map))
     actualDate = getActualDate(map)
     if not (str(actualDate) == ""):
         expectedDate = getPastDate(DAYS)
@@ -2654,15 +2679,18 @@ def run_commands(value):
 
 def manage_repo(resource_key):
     # Get list of repository items
-    map = sendAPI(os.environ["repo_resource_type"], resource_key, "list")
+    map = sendAPI_repo(os.environ["repo_resource_type"], resource_key, "list")
     try:
         itemList = map["items"]
+        itemList = [x for x in itemList if x.startswith(resource_key)] 
         sys.stdout.flush()
+        print("Item list: " + str(itemList))
     except:
         raise RuntimeError(
-            "There are no List of repository items inside the folder: " + resource_key
+            "There are no List of repository items starting with the folder names: " + resource_key
         )
         sys.exit(-1)
+ 
     # debug
     #     for value in itemList:
     #         run_commands(value)
@@ -2951,7 +2979,9 @@ def main():
                 consolidate = ""
                 xlformat = "csv"
                 port = ""
+                orcaport = ""
                 temp = ""
+                regex = ""
                 report_array = email_report.split("|")
                 for item in report_array:
                     if "report" in item:
@@ -2986,6 +3016,10 @@ def main():
                         port, criteria = get_report_details(
                             item, temp, "port", criteria
                         )
+                    if "orcaport" in item:
+                        orcaport, criteria = get_report_details(
+                            item, temp, "orcaport", criteria
+                        )
                     if "trends" in item:
                         trends, criteria = get_report_details(
                             item, temp, "trends", criteria
@@ -2998,20 +3032,27 @@ def main():
                         live_report_filename, criteria = get_report_details(
                             item, temp, "attachmentName", criteria
                         )
+                    if "regex" in item:
+                        regex, criteria = get_report_details(
+                            item, temp, "regex", criteria
+                        )
             except Exception as e:
                 raise Exception(
-                    "Verify parameters of report, split them by | seperator" + str(e)
+                    "Verify parameters of report, split them by | seperator/ " + str(e)
                 )
                 sys.exit(-1)
             if "attachmentName=" in email_report:
                 live_report_filename = live_report_filename + ".html"
             os.environ["xlformat"] = xlformat
+            os.environ["regex"] = ""
+            os.environ["regex"] = regex
             os.environ["consolidate"] = ""
             os.environ["consolidate"] = consolidate
+            os.environ["orcaport"] = orcaport
             filelist = glob.glob(os.path.join("*." + xlformat))
             for f in filelist:
                 os.remove(f)
-            filelist = glob.glob(os.path.join("*_failures.txt"))
+            filelist = glob.glob(os.path.join("*.txt"))
             for f in filelist:
                 os.remove(f)
             filelist = glob.glob(os.path.join("*.html"))
@@ -3025,7 +3066,6 @@ def main():
                 criteria += jobName
             if jobNumber != "":
                 criteria += " (Build Number: " + jobNumber
-
             if os.environ["consolidate"] != "":
                 criteria += (
                     " (start: "
@@ -3154,6 +3194,9 @@ def main():
                 )
                 global labIssues
                 global orchestrationIssues
+                failureListFileName = os.environ["CLOUDNAME"] + "_failures" +'.txt'
+                print("transfering all failure reasons to: %s" % (os.path.join(os.path.abspath(os.curdir), failureListFileName)))
+                open(failureListFileName, 'w').close
                 for commonError, commonErrorCount in failuresmessage.itertuples(
                     index=False
                 ):
@@ -3166,7 +3209,10 @@ def main():
                             orchestrationIssuesCount += commonErrorCount
                             break
                     error = commonError
-                    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility"
+                    regex = ""
+                    if os.environ["regex"] != "":
+                        regex = "|" + os.environ["regex"]
+                    regEx_Filter = "Build info:|For documentation on this error|at org.xframium.page|Scenario Steps:| at WebDriverError|\(Session info:|XCTestOutputBarrier\d+|\s\tat [A-Za-z]+.[A-Za-z]+.|View Hierarchy:|Got: |Stack Trace:|Report Link|at dalvik.system|Output:\nUsage|t.*Requesting snapshot of accessibility" + regex
                     if re.search(regEx_Filter, error):
                         error = str(re.compile(regEx_Filter).split(error)[0])
                         if "An error occurred. Stack Trace:" in error:
@@ -3182,10 +3228,11 @@ def main():
                     scriptingIssuesCount = (totalFailCount + blockedCount) - (
                         orchestrationIssuesCount + labIssuesCount
                     )
-
+            
             # Top 5 failure reasons
             topFailureDict = {}
-
+            with open(failureListFileName, "a", encoding="utf-8") as myfile:
+                myfile.write(str(cleanedFailureList)+'\n*******************************************\n')
             failureDict = Counter(cleanedFailureList)
             for commonError, commonErrorCount in failureDict.most_common(5):
                 topFailureDict[commonError] = int(commonErrorCount)
@@ -3515,7 +3562,7 @@ def main():
                     )
                 except Exception as e:
                     raise Exception(
-                        "Verify parameters of clean_repo, split them by | seperator"
+                        "Exception: "
                         + str(e)
                     )
                     sys.exit(-1)
