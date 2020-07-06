@@ -45,3 +45,4 @@ perfecto/ori.csv
 *.csv
 *.xls
 *.xlsx
+*output.txt

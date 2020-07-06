@@ -605,13 +605,10 @@ def create_summary(df, title, column, name):
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
     fig.patch.set_facecolor("yellow")
     fig.patch.set_alpha(1)
-    cdict = {'FAILED': 'crimson', 'PASSED': 'limegreen', 'UNKNOWN': '#9da7f2', 'BLOCKED': '#e79a00'}
-    print("here: " + cdict)
     df[column].value_counts().sort_index().plot(
         kind="pie",
         y="%",
         ax=ax1,
-        colors=[cdict[c] for c in df[column]],
         autopct="%1.1f%%",
         startangle=30,
         shadow=False,
@@ -998,7 +995,7 @@ def prepare_html(user_html, table3, day):
                 border: 2px solid black;
                 margin:auto;
                 box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                background-color: white;
+                background-color: #fffffa;
             }}
 
             .mystyle body {{
@@ -1065,31 +1062,28 @@ def prepare_html(user_html, table3, day):
                 padding: 5px;
                 width:10%;
                 color: black;
-              border-left: 1px solid #333;
-              border-right: 1px solid #333;
-              background: #fffffa;
-              text-align: center;
+                border-left: 1px solid #333;
+                border-right: 1px solid #333;
+                background: #fffffa;
+                text-align: center;
             }}
 
            table.mystyle td:first-child {{ text-align: left; }}   
 
             table.mystyle thead {{
-              background: #333333;
-              font-size: 14px;
-              position:relative;
-              border-bottom: 1px solid #DBDB40;
-              border-left: 1px solid #D8DB40;
-              border-right: 1px solid #D8DB40;
-              border-top: 1px solid black;
+                background: grey;
+                font-size: 14px;
+                position:relative;
+                border: 1px solid black;
             }}
 
             table.mystyle thead th {{
-              line-height: 200%;
-              font-size: 13px;
-              font-weight: normal;
-              color: #fffffa;
-              text-align: center;
-              transition:transform 0.25s ease;
+                line-height: 200%;
+                font-size: 14px;
+                font-weight: normal;
+                color: #fffffa;
+                text-align: center;
+                transition:transform 0.25s ease;
             }}
 
             table.mystyle thead th:hover {{
@@ -1193,7 +1187,6 @@ def prepare_html(user_html, table3, day):
               cursor: pointer;
               margin:.01% auto;
               position: relative;
-              width: 70%;
               height: 55%;
             }}
 
@@ -1212,12 +1205,11 @@ def prepare_html(user_html, table3, day):
             }}
 
        		#download {{
-			  background-color: #333333;
-			  border: none;
-			  color: white;
-              font-size: 12px;
-              padding: 13px 20px 15px 20px;
-			  cursor: pointer;
+                background-color: #333333;
+                border: none;
+                color: white;
+                font-size: 12px;
+                cursor: pointer;
 			}}
 
 			#download:hover {{
@@ -1293,7 +1285,7 @@ def prepare_html(user_html, table3, day):
                                 <img id="logo" src="""
             + os.environ["company_logo"]
             + """ style="margin:1%;" alt="Company logo" ></a> 
-            <div class="reportDiv">
+            <div class="reportDiv"></p><br>
                                 """
             + create_summary(user_html, "Users list Status", "status", "user_summary")
             + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p></div>
@@ -1486,12 +1478,16 @@ def getPastDate(days):
     pastDate = timedelta(days=int(days))
     return today - pastDate
 
-
 def sendAPI(resource_type, resource_key, operation):
     url = get_url(str(resource_type), resource_key, operation)
-    admin = os.environ["repo_admin"]
-    if "true" in admin.lower():
-        url += "&admin=" + "true"
+    # admin = os.environ["repo_admin"]
+    # if "true" in admin.lower():
+    #     url += "&admin=" + "true"
+    return send_request_for_repository(url, "", resource_key)
+
+def sendAPI_repo(resource_type, resource_key, operation):
+    url = get_url(str(resource_type), "", operation)
+    print("\nRepository API Raw url: \n" + url)
     return send_request_for_repository(url, "", resource_key)
 
 
@@ -1589,13 +1585,15 @@ def run_commands(value):
 
 def manage_repo(resource_key):
     # Get list of repository items
-    map = sendAPI(os.environ["repo_resource_type"], resource_key, "list")
+    map = sendAPI_repo(os.environ["repo_resource_type"], resource_key, "list")
     try:
         itemList = map["items"]
+        itemList = [x for x in itemList if x.startswith(resource_key)] 
         sys.stdout.flush()
+        print("Item list: " + str(itemList))
     except:
         raise RuntimeError(
-            "There are no List of repository items inside the folder: " + resource_key
+            "There are no List of repository items starting with the folder names: " + resource_key
         )
         sys.exit(-1)
     # debug
