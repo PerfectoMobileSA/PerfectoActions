@@ -1446,17 +1446,17 @@ def send_request_repo(url, content):
 
 
 def send_request_for_repository(url, content, key):
+    map = []
     response = send_request_repo(url, content)
 
-    if "500" in str(response):
-        print(url)
-        raise RuntimeError(
-            "Failed to list repository items - Repository item: "
-            + key
-            + "  was not found in media repository, url:"
-            + str(url)
-        )
-        sys.exit(-1)
+    # if "500" in str(response):
+    #     raise RuntimeError(
+    #         "Failed to list repository items - Repository item: "
+    #         + key
+    #         + "  was not found in media repository, url:"
+    #         + str(url)
+    #     )
+    #     sys.exit(-1)
     text = response.read().decode("utf-8")
     map = json.loads(text)
     return map
@@ -1475,15 +1475,19 @@ def getActualDate(map):
 def getPastDate(days):
     # Logic for fetching past days based on user preference
     today = datetime.datetime.today()
-    pastDate = timedelta(days=int(days))
+    pastDate = timedelta(days=int(float(days)))
     return today - pastDate
 
 def sendAPI(resource_type, resource_key, operation):
     url = get_url(str(resource_type), resource_key, operation)
-    # admin = os.environ["repo_admin"]
-    # if "true" in admin.lower():
-    #     url += "&admin=" + "true"
-    return send_request_for_repository(url, "", resource_key)
+    #new repo doesnt seem to require admin for now
+    map = send_request_for_repository(url, "", resource_key)
+    if operation == "delete" and map["completionCode"] == "notOwner":
+        admin = os.environ["repo_admin"]
+        if "true" in admin.lower():
+            url += "&admin=" + "true"
+        map = send_request_for_repository(url, "", resource_key)
+    return map
 
 def sendAPI_repo(resource_type, resource_key, operation):
     url = get_url(str(resource_type), "", operation)
@@ -1529,6 +1533,7 @@ def run_commands(value):
             # DELETE item from the repository
             if DELETE.lower() == "true":
                 map = sendAPI(os.environ["repo_resource_type"], value, "delete")
+                print("Delete API output of item: " + str(value) + ":\n " + str(map))
                 status = map["status"]
                 if status != "Success":
                     FINAL_LIST.append(
@@ -1540,7 +1545,7 @@ def run_commands(value):
                         + DAYS
                         + ";Deleted?:Unable to delete!;"
                     )
-                    raise RuntimeError("Repository item " + value + " was not deleted")
+                    raise RuntimeError("Repository item " + value + " was not deleted. API Response:" + str(map))
                     sys.exit(-1)
                 else:
                     FINAL_LIST.append(
@@ -1590,11 +1595,9 @@ def manage_repo(resource_key):
         itemList = map["items"]
         itemList = [x for x in itemList if x.startswith(resource_key)] 
         sys.stdout.flush()
-        print("Item list: " + str(itemList))
-    except:
-        raise RuntimeError(
-            "There are no List of repository items starting with the folder names: " + resource_key
-        )
+        print("Respository items list: " + str(itemList))
+    except Exception as e:
+        print(str(e))
         sys.exit(-1)
     # debug
     #     for value in itemList:
@@ -1649,11 +1652,12 @@ def deleteOlderFiles(resource_type, delete, admin, repo_paths, days):
     file = os.path.join(TEMP_DIR, "repo_results", "Final_Repo.txt")
     try:
         f = open(file, "r")
+        result = f.read()
+        f.close()
     except FileNotFoundError:
-        raise Exception("No repository items found")
-        sys.exit(-1)
-    result = f.read()
-    f.close()
+        result = ""
+        pass
+    
     FINAL_LIST = result.split("\n")
 
     file = []
@@ -1876,7 +1880,7 @@ def main():
                 )
             except Exception as e:
                 raise Exception(
-                    "Verify parameters of clean_repo, split them by | seperator"
+                    "Error: "
                     + str(e)
                 )
                 sys.exit(-1)
