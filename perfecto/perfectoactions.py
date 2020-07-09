@@ -197,12 +197,10 @@ def send_request_to_xlsx(url, filename):
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
     try:
+        print("url: " + url)
         response = send_request(url)
-    except:
-        raise Exception(
-            "unable to find users who match the expected conditions "
-            + os.environ["USER_LIST_PARAMETERS"]
-        )
+    except Exception as e:
+        print(str(e))
     decoded = response.read().decode("utf-8")
     if any(["=list" in url, "=users" in url]):
         filename = os.path.join(TEMP_DIR, "output", filename)

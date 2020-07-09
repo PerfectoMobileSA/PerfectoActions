@@ -1,4 +1,5 @@
 # PerfectoActions
+[![Downloads](https://pepy.tech/badge/perfectoactions)](https://pepy.tech/project/perfectoactions)
 
 Official documentation: https://developers.perfectomobile.com/pages/viewpage.action?pageId=50922763
 
