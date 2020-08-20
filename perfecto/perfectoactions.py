@@ -197,7 +197,6 @@ def send_request_to_xlsx(url, filename):
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
     try:
-        print("url: " + url)
         response = send_request(url)
     except Exception as e:
         print(str(e))
@@ -336,6 +335,30 @@ def exec_command(exec_id, device_id, cmd, subcmd):
     )
     return str(status)
 
+def create_reservation(resource, resource_id, operation):
+    """create_reservation"""
+    cloudname = os.environ["CLOUDNAME"]
+    url = "https://" + cloudname + ".perfectomobile.com/services/" + resource
+    token = os.environ["TOKEN"]
+    today = datetime.datetime.now() + timedelta(seconds = 20)
+    startTime = int((time.mktime(today.timetuple())))
+    endTime = int((datetime.datetime.fromtimestamp(startTime) + timedelta(minutes = 10)).timestamp())
+    if "eyJhb" in token:
+        query = urllib.parse.urlencode({"operation": operation, "securityToken": token, "resourceIds": resource_id, "startTime" : startTime*1000, "endTime": endTime*1000})
+    else:
+        if ":" in token: 
+            user = token.split(":")[0]
+            pwd = token.split(":")[1]
+            query = urllib.parse.urlencode(
+                {"operation": operation, "user": user, "password": pwd}
+            )
+        else:
+            raise Exception(
+                "Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!"
+            )
+    url += "?" + query
+    print(url)
+    return url
 
 def perform_actions(deviceid_color):
     """perform_actions"""
@@ -379,79 +402,97 @@ def perform_actions(deviceid_color):
         except:
             phoneNumber = "NA"
         if "green" in color:
-            start_execution = os.environ["START_EXECUTION"]
-            if "true" in start_execution.lower():
-                # Get execution id
-                EXEC_ID = start_exec()
-                # open device:
-                print("opening: " + model + ", device id: " + device_id)
-                device_command(EXEC_ID, device_id, "open")
-                cleanup = os.environ["CLEANUP"]
-                if "True" in cleanup:
-                    if not "iOS" in osDevice:
-                        print("cleaning up: " + model + ", device id: " + device_id)
-                        try:
-                            status += "clean:" + str(
-                                exec_command(EXEC_ID, device_id, "device", "clean")
-                            ).replace(",", " ")
-                        except:
-                            status += "clean:Failed!"
-                        status += ";"
+            reserve = os.environ["RESERVE"]
+            if "True" in reserve:
+                print(
+                "Reserving device: "
+                + device_id
+                )
+                try:
+                    response = send_request(create_reservation("reservations", device_id, "create"))
+                    decoded = response.read().decode("utf-8")
+                    print(decoded)
+                    status += "RS:OK;"
+                except Exception as e:
+                    print("error: " + str(e) )
+                    if("HTTP Error 500: Internal Server Error" in str(e).strip()):
+                        print("Existing reservations may exists. Trying to proceed further")
+                        status += "RS:"+"Existing reservations may exists;"
                     else:
-                        status += "clean:NA;"
-                reboot = os.environ["REBOOT"]
-                if "True" in reboot:
-                    if all(
-                        [
-                            "Huawei" not in manufacturer,
-                            "Xiaomi" not in manufacturer,
-                            "Oppo" not in manufacturer,
-                            "Motorola" not in manufacturer,
-                            "OnePlus" not in manufacturer,
-                        ]
-                    ):
-                        print("rebooting: " + model + ", device id: " + device_id)
-                        try:
-                            status += "reboot:" + str(
-                                exec_command(EXEC_ID, device_id, "device", "reboot")
-                            ).replace(",", " ")
-                        except:
-                            status += "reboot:Failed!"
-                        status += ";"
-                    else:
-                        print(model + " not applicable for rebooting")
-                        status += "reboot:NA;"
-                if "True" in get_network_settings:
-                    print(
-                        "getting network status of : "
-                        + model
-                        + ", device id: "
-                        + device_id
-                    )
-                    networkstatus = "airplanemode=Failed, wifi=Failed, data=Failed"
+                        status += "RS:"+str(e)+"!;"
+        start_execution = os.environ["START_EXECUTION"]
+        if "true" in start_execution.lower():
+            # Get execution id
+            EXEC_ID = start_exec()
+            # open device:
+            print("opening: " + model + ", device id: " + device_id)
+            device_command(EXEC_ID, device_id, "open")
+            cleanup = os.environ["CLEANUP"]
+            if "True" in cleanup:
+                if not "iOS" in osDevice:
+                    print("cleaning up: " + model + ", device id: " + device_id)
                     try:
-                        tempstatus = (
-                            str(
-                                exec_command(
-                                    EXEC_ID, device_id, "network.settings", "get"
-                                )
-                            )
-                            .replace("{", "")
-                            .replace("}", "")
-                        )
-                        if tempstatus.count(",") == 2:
-                            networkstatus = tempstatus
-                            status += "NW:OK"
-                        else:
-                            status += "NW:Failed!"
+                        status += "clean:" + str(
+                            exec_command(EXEC_ID, device_id, "device", "clean")
+                        ).replace(",", " ")
                     except:
-                        status += "NW:Failed!"
+                        status += "clean:Failed!"
                     status += ";"
-                # Close device
-                print("closing: " + model + ", device id: " + device_id)
-                device_command(EXEC_ID, device_id, "close")
-                # End execution
-                end_execution(EXEC_ID)
+                else:
+                    status += "clean:NA;"
+            reboot = os.environ["REBOOT"]
+            if "True" in reboot:
+                if all(
+                    [
+                        "Huawei" not in manufacturer,
+                        "Xiaomi" not in manufacturer,
+                        "Oppo" not in manufacturer,
+                        "Motorola" not in manufacturer,
+                        "OnePlus" not in manufacturer,
+                    ]
+                ):
+                    print("rebooting: " + model + ", device id: " + device_id)
+                    try:
+                        status += "reboot:" + str(
+                            exec_command(EXEC_ID, device_id, "device", "reboot")
+                        ).replace(",", " ")
+                    except:
+                        status += "reboot:Failed!"
+                    status += ";"
+                else:
+                    print(model + " not applicable for rebooting")
+                    status += "reboot:NA;"
+            if "True" in get_network_settings:
+                print(
+                    "getting network status of : "
+                    + model
+                    + ", device id: "
+                    + device_id
+                )
+                networkstatus = "airplanemode=Failed, wifi=Failed, data=Failed"
+                try:
+                    tempstatus = (
+                        str(
+                            exec_command(
+                                EXEC_ID, device_id, "network.settings", "get"
+                            )
+                        )
+                        .replace("{", "")
+                        .replace("}", "")
+                    )
+                    if tempstatus.count(",") == 2:
+                        networkstatus = tempstatus
+                        status += "NW:OK"
+                    else:
+                        status += "NW:Failed!"
+                except:
+                    status += "NW:Failed!"
+                status += ";"
+            # Close device
+            print("closing: " + model + ", device id: " + device_id)
+            device_command(EXEC_ID, device_id, "close")
+            # End execution
+            end_execution(EXEC_ID)
         else:
             networkstatus = ",,"
 
@@ -711,7 +752,8 @@ def prepare_html(user_html, table3, day):
         get_network_settings = os.environ["GET_NETWORK_SETTINGS"]
         reboot = os.environ["REBOOT"]
         cleanup = os.environ["CLEANUP"]
-        if "True" in get_network_settings or "True" in reboot or "True" in cleanup:
+        reserve = os.environ["RESERVE"]
+        if "True" in get_network_settings or "True" in reboot or "True" in cleanup or "True" in reserve:
             new_dict = {
                 "Status": status,
                 "Device Id": deviceids,
@@ -1846,6 +1888,7 @@ def main():
         os.environ["GET_NETWORK_SETTINGS"] = "False"
         reboot = "False"
         cleanup = "False"
+        reserve = "False"
         start_execution = "False"
         clean_repo = "NA"
         if args["actions"]:
@@ -1855,6 +1898,8 @@ def main():
                 reboot = "True"
             if "cleanup:true" in args["actions"]:
                 cleanup = "True"
+            if "reserve:true" in args["actions"]:
+                reserve = "True"
             if "clean_repo" in args["actions"]:
                 clean_repo = args["actions"]
             else:
@@ -1884,6 +1929,7 @@ def main():
                 sys.exit(-1)
         os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
+        os.environ["RESERVE"] = reserve
         if (
             "True" in os.environ["GET_NETWORK_SETTINGS"]
             or "True" in reboot
