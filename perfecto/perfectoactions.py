@@ -342,7 +342,8 @@ def create_reservation(resource, resource_id, operation):
     token = os.environ["TOKEN"]
     today = datetime.datetime.now() + timedelta(seconds = 20)
     startTime = int((time.mktime(today.timetuple())))
-    endTime = int((datetime.datetime.fromtimestamp(startTime) + timedelta(minutes = 10)).timestamp())
+    reserve_time = int(str(os.environ["RESERVE_TIME"]))
+    endTime = int((datetime.datetime.fromtimestamp(startTime) + timedelta(minutes = reserve_time)).timestamp())
     if "eyJhb" in token:
         query = urllib.parse.urlencode({"operation": operation, "securityToken": token, "resourceIds": resource_id, "startTime" : startTime*1000, "endTime": endTime*1000})
     else:
@@ -403,7 +404,7 @@ def perform_actions(deviceid_color):
             phoneNumber = "NA"
         if "green" in color:
             reserve = os.environ["RESERVE"]
-            if "True" in reserve:
+            if "reserve" in reserve:
                 print(
                 "Reserving device: "
                 + device_id
@@ -412,14 +413,39 @@ def perform_actions(deviceid_color):
                     response = send_request(create_reservation("reservations", device_id, "create"))
                     decoded = response.read().decode("utf-8")
                     print(decoded)
+                    desc = "Reserved"
                     status += "RS:OK;"
                 except Exception as e:
-                    print("error: " + str(e) )
+                    print("Reservation API error: " + str(e))
                     if("HTTP Error 500: Internal Server Error" in str(e).strip()):
-                        print("Existing reservations may exists. Trying to proceed further")
-                        status += "RS:"+"Existing reservations may exists;"
+                        status += "RS:"+"Reservations may exists;"
                     else:
                         status += "RS:"+str(e)+"!;"
+                    final_string = (
+                            "status=Reservation failed"
+                            + ", deviceId='"
+                            + device_id
+                            + "', Manufacturer="
+                            + str(manufacturer)
+                            + "', model="
+                            + str(model)
+                            + ", version="
+                            + str(osVersion)
+                            + ", description="
+                            + str(description)
+                            + ", operator="
+                            + str(operator)
+                            + ", phoneNumber="
+                            + str(phoneNumber)
+                            + ",,,, "
+                            + str(status)
+                        )
+                    final_string = re.sub(r"^'|'$", "", final_string)
+                    print(final_string)
+                    f = open(file, "w+")
+                    f.write(str(final_string))
+                    f.close()
+                    return final_string
         start_execution = os.environ["START_EXECUTION"]
         if "true" in start_execution.lower():
             # Get execution id
@@ -623,7 +649,7 @@ def print_results(results):
         results[i] = re.sub("Results\=$", "", results[i])
         results[i] = re.sub("[,]+", "", results[i])
         if results[i]:
-            if "Available" in results[i]:
+            if "Available" in results[i] or "Reserved" in results[i]:
                 print(colored(results[i], "green"))
             else:
                 print(colored(results[i], "red"))
@@ -902,11 +928,11 @@ def prepare_html(user_html, table3, day):
     					if ( i >=1){{
                         available_column_number = 0;
                         device_id_column_number = 1;
-    						if (table.rows[i].cells[available_column_number].innerHTML == "Available") {{
+    						if (table.rows[i].cells[available_column_number].innerHTML == "Available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
                                 for(j = 0; j < table.rows[0].cells.length; j++) {{
     								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
                                         if(j=table.rows[0].cells.length){{
-                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
+                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.contains("failed") > -1) {{
                                                         table.rows[i].cells[j].style.color = '#660001';
                                                         table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
                                                 }}
@@ -1898,8 +1924,8 @@ def main():
                 reboot = "True"
             if "cleanup:true" in args["actions"]:
                 cleanup = "True"
-            if "reserve:true" in args["actions"]:
-                reserve = "True"
+            if "reserve" in args["actions"]:
+                reserve = args["actions"]
             if "clean_repo" in args["actions"]:
                 clean_repo = args["actions"]
             else:
@@ -1929,7 +1955,19 @@ def main():
                 sys.exit(-1)
         os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
-        os.environ["RESERVE"] = reserve
+        try:
+            reserve = reserve.split("|")[0]
+            os.environ["RESERVE"] = reserve.split(":")[0]
+            try:
+                if (int(reserve.split(":")[1].split(";")[0])):
+                    os.environ["RESERVE_TIME"] = reserve.split(":")[1].split(";")[0]
+                    print(os.environ["RESERVE_TIME"])
+            except:
+                print("Wrong reservation time. defaulting to 15.")
+                os.environ["RESERVE_TIME"] = "15"
+                pass
+        except IndexError as e:
+            raise Exception( "Begin with reserve parameter with a colon seperator followed by reservation time in minutes. Minimum default time is 15 minutes. E.g. reserve:15 ")
         if (
             "True" in os.environ["GET_NETWORK_SETTINGS"]
             or "True" in reboot

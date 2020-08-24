@@ -67,6 +67,7 @@ pandas==1.0.3
 parso==0.7.0
 pathspec==0.8.0
 pbr==5.4.5
+perfectoactions==1.0.61
 perfectoai==1.0.6
 pexpect==4.8.0
 pickleshare==0.7.5
