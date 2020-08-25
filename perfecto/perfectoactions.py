@@ -931,12 +931,10 @@ def prepare_html(user_html, table3, day):
     						if (table.rows[i].cells[available_column_number].innerHTML == "Available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
                                 for(j = 0; j < table.rows[0].cells.length; j++) {{
     								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
-                                        if(j=table.rows[0].cells.length){{
-                                                if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.contains("failed") > -1) {{
-                                                        table.rows[i].cells[j].style.color = '#660001';
-                                                        table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-                                                }}
-    							}}
+                                        if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
+                                                table.rows[i].cells[j].style.color = '#660001';
+                                                table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
+                                        }}
                                  }}
     							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
     							var url = 'https://"""
@@ -1914,7 +1912,7 @@ def main():
         os.environ["GET_NETWORK_SETTINGS"] = "False"
         reboot = "False"
         cleanup = "False"
-        reserve = "False"
+        os.environ["RESERVE"] = "False"
         start_execution = "False"
         clean_repo = "NA"
         if args["actions"]:
@@ -1926,6 +1924,19 @@ def main():
                 cleanup = "True"
             if "reserve" in args["actions"]:
                 reserve = args["actions"]
+                try:
+                    reserve = reserve.split("|")[0]
+                    os.environ["RESERVE"] = reserve.split(":")[0]
+                    try:
+                        if (int(reserve.split(":")[1].split(";")[0])):
+                            os.environ["RESERVE_TIME"] = reserve.split(":")[1].split(";")[0]
+                            print("Reserve time:" + os.environ["RESERVE_TIME"])
+                    except:
+                        print("Wrong reservation time. defaulting to 15.")
+                        os.environ["RESERVE_TIME"] = "15"
+                        pass
+                except IndexError as e:
+                    raise Exception( "Begin with reserve parameter with a colon seperator followed by reservation time in minutes. Minimum default time is 15 minutes. E.g. reserve:15 ")
             if "clean_repo" in args["actions"]:
                 clean_repo = args["actions"]
             else:
@@ -1955,19 +1966,6 @@ def main():
                 sys.exit(-1)
         os.environ["CLEANUP"] = cleanup
         os.environ["REBOOT"] = reboot
-        try:
-            reserve = reserve.split("|")[0]
-            os.environ["RESERVE"] = reserve.split(":")[0]
-            try:
-                if (int(reserve.split(":")[1].split(";")[0])):
-                    os.environ["RESERVE_TIME"] = reserve.split(":")[1].split(";")[0]
-                    print(os.environ["RESERVE_TIME"])
-            except:
-                print("Wrong reservation time. defaulting to 15.")
-                os.environ["RESERVE_TIME"] = "15"
-                pass
-        except IndexError as e:
-            raise Exception( "Begin with reserve parameter with a colon seperator followed by reservation time in minutes. Minimum default time is 15 minutes. E.g. reserve:15 ")
         if (
             "True" in os.environ["GET_NETWORK_SETTINGS"]
             or "True" in reboot
