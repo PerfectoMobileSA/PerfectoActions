@@ -607,7 +607,8 @@ def get_list(get_dev_list):
             device_list.append(device_id + "||" + color + "||" + desc)
             device_list = [x for x in device_list if x != 0]
         if len(device_list) > 0:
-            pool_size = multiprocessing.cpu_count() * 2
+            pool_size = int(str(os.environ["pool"]))
+            print("Parallel processes: " + str(pool_size))
             pool = multiprocessing.Pool(processes=pool_size, maxtasksperchild=2)
             try:
                 print(
@@ -1872,6 +1873,14 @@ def main():
             help="shows client logo if valid official client website url is specified in this sample format: www.perfecto.io",
             nargs="?",
         )
+        parser.add_argument(
+            "-p",
+            "--pool",
+            type=str,
+            metavar="pool",
+            help="Overrides default parallel processes count",
+            nargs="?",
+        )
         args = vars(parser.parse_args())
         if not args["cloud_name"]:
             parser.print_help()
@@ -1909,6 +1918,9 @@ def main():
             os.environ["company_logo"] = new_logo
         else:
             os.environ["company_logo"] = os.environ["perfecto_logo"]
+        os.environ["pool"] =  str(multiprocessing.cpu_count() * 1)
+        if args["pool"]:
+            os.environ["pool"] = args["pool"] 
         os.environ["GET_NETWORK_SETTINGS"] = "False"
         reboot = "False"
         cleanup = "False"

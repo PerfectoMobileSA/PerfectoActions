@@ -15,7 +15,7 @@ with open("README.md", "r") as fh:
 
 setup(
      name='perfectoactions',
-     version='1.0.64', #testpypi
+     version='1.0.65', #testpypi
     #  version='2.0.10',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
