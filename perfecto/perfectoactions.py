@@ -1,44 +1,48 @@
 #!/usr/bin/env python
-import urllib.request, urllib.parse, urllib.error
-import os
-from xml.dom import minidom
-import json
-import re
-from termcolor import colored
-import shutil
-import pandas
-import webbrowser
-import matplotlib.ticker as ticker
-import matplotlib.pyplot as plt
-import io
+import argparse
 import base64
+import datetime
+import io
+import json
+import multiprocessing
+import os
+import platform
+import re
+import shutil
+import ssl
+import sys
+import tempfile
+import time
+import traceback
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+import webbrowser
+import xml.etree.ElementTree as ETree
+from datetime import timedelta
+from multiprocessing import Pool, Process, freeze_support
+from xml.dom import minidom
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
+import pandas
 import pylab as pl
 import requests
-import time
-import datetime
-from datetime import timedelta
-import traceback
-import argparse
-import multiprocessing
-from multiprocessing import freeze_support, Pool, Process
-import ssl
-import tempfile
-import platform
 from colorama import init
-import xml.etree.ElementTree as ETree
 from openpyxl import Workbook
+from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import Alignment
 from pandas.plotting import table
-import sys
-import numpy as np
-from openpyxl.reader.excel import load_workbook
-import uuid
+from termcolor import colored
 
 """ Microsoft Visual C++ required, cython required for pandas installation, """
 TEMP_DIR = "/tmp" if platform.system() == "Darwin" else tempfile.gettempdir()
 # Do not change these variable
 RESOURCE_TYPE = "handsets"
 RESOURCE_TYPE_USERS = "users"
+RESOURCE_TYPE_CRADLES = "cradles"
 REPOSITORY_RESOURCE_TYPE = "repositories/media"
 
 
@@ -63,6 +67,7 @@ def send_request_with_json_response(url):
     response = send_request(url)
     text = response.read().decode("utf-8")
     maps = json.loads(text)
+    print("Response:\n" + str(maps))
     return maps
 
 
@@ -83,7 +88,7 @@ def convertxmlToXls(xml, dict_keys, filename):
     finalHeaders = []
     if dict_keys is None:
         for child in root:
-            headers.append({x.tag for x in root.findall(child.tag + "/*")})
+            headers.append({x.tag for x in root.findall(child.tag + "/*") })
     else:
         headers = dict_keys
     headers = headers[0]
@@ -179,6 +184,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
 
 def send_request_with_xml_response(url):
     """send request"""
+    print("Attempting url: " + str(url))
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     xmldoc = minidom.parseString(decoded)
@@ -193,17 +199,41 @@ def send_request_to_xlsx(url, filename):
         filename = os.path.join(TEMP_DIR, "output", filename)
         convertxmlToXls(decoded, None, filename)
 
+def send_cradles_request_to_xlsx(url, command, filename):
+    """send_cradles_request_to_xlsx"""
+    response = send_request(url)
+    decoded = response.read().decode("utf-8")
+    xmldoc = minidom.parseString(decoded)
+    cradleElements = xmldoc.getElementsByTagName("cradle")
+    nCradles = len(cradleElements) 
+    print ("found " + str(nCradles) + " cradles")
+    if (nCradles >= 1):
+        idElements = xmldoc.getElementsByTagName("id")
+        resource = idElements[0].firstChild.data
+        url = get_url(RESOURCE_TYPE_CRADLES, resource, command)
+        response = urllib.request.urlopen(url)
+        text = response.read().decode("utf-8")
+        xmldoc = minidom.parseString(text)
+        locationElements = xmldoc.getElementsByTagName("location")
+        location = locationElements[0].firstChild.data
+        print ("the location of cradle " + resource + " is " + location)
+        filename = os.path.join(TEMP_DIR, "output", filename)
+        print(text)
+        convertxmlToXls(text, None, filename)
 
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
+    print("Attempting User list API: " + str(url))
     try:
         response = send_request(url)
-    except Exception as e:
-        print(str(e))
-    decoded = response.read().decode("utf-8")
-    if any(["=list" in url, "=users" in url]):
-        filename = os.path.join(TEMP_DIR, "output", filename)
+        print("response: " + str(response))
+        decoded = response.read().decode("utf-8")
+        if any(["=list" in url, "=users" in url]):
+            filename = os.path.join(TEMP_DIR, "output", filename)
         return convertjsonToXls(decoded, None, filename)
+    except Exception as e:
+        return e
+    
 
 
 def send_request2(url):
@@ -240,6 +270,7 @@ def get_url(resource, resource_id, operation):
 
 def getregex_output(response, pattern1, pattern2):
     """regex"""
+    print(str(response))
     matches = re.finditer(pattern1, response, re.MULTILINE)
     for match in matches:
         match_item = str(re.findall(pattern2, match.group()))
@@ -253,6 +284,14 @@ def getregex_output(response, pattern1, pattern2):
         )
         return str(match_item)
 
+def getTimeofExecution(response, pattern1, pattern2):
+    """getTimestamp"""
+    matches = re.finditer(pattern1, response, re.MULTILINE)
+    for match in matches:
+        match_item = str(re.findall(pattern2, match.group()))
+        match_item = match_item.replace('timestamp[0]=', "").replace("'","").replace("[","").replace("]","").split(",")[0]
+        return str(time.strftime("%d %b %Y %H:%M:%S", 
+                    time.localtime(int(match_item)/ 1000)))
 
 def device_command(exec_id, device_id, operation):
     """Runs device command"""
@@ -297,6 +336,13 @@ def get_xml_to_xlsx(resource, command, filename):
     send_request_to_xlsx(url, filename)
     sys.stdout.flush()
 
+def get_cradles_xml_to_xlsx(resource, command, filename):
+    """get_cradles_xml_to_xlsx"""
+    url = get_url(resource, "", "list")
+    # url = get_url(resource, "", command)
+    send_cradles_request_to_xlsx(url, command, filename)
+    sys.stdout.flush()
+
 
 def get_json_to_xlsx(resource, command, filename):
     """get_json_to_xlsx"""
@@ -323,6 +369,8 @@ def get_handset_count(xmldoc):
 
 def exec_command(exec_id, device_id, cmd, subcmd):
     """exec_commands"""
+    status = ""
+    timeofExec = ""
     url = get_url("executions/" + str(exec_id), "", "command")
     url += "&command=" + cmd
     url += "&subcommand=" + subcmd
@@ -333,7 +381,12 @@ def exec_command(exec_id, device_id, cmd, subcmd):
         r"(description\"\:\".*\",\"timer.system|returnValue\"\:\".*\",\"test)",
         ':".*$',
     )
-    return str(status)
+    timeofExec = getTimeofExecution(
+        response,
+        r"reportPdfUrl\"\:[\s]?\".*\",[\s]?\"executionId",
+        'timestamp\[0\]\=[\d]+',
+    )
+    return str(status).replace(",", " "), str(timeofExec)
 
 def create_reservation(resource, resource_id, operation):
     """create_reservation"""
@@ -370,11 +423,13 @@ def perform_actions(deviceid_color):
     desc = deviceid_color.split("||", 2)[2]
     fileName = device_id + ".txt"
     file = os.path.join(TEMP_DIR, "results", fileName)
+    timeofExec = ""
     try:
         status = "Results="
         # update dictionary
         url = get_url(RESOURCE_TYPE, device_id, "info")
         xmldoc = send_request_with_xml_response(url)
+  
         modelElements = xmldoc.getElementsByTagName("model")
         manufacturerElements = xmldoc.getElementsByTagName("manufacturer")
         model = modelElements[0].firstChild.data
@@ -454,14 +509,15 @@ def perform_actions(deviceid_color):
             print("opening: " + model + ", device id: " + device_id)
             device_command(EXEC_ID, device_id, "open")
             cleanup = os.environ["CLEANUP"]
+            temp = ""
             if "True" in cleanup:
                 if not "iOS" in osDevice:
                     print("cleaning up: " + model + ", device id: " + device_id)
                     try:
-                        status += "clean:" + str(
-                            exec_command(EXEC_ID, device_id, "device", "clean")
-                        ).replace(",", " ")
-                    except:
+                        output, temp =  exec_command(EXEC_ID, device_id, "device", "clean")
+                        status += "clean:" + output
+                    except Exception as e:
+                        print(e)
                         status += "clean:Failed!"
                     status += ";"
                 else:
@@ -479,9 +535,8 @@ def perform_actions(deviceid_color):
                 ):
                     print("rebooting: " + model + ", device id: " + device_id)
                     try:
-                        status += "reboot:" + str(
-                            exec_command(EXEC_ID, device_id, "device", "reboot")
-                        ).replace(",", " ")
+                        output, timeofExec = exec_command(EXEC_ID, device_id, "device", "reboot")
+                        status += "reboot:" +  output
                     except:
                         status += "reboot:Failed!"
                     status += ";"
@@ -497,15 +552,8 @@ def perform_actions(deviceid_color):
                 )
                 networkstatus = "airplanemode=Failed, wifi=Failed, data=Failed"
                 try:
-                    tempstatus = (
-                        str(
-                            exec_command(
-                                EXEC_ID, device_id, "network.settings", "get"
-                            )
-                        )
-                        .replace("{", "")
-                        .replace("}", "")
-                    )
+                    tempstatus, temp = exec_command(EXEC_ID, device_id, "network.settings", "get")
+                    tempstatus = tempstatus.replace("{", "").replace("}", "")
                     if tempstatus.count(",") == 2:
                         networkstatus = tempstatus
                         status += "NW:OK"
@@ -519,6 +567,8 @@ def perform_actions(deviceid_color):
             device_command(EXEC_ID, device_id, "close")
             # End execution
             end_execution(EXEC_ID)
+            print(" -----------")
+            print(timeofExec)
         else:
             networkstatus = ",,"
 
@@ -544,6 +594,8 @@ def perform_actions(deviceid_color):
                 + str(networkstatus)
                 + ", "
                 + str(status)
+                + ", lastExecAt="
+                + str(timeofExec)
             )
         else:
             final_string = (
@@ -565,6 +617,8 @@ def perform_actions(deviceid_color):
                 + str(phoneNumber)
                 + ",,,, "
                 + str(status)
+                + ", lastExecAt="
+                + str(timeofExec)
             )
         final_string = re.sub(r"^'|'$", "", final_string)
         f = open(file, "w+")
@@ -752,6 +806,7 @@ def prepare_html(user_html, table3, day):
         airplanemode = []
         wifi = []
         data = []
+        lastExecAt = []
         action_results = []
         for result in results:
             if len(result) > 0:
@@ -771,6 +826,7 @@ def prepare_html(user_html, table3, day):
                     fetch_details(i, 9, result, wifi)
                     fetch_details(i, 10, result, data)
                     fetch_details(i, 11, result, action_results)
+                    fetch_details(i, 12, result, lastExecAt)
                     new_list.append(result)
                     i = i + 1
         pandas.set_option("display.max_columns", None)
@@ -794,6 +850,7 @@ def prepare_html(user_html, table3, day):
                 "Wifi": wifi,
                 "Data": data,
                 "Results": action_results,
+                "Last Rebooted At": lastExecAt,
             }
         else:
             new_dict = {
@@ -804,7 +861,7 @@ def prepare_html(user_html, table3, day):
                 "OS Version": osVersion,
                 "Description": description,
                 "Operator": operator,
-                "Phone number": phonenumber,
+                "Phone number": phonenumber
             }
         df = pandas.DataFrame(new_dict)
         df = df.sort_values(by="Manufacturer")
@@ -1380,8 +1437,8 @@ def prepare_html(user_html, table3, day):
             + summary
             + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p></div>
                                 <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                    <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>
-                                    </br> </br>
+                                    <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                   </br> </br>
                                         <div style="overflow-x:auto;">
                                             {table}
                                         </div>
@@ -1894,6 +1951,12 @@ def main():
                 "security_token parameter is empty. Pass the argument -c followed by cloud_name, eg. perfectoactions -c demo -s <<TOKEN>> || perfectoactions -c demo -s <<user>>:<<password>>"
             )
             exit
+        print(str(args["cloud_name"]))
+        test_list = ["perfectomobile.com","https://",".app."] 
+        if [ele for ele in test_list if(ele in str(args["cloud_name"]).lower())]:
+            raise Exception(
+                "Kindly provide only cloud name. E.g. cloud name of demo.perfectomobile.com is just 'demo'. Hence the correct way to pass cloud name is -c demo "
+            )
         os.environ["CLOUDNAME"] = args["cloud_name"]
         os.environ["TOKEN"] = args["security_token"]
         if args["device_list_parameters"]:
@@ -1999,6 +2062,7 @@ def main():
         create_dir(os.path.join(TEMP_DIR, "output"), True)
         # result = get_xml_to_xlsx(RESOURCE_TYPE, "list", 'get_devices_list.xlsx')
         # get device list to excel
+
         devlist = Pool(processes=1)
         try:
             result = devlist.apply_async(
@@ -2008,18 +2072,26 @@ def main():
             devlist.close()
             print(traceback.format_exc())
             sys.exit(-1)
-        # user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
-        userlist = Pool(processes=1)
-        try:
-            user_html = userlist.apply_async(
-                get_json_to_xlsx, [RESOURCE_TYPE_USERS, "list", "get_users_list.xlsx"]
-            ).get()
-            userlist.close()
-            userlist.terminate()
-        except Exception:
-            userlist.close()
-            print(traceback.format_exc())
-            sys.exit(-1)
+        # cradleList = Pool(processes=1)
+        # try:
+        #     result = cradleList.apply_async(
+        #         get_xml_to_xlsx, [RESOURCE_TYPE_CRADLES, "list", "get_cradles_list.xlsx"]
+        #     )
+        # except Exception:
+        #     cradleList.close()
+        #     print(traceback.format_exc())
+        #     sys.exit(-1)
+        # cradleInfo = Pool(processes=1)
+        # try:
+        #     result = cradleInfo.apply_async(
+        #         get_cradles_xml_to_xlsx, [RESOURCE_TYPE_CRADLES, "info", "get_cradles_info.xlsx"]
+        #     )
+        # except Exception:
+        #     cradleInfo.close()
+        #     print(traceback.format_exc())
+        #     sys.exit(-1)
+        #Dont add the below to threading as it will freeze if issues found.
+        user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
         if args["device_status"]:
             #             may require for debug single threads
             #             get_list("list;connected;false;green;Available")

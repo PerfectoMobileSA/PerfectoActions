@@ -7,7 +7,9 @@ Created on Fri Feb  7 16:56:12 2020
 """
 
 import sys
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
+
 OPTIONS = {}
 mainscript = 'perfecto/perfectoactions.py'
 with open("README.md", "r") as fh:
@@ -15,8 +17,8 @@ with open("README.md", "r") as fh:
 
 setup(
      name='perfectoactions',
-     version='1.0.65', #testpypi
-    #  version='2.0.10',
+    #  version='1.0.66', #testpypi
+      version='2.0.13',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
      description="A Perfecto device actions execution + reporter package",
