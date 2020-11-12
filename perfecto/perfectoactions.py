@@ -753,7 +753,8 @@ def create_summary(df, title, column, name):
         encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", name + ".png"))
         summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
     except Exception as e:
-        raise Exception("API: " + df.url + " throws " + df.msg + ". Raise a support case to get API access for fetching user list/ device list.")
+        print("API: " + df.url + " throws " + df.msg + ". Raise a support case to get API access for fetching user list/ device list.")
+        summary = '<div style="color: white;">' + df.msg + '. Raise a support case to get API access for fetching user list/ device list.</div><img '
     return summary
 
 
@@ -1153,8 +1154,7 @@ def prepare_html(user_html, table3, day):
             }}
 
             body {{
-              background-color: #ffffff;
-              background-image: linear-gradient(to right,  #09f, #bfee90, #fff, #fffdd0, #fff, #bfee90, #09f);
+              background-color: black;
               height: 100%;
               background-repeat:  repeat-y;
               background-position: right;
@@ -1546,20 +1546,31 @@ def prepare_html(user_html, table3, day):
                     )
                 )
             else:
-                f.write(
-                    html_string.format(
-                        table=df.to_html(
-                            classes="mystyle", table_id="devicetable", index=False
-                        ),
-                        table2=user_html.to_html(
-                            classes="mystyle",
-                            table_id="usertable",
-                            justify="justify-all",
-                            index=False,
-                        ),
-                        table3="",
+                try:
+                    f.write(
+                        html_string.format(
+                            table=df.to_html(
+                                classes="mystyle", table_id="devicetable", index=False
+                            ),
+                            table2=user_html.to_html(
+                                classes="mystyle",
+                                table_id="usertable",
+                                justify="justify-all",
+                                index=False,
+                            ),
+                            table3="",
+                        )
                     )
-                )
+                except:
+                    f.write(
+                        html_string.format(
+                            table=df.to_html(
+                                classes="mystyle", table_id="devicetable", index=False
+                            ),
+                            table2="",
+                            table3="",
+                        )
+                    )
         webbrowser.open(
             "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
         )
