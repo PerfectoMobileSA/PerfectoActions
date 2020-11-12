@@ -17,8 +17,8 @@ with open("README.md", "r") as fh:
 
 setup(
      name='perfectoactions',
-    #  version='1.0.66', #testpypi
-      version='2.0.13',
+    #  version='1.0.68', #testpypi
+      version='2.0.15',
      author="Genesis Thomas",
      author_email="gthomas@perforce.com",
      description="A Perfecto device actions execution + reporter package",

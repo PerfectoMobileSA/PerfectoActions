@@ -381,11 +381,12 @@ def exec_command(exec_id, device_id, cmd, subcmd):
         r"(description\"\:\".*\",\"timer.system|returnValue\"\:\".*\",\"test)",
         ':".*$',
     )
-    timeofExec = getTimeofExecution(
-        response,
-        r"reportPdfUrl\"\:[\s]?\".*\",[\s]?\"executionId",
-        'timestamp\[0\]\=[\d]+',
-    )
+    if("Failed" not in status):
+        timeofExec = getTimeofExecution(
+            response,
+            r"reportPdfUrl\"\:[\s]?\".*\",[\s]?\"executionId",
+            'timestamp\[0\]\=[\d]+',
+        )
     return str(status).replace(",", " "), str(timeofExec)
 
 def create_reservation(resource, resource_id, operation):
@@ -554,8 +555,11 @@ def perform_actions(deviceid_color):
                 try:
                     tempstatus, temp = exec_command(EXEC_ID, device_id, "network.settings", "get")
                     tempstatus = tempstatus.replace("{", "").replace("}", "")
-                    if tempstatus.count(",") == 2:
-                        networkstatus = tempstatus
+                    if tempstatus.count(",") == 2 or tempstatus.count("  ") == 2:
+                        if(tempstatus.count("  ") == 2):
+                            networkstatus = ', e'.join(str(tempstatus).split("  "))
+                        else:
+                            networkstatus = tempstatus
                         status += "NW:OK"
                     else:
                         status += "NW:Failed!"
@@ -723,7 +727,7 @@ def create_summary(df, title, column, name):
     fig = pl.figure(figsize=(15, 2))
     pl.suptitle(title)
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
-    fig.patch.set_facecolor("yellow")
+    fig.patch.set_facecolor("lightgoldenrodyellow")
     fig.patch.set_alpha(1)
     df[column].value_counts().sort_index().plot(
         kind="pie",
@@ -739,7 +743,7 @@ def create_summary(df, title, column, name):
     pl.ylabel("")
     # plot table
     ax2 = pl.subplot(122, facecolor="#fffffa")
-    ax2.patch.set_facecolor("yellow")
+    ax2.patch.set_facecolor("lightgoldenrodyellow")
     ax2.patch.set_alpha(1)
     pl.axis("off")
     tbl = table(ax2, df[column].value_counts(), loc="center")
@@ -753,7 +757,7 @@ def create_summary(df, title, column, name):
 def prepare_graph(df, column):
     """ prepare graph """
     fig = pl.figure()
-    fig.patch.set_facecolor("green")
+    fig.patch.set_facecolor("lightgoldenrodyellow")
     fig.patch.set_alpha(1)
     ax = (
         df[column]
@@ -763,7 +767,7 @@ def prepare_graph(df, column):
     )
     ax.set_title(column, fontsize=20)
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
-    ax.patch.set_facecolor("green")
+    ax.patch.set_facecolor("lightgoldenrodyellow")
     ax.patch.set_alpha(0.1)
     pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
     encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", column + ".png"))
@@ -912,8 +916,9 @@ def prepare_html(user_html, table3, day):
             """
         <html lang="en">
           <head>
-    	  <meta name="viewport" content="width=device-width, initial-scale=1">
-           <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
+            <meta http-equiv="Content-Security-Policy" content="default-src *; img-src * data: http:; script-src 'unsafe-inline' 'unsafe-eval' *; style-src 'unsafe-inline' *">
+    	    <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
     		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
             <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
     		     <head><title>"""
@@ -1132,7 +1137,7 @@ def prepare_html(user_html, table3, day):
             }}
 
             #myInput, #myInput2, #myInput3 {{
-              background-image: url('http://www.free-icons-download.net/images/mobile-search-icon-94430.png');
+              background-image: url('https://cdn4.iconfinder.com/data/icons/sapphire-storm-1/32/color-web3-18-256.png');
               background-position: 2px 4px;
               background-repeat: no-repeat;
               background-size: 25px 30px;
