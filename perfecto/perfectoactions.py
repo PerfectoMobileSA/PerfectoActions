@@ -729,28 +729,31 @@ def create_summary(df, title, column, name):
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
     fig.patch.set_facecolor("lightgoldenrodyellow")
     fig.patch.set_alpha(1)
-    df[column].value_counts().sort_index().plot(
-        kind="pie",
-        y="%",
-        ax=ax1,
-        autopct="%1.1f%%",
-        startangle=30,
-        shadow=False,
-        legend=False,
-        x=df[column].unique,
-        fontsize=7,
-    )
-    pl.ylabel("")
-    # plot table
-    ax2 = pl.subplot(122, facecolor="#fffffa")
-    ax2.patch.set_facecolor("lightgoldenrodyellow")
-    ax2.patch.set_alpha(1)
-    pl.axis("off")
-    tbl = table(ax2, df[column].value_counts(), loc="center")
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(8)
-    encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", name + ".png"))
-    summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+    try:
+        df[column].value_counts().sort_index().plot(
+            kind="pie",
+            y="%",
+            ax=ax1,
+            autopct="%1.1f%%",
+            startangle=30,
+            shadow=False,
+            legend=False,
+            x=df[column].unique,
+            fontsize=7,
+        )
+        pl.ylabel("")
+        # plot table
+        ax2 = pl.subplot(122, facecolor="#fffffa")
+        ax2.patch.set_facecolor("lightgoldenrodyellow")
+        ax2.patch.set_alpha(1)
+        pl.axis("off")
+        tbl = table(ax2, df[column].value_counts(), loc="center")
+        tbl.auto_set_font_size(False)
+        tbl.set_fontsize(8)
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", name + ".png"))
+        summary = '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+    except Exception as e:
+        raise Exception("API: " + df.url + " throws " + df.msg + ". Raise a support case to get API access for fetching user list/ device list.")
     return summary
 
 
