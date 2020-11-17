@@ -727,7 +727,7 @@ def create_summary(df, title, column, name):
     fig = pl.figure(figsize=(15, 2))
     pl.suptitle(title)
     ax1 = pl.subplot(121, aspect="equal", facecolor="#fffffa")
-    fig.patch.set_facecolor("lightgoldenrodyellow")
+    fig.patch.set_facecolor("white")
     fig.patch.set_alpha(1)
     try:
         df[column].value_counts().sort_index().plot(
@@ -737,14 +737,19 @@ def create_summary(df, title, column, name):
             autopct="%1.1f%%",
             startangle=30,
             shadow=False,
-            legend=False,
+            labels=None,
+            legend=True,
             x=df[column].unique,
             fontsize=7,
         )
         pl.ylabel("")
+        status = []
+        for i in range(len(df[column].value_counts().sort_index().to_frame())) :
+            status.append(df[column].value_counts().sort_index().to_frame().iloc[i].name)
+        ax1.legend(labels=status, bbox_to_anchor=(1,0.5), loc="best")
         # plot table
         ax2 = pl.subplot(122, facecolor="#fffffa")
-        ax2.patch.set_facecolor("lightgoldenrodyellow")
+        ax2.patch.set_facecolor("white")
         ax2.patch.set_alpha(1)
         pl.axis("off")
         tbl = table(ax2, df[column].value_counts(), loc="center")
@@ -761,7 +766,7 @@ def create_summary(df, title, column, name):
 def prepare_graph(df, column):
     """ prepare graph """
     fig = pl.figure()
-    fig.patch.set_facecolor("lightgoldenrodyellow")
+    fig.patch.set_facecolor("white")
     fig.patch.set_alpha(1)
     ax = (
         df[column]
@@ -771,7 +776,7 @@ def prepare_graph(df, column):
     )
     ax.set_title(column, fontsize=20)
     ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
-    ax.patch.set_facecolor("lightgoldenrodyellow")
+    ax.patch.set_facecolor("white")
     ax.patch.set_alpha(0.1)
     pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
     encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", column + ".png"))
