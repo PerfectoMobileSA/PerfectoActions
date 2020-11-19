@@ -708,7 +708,7 @@ def print_results(results):
         results[i] = re.sub("Results\=$", "", results[i])
         results[i] = re.sub("[,]+", "", results[i])
         if results[i]:
-            if "Available" in results[i] or "Reserved" in results[i]:
+            if "available" in results[i] or "Reserved" in results[i]:
                 print(colored(results[i], "green"))
             else:
                 print(colored(results[i], "red"))
@@ -770,11 +770,11 @@ def prepare_graph(df, column):
         fig = pl.figure()
         fig.patch.set_facecolor("white")
         fig.patch.set_alpha(1)
-        ax = (
+        ax = (  
             df[column]
             .value_counts()
             .sort_index()
-            .plot(kind="bar", fontsize=12, stacked=True, figsize=(25, 10), ylim=(0, 2))
+            .plot(kind="bar", fontsize=14, stacked=False, colormap='Paired', figsize=(25, 10), ylim=(0, 2))
         )
         ax.set_title(column, fontsize=20)
         ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
@@ -1005,14 +1005,14 @@ def prepare_html(user_html, table3, day):
                 $("tbody tr:contains('disconnected')").css('background-color','#fcc');
                 $("tbody tr:contains('ERROR')").css('background-color','#fcc');
                 $("tbody tr:contains('unavailable')").css('background-color','#fcc');
-                $("tbody tr:contains('Busy')").css('background-color','#fcc');
+                $("tbody tr:contains('busy')").css('background-color','#fcc');
                 var table = document.getElementById("devicetable");
                 var rowCount = table.rows.length;
                 for (var i = 0; i < rowCount; i++) {{
                     if ( i >=1){{
                     available_column_number = 0;
                     device_id_column_number = 1;
-                        if (table.rows[i].cells[available_column_number].innerHTML == "Available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
+                        if (table.rows[i].cells[available_column_number].innerHTML == "available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
                             for(j = 0; j < table.rows[0].cells.length; j++) {{
                                 table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
                                     if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
@@ -1938,7 +1938,7 @@ def main():
             "--device_status",
             type=str,
             metavar="Different types of Device Connection status",
-            help="Different types of Device Connection status. Values: all. This will showcase all the device status like Available, disconnected, unavailable & Busy. Note: Only Available devices will be shown by default",
+            help="Different types of Device Connection status. Values: all. This will showcase all the device status like available, disconnected, unavailable, notavailable & busy. Note: Only Available devices will be shown by default",
             nargs="?",
         )
         parser.add_argument(
@@ -2140,15 +2140,15 @@ def main():
             os.environ["device_status"] = " with " + args["device_status"].lower() + " status"
             if "all" in args["device_status"].lower():
                 #             may require for debug single threads
-                #             get_list("list;connected;false;green;Available")
-                #             get_list("list;connected;true;red;Busy")
+                #             get_list("list;connected;false;green;available")
+                #             get_list("list;connected;true;red;busy")
                 #             get_list("list;disconnected;;red;disconnected")
                 #             get_list("list;unavailable;;red;unavailable")
                 get_dev_list = [
-                    "list;connected;true;red;Busy",
+                    "list;connected;true;red;busy",
                     "list;disconnected;;red;disconnected",
                     "list;unavailable;;red;unavailable",
-                    "list;connected;false;green;Available",
+                    "list;connected;false;green;available",
                 ]
             elif "disconnected".lower() in args["device_status"].lower():
                 get_dev_list = [
@@ -2182,7 +2182,7 @@ def main():
             os.environ["device_status"] = ""
             if not args["device_list_parameters"]:
                 os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
-            get_list("list;connected;false;green;Available")
+            get_list("list;connected;false;green;available")
         if "NA" != clean_repo:
             bool = prepare_html(user_html, repo_html, day)
         else:
@@ -2194,21 +2194,29 @@ def main():
             main()
         devlist.close()
         devlist.terminate()
-
-        try:
-            if not platform.system() == "Darwin":
-                os.system("taskkill /f /im perfectoactions.exe")
-        except:
-            pass
         if(bool):
             if args["device_status"].lower() in ["disconnected","notavailable","unavailable"]:
-                raise Exception("There are some devices which are " + args["device_status"].lower())
+                print("There are some devices which are " + args["device_status"].lower())
+                sys.exit(-1)
             
     except Exception as e:
-        raise Exception("Oops!", e)
+        print(traceback.format_exc())
         sys.exit(-1)
 
-
+def killProcess():
+    try:
+        if not platform.system() == "Darwin":
+                os.system("taskkill /f /im perfectoactions.exe")
+    except Exception as e:
+        print("Killing process failed.." + str(e))
+        
 if __name__ == "__main__":
-    main()
-    sys.exit()
+    try:
+        main()
+        print("Execution completed successfully!")
+        sys.exit(0)
+    except Exception as e:
+        print(traceback.format_exc())
+        sys.exit(-1)
+    finally:
+        killProcess()
