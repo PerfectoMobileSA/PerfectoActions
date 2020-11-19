@@ -734,13 +734,14 @@ def create_summary(df, title, column, name):
             kind="pie",
             y="%",
             ax=ax1,
-            autopct="%1.1f%%",
+            autopct="%1.0f%%",
             startangle=30,
             shadow=False,
             labels=None,
             legend=True,
             x=df[column].unique,
             fontsize=7,
+            pctdistance=1.2,
         )
         pl.ylabel("")
         status = []
@@ -765,22 +766,25 @@ def create_summary(df, title, column, name):
 
 def prepare_graph(df, column):
     """ prepare graph """
-    fig = pl.figure()
-    fig.patch.set_facecolor("white")
-    fig.patch.set_alpha(1)
-    ax = (
-        df[column]
-        .value_counts()
-        .sort_index()
-        .plot(kind="bar", fontsize=12, stacked=True, figsize=(25, 10), ylim=(0, 2))
-    )
-    ax.set_title(column, fontsize=20)
-    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
-    ax.patch.set_facecolor("white")
-    ax.patch.set_alpha(0.1)
-    pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
-    encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", column + ".png"))
-    return '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+    if column in df.columns:
+        fig = pl.figure()
+        fig.patch.set_facecolor("white")
+        fig.patch.set_alpha(1)
+        ax = (
+            df[column]
+            .value_counts()
+            .sort_index()
+            .plot(kind="bar", fontsize=12, stacked=True, figsize=(25, 10), ylim=(0, 2))
+        )
+        ax.set_title(column, fontsize=20)
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+        ax.patch.set_facecolor("white")
+        ax.patch.set_alpha(0.1)
+        pl.yticks(df[column].value_counts(), fontsize=10, rotation=40)
+        encoded = fig_to_base64(os.path.join(TEMP_DIR, "results", column + ".png"))
+        return '<img src="data:image/png;base64, {}"'.format(encoded.decode("utf-8"))
+    else:
+        return "<img "
 
 
 def prepare_html(user_html, table3, day):
@@ -796,106 +800,104 @@ def prepare_html(user_html, table3, day):
                             f1.write(line)
                             f1.write("\n")
     file = os.path.join(TEMP_DIR, "results", "Final_Summary.txt")
+    cloudname = os.environ["CLOUDNAME"]
     try:
-        f = open(file, "r")
-    except FileNotFoundError:
-        raise Exception("No devices found/ Re-check your arguments")
-        sys.exit(-1)
-    result = f.read()
-    f.close()
-    print_results(result.split("\n"))
-    if "true" in os.environ["PREPARE_ACTIONS_HTML"]:
-        results = result.split("\n")
-        # TODO Add a new list and number below & a new_dict if a new column is added
-        new_dict = {}
-        deviceids = []
-        status = []
-        description = []
-        manufacturer = []
-        model = []
-        osVersion = []
-        operator = []
-        phonenumber = []
-        airplanemode = []
-        wifi = []
-        data = []
-        lastExecAt = []
-        action_results = []
-        for result in results:
-            if len(result) > 0:
-                new_result = result.split(",")
-                new_list = []
-                i = 0
-                for result in new_result:
-                    fetch_details(i, 0, result, status)
-                    fetch_details(i, 1, result, deviceids)
-                    fetch_details(i, 2, result, manufacturer)
-                    fetch_details(i, 3, result, model)
-                    fetch_details(i, 4, result, osVersion)
-                    fetch_details(i, 5, result, description)
-                    fetch_details(i, 6, result, operator)
-                    fetch_details(i, 7, result, phonenumber)
-                    fetch_details(i, 8, result, airplanemode)
-                    fetch_details(i, 9, result, wifi)
-                    fetch_details(i, 10, result, data)
-                    fetch_details(i, 11, result, action_results)
-                    fetch_details(i, 12, result, lastExecAt)
-                    new_list.append(result)
-                    i = i + 1
-        pandas.set_option("display.max_columns", None)
-        pandas.set_option("display.max_colwidth", 100)
-        pandas.set_option("colheader_justify", "center")
-        get_network_settings = os.environ["GET_NETWORK_SETTINGS"]
-        reboot = os.environ["REBOOT"]
-        cleanup = os.environ["CLEANUP"]
-        reserve = os.environ["RESERVE"]
-        if "True" in get_network_settings or "True" in reboot or "True" in cleanup or "True" in reserve:
-            new_dict = {
-                "Status": status,
-                "Device Id": deviceids,
-                "Manufacturer": manufacturer,
-                "Model": model,
-                "OS Version": osVersion,
-                "Description": description,
-                "Operator": operator,
-                "Phone number": phonenumber,
-                "AirplaneMode": airplanemode,
-                "Wifi": wifi,
-                "Data": data,
-                "Results": action_results,
-                "Last Rebooted At": lastExecAt,
-            }
-        else:
-            new_dict = {
-                "Status": status,
-                "Device Id": deviceids,
-                "Manufacturer": manufacturer,
-                "Model": model,
-                "OS Version": osVersion,
-                "Description": description,
-                "Operator": operator,
-                "Phone number": phonenumber
-            }
-        df = pandas.DataFrame(new_dict)
-        df = df.sort_values(by="Manufacturer")
-        df = df.sort_values(by="Model")
-        df = df.sort_values(by="Status")
-        df.reset_index(drop=True, inplace=True)
-        device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
-        cloudname = os.environ["CLOUDNAME"]
-        current_time = datetime.datetime.now().strftime("%c")
-        title = (
-            cloudname.upper()
-            + " cloud status summary of "
-            + device_list_parameters
-            + " @ "
-            + current_time
-        )
-        summary = create_summary(df, title, "Status", "device_summary")
-        plt.close("all")
+        f = open(file, "r")        
+        result = f.read()
+        f.close()
+        print_results(result.split("\n"))
+        if "true" in os.environ["PREPARE_ACTIONS_HTML"]:
+            results = result.split("\n")
+            # TODO Add a new list and number below & a new_dict if a new column is added
+            new_dict = {}
+            deviceids = []
+            status = []
+            description = []
+            manufacturer = []
+            model = []
+            osVersion = []
+            operator = []
+            phonenumber = []
+            airplanemode = []
+            wifi = []
+            data = []
+            lastExecAt = []
+            action_results = []
+            for result in results:
+                if len(result) > 0:
+                    new_result = result.split(",")
+                    new_list = []
+                    i = 0
+                    for result in new_result:
+                        fetch_details(i, 0, result, status)
+                        fetch_details(i, 1, result, deviceids)
+                        fetch_details(i, 2, result, manufacturer)
+                        fetch_details(i, 3, result, model)
+                        fetch_details(i, 4, result, osVersion)
+                        fetch_details(i, 5, result, description)
+                        fetch_details(i, 6, result, operator)
+                        fetch_details(i, 7, result, phonenumber)
+                        fetch_details(i, 8, result, airplanemode)
+                        fetch_details(i, 9, result, wifi)
+                        fetch_details(i, 10, result, data)
+                        fetch_details(i, 11, result, action_results)
+                        fetch_details(i, 12, result, lastExecAt)
+                        new_list.append(result)
+                        i = i + 1
+            pandas.set_option("display.max_columns", None)
+            pandas.set_option("display.max_colwidth", 100)
+            pandas.set_option("colheader_justify", "center")
+            get_network_settings = os.environ["GET_NETWORK_SETTINGS"]
+            reboot = os.environ["REBOOT"]
+            cleanup = os.environ["CLEANUP"]
+            reserve = os.environ["RESERVE"]
+            if "True" in get_network_settings or "True" in reboot or "True" in cleanup or "True" in reserve:
+                new_dict = {
+                    "Status": status,
+                    "Device Id": deviceids,
+                    "Manufacturer": manufacturer,
+                    "Model": model,
+                    "OS Version": osVersion,
+                    "Description": description,
+                    "Operator": operator,
+                    "Phone number": phonenumber,
+                    "AirplaneMode": airplanemode,
+                    "Wifi": wifi,
+                    "Data": data,
+                    "Results": action_results,
+                    "Last Rebooted At": lastExecAt,
+                }
+            else:
+                new_dict = {
+                    "Status": status,
+                    "Device Id": deviceids,
+                    "Manufacturer": manufacturer,
+                    "Model": model,
+                    "OS Version": osVersion,
+                    "Description": description,
+                    "Operator": operator,
+                    "Phone number": phonenumber
+                }
+            df = pandas.DataFrame(new_dict)
+            df = df.sort_values(by="Manufacturer")
+            df = df.sort_values(by="Model")
+            df = df.sort_values(by="Status")
+            df.reset_index(drop=True, inplace=True)
+            device_list_parameters = os.environ["DEVICE_LIST_PARAMETERS"]
+            current_time = datetime.datetime.now().strftime("%c")
+            title = (
+                cloudname.upper()
+                + " cloud status summary of "
+                + device_list_parameters
+                + os.environ["device_status"]
+                + " @ "
+                + current_time
+            )
+            summary = create_summary(df, title, "Status", "device_summary")
+            plt.close("all")
 
-        df = df.sort_values(by="Model")
-        df = df.sort_values(by="Status")
+            df = df.sort_values(by="Model")
+            df = df.sort_values(by="Status")
         # skipping csv output as we now have full device list api response
         #         df.to_csv(os.path.join(TEMP_DIR , 'results','output.csv'), index=False)
         # Futuristic:
@@ -920,618 +922,654 @@ def prepare_html(user_html, table3, day):
         #     target = dfs['Status']
         #     print(data)
         #     print(target)
+        returnBoolean = True
+    except FileNotFoundError:
+        print("No devices found/ Re-check your arguments")
+        summary = """<div style="color: white;">No devices matches your search criteria.</div><img '"""
+        df =pandas.DataFrame([])
+        returnBoolean = False
 
-        html_string = (
-            """
-        <html lang="en">
-          <head>
-            <meta http-equiv="Content-Security-Policy" content="default-src *; img-src * data: http:; script-src 'unsafe-inline' 'unsafe-eval' *; style-src 'unsafe-inline' *">
-    	    <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
-    		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-            <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    		     <head><title>"""
-            + cloudname.upper()
-            + """ Cloud Status</title>
-          <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-            <script>
-              $(document).ready(function(){{
-                document.getElementById("tabbed-device").click();
-            }});
-            $(document).ready(function(){{
-                // Add smooth scrolling to all links
-                $("a").on('click', function(event) {{
+    html_string = (
+        """
+    <html lang="en">
+        <head>
+        <meta http-equiv="Content-Security-Policy" content="default-src *; img-src * data: http:; script-src 'unsafe-inline' 'unsafe-eval' *; style-src 'unsafe-inline' *">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta content="text/html; charset=iso-8859-2" http-equiv="Content-Type">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+                <head><title>"""
+        + cloudname.upper()
+        + """ Cloud Status</title>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+        <script>
+        $(document).ready(function(){{
+            // Add smooth scrolling to all links
+            $("a").on('click', function(event) {{
 
-                    // Make sure this.hash has a value before overriding default behavior
-                    if (this.hash !== "") {{
-                    // Prevent default anchor click behavior
-                    event.preventDefault();
+                // Make sure this.hash has a value before overriding default behavior
+                if (this.hash !== "") {{
+                // Prevent default anchor click behavior
+                event.preventDefault();
 
-                    // Store hash
-                    var hash = this.hash;
+                // Store hash
+                var hash = this.hash;
 
-                    // Using jQuery's animate() method to add smooth page scroll
-                    // The optional number (800) specifies the number of milliseconds it takes to scroll to the specified area
-                    $('html, body').animate({{
-                        scrollTop: $(hash).offset().top
-                    }}, 800, function(){{
-                
-                        // Add hash (#) to URL when done scrolling (default click behavior)
-                        window.location.hash = hash;
-                    }});
-                    }} // End if
-                }});
-            }});
-            $(document).ready(function(){{
-              $("#myInput").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#devicetable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-                      $(document).ready(function(){{
-              $("#myInput2").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#usertable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-            $(document).ready(function(){{
-              $("#myInput3").on("keyup", function() {{
-                var value = $(this).val().toLowerCase();
-                $("#repotable tbody tr").filter(function() {{
-                  $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
-                }});
-              }});
-            }});
-            </script>
-    		<script type="text/javascript">
-    	           $(document).ready(function(){{
-                   $("#slideshow > div:gt(0)").show();
-    				$("tbody tr:contains('Disconnected')").css('background-color','#fcc');
-    				$("tbody tr:contains('ERROR')").css('background-color','#fcc');
-    				$("tbody tr:contains('Un-available')").css('background-color','#fcc');
-    				$("tbody tr:contains('Busy')").css('background-color','#fcc');
-                    var table = document.getElementById("devicetable");
-    				var rowCount = table.rows.length;
-    				for (var i = 0; i < rowCount; i++) {{
-    					if ( i >=1){{
-                        available_column_number = 0;
-                        device_id_column_number = 1;
-    						if (table.rows[i].cells[available_column_number].innerHTML == "Available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
-                                for(j = 0; j < table.rows[0].cells.length; j++) {{
-    								table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
-                                        if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
-                                                table.rows[i].cells[j].style.color = '#660001';
-                                                table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-                                        }}
-                                 }}
-    							var txt = table.rows[i].cells[device_id_column_number].innerHTML;
-    							var url = 'https://"""
-            + cloudname.upper()
-            + """.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
-    							var row = $('<tr></tr>')
-    							var link = document.createElement("a");
-    							link.href = url;
-    							link.innerHTML = txt;
-    							link.target = "_blank";
-    							table.rows[i].cells[device_id_column_number].innerHTML = "";
-    							table.rows[i].cells[device_id_column_number].appendChild(link);
-    						}}else{{
-    							for(j = 0; j < table.rows[0].cells.length; j++) {{
-    								table.rows[i].cells[j].style.color = '#660001';
-                                         table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
-    							}}
-    						}}
-    					}}
-    				}}
-                 }});
-                 function myFunction() {{
-                  var x = document.getElementById("myTopnav");
-                  if (x.className === "topnav") {{
-                    x.className += " responsive";
-                  }} else {{
-                    x.className = "topnav";
-                  }}
-                }}
-                function zoom(element) {{
-				         var data = element.getAttribute("src");
-						 let w = window.open('about:blank');
-						 let image = new Image();
-						 image.src = data;
-						 setTimeout(function(){{
-						   w.document.write(image.outerHTML);
-						 }}, 0);
-				     }}
-                function autoselect(element) {{
-                     var data = element.getAttribute("id");
-                     document.getElementById(data + "-1").checked = true;
-                }}     
-    		</script>
-
-    		<meta name="viewport" content="width=device-width, initial-scale=1">
-            </head>
-             <style>
-
-            html {{
-              height:100%;
-            }}
+                // Using jQuery's animate() method to add smooth page scroll
+                // The optional number (800) specifies the number of milliseconds it takes to scroll to the specified area
+                $('html, body').animate({{
+                    scrollTop: $(hash).offset().top
+                }}, 800, function(){{
             
+                    // Add hash (#) to URL when done scrolling (default click behavior)
+                    window.location.hash = hash;
+                }});
+                }} // End if
+            }});
+        }});
+        $(document).ready(function(){{
+            $("#topNav").css('display', 'inline-block');
+            $("#download").css('display', 'inline-block')
+            $("#download2").css('display', 'inline-block');
+            $("#myInput").css('display', 'inline-block');
+            $("#myInput2").css('display', 'inline-block');
+            $("#myInput3").css('display', 'inline-block');
+            
+            $("#myInput").on("keyup", function() {{
+            var value = $(this).val().toLowerCase();
+            $("#devicetable tbody tr").filter(function() {{
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            }});
+            }});
+        }});
+                    $(document).ready(function(){{
+            $("#myInput2").on("keyup", function() {{
+            var value = $(this).val().toLowerCase();
+            $("#usertable tbody tr").filter(function() {{
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            }});
+            }});
+        }});
+        $(document).ready(function(){{
+            $("#myInput3").on("keyup", function() {{
+            var value = $(this).val().toLowerCase();
+            $("#repotable tbody tr").filter(function() {{
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            }});
+            }});
+        }});
+        </script>
+        <script type="text/javascript">
+                $(document).ready(function(){{
+                $("#slideshow > div:gt(0)").show();
+                $("tbody tr:contains('disconnected')").css('background-color','#fcc');
+                $("tbody tr:contains('ERROR')").css('background-color','#fcc');
+                $("tbody tr:contains('unavailable')").css('background-color','#fcc');
+                $("tbody tr:contains('Busy')").css('background-color','#fcc');
+                var table = document.getElementById("devicetable");
+                var rowCount = table.rows.length;
+                for (var i = 0; i < rowCount; i++) {{
+                    if ( i >=1){{
+                    available_column_number = 0;
+                    device_id_column_number = 1;
+                        if (table.rows[i].cells[available_column_number].innerHTML == "Available" || table.rows[i].cells[available_column_number].innerHTML == "Reserved") {{
+                            for(j = 0; j < table.rows[0].cells.length; j++) {{
+                                table.rows[i].cells[j].style.backgroundColor = '#e6fff0';
+                                    if (table.rows[i].cells[(table.rows[0].cells.length - 1)].innerHTML.indexOf("failed") > -1) {{
+                                            table.rows[i].cells[j].style.color = '#660001';
+                                            table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
+                                    }}
+                                }}
+                            var txt = table.rows[i].cells[device_id_column_number].innerHTML;
+                            var url = 'https://"""
+        + cloudname.upper()
+        + """.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
+                            var row = $('<tr></tr>')
+                            var link = document.createElement("a");
+                            link.href = url;
+                            link.innerHTML = txt;
+                            link.target = "_blank";
+                            table.rows[i].cells[device_id_column_number].innerHTML = "";
+                            table.rows[i].cells[device_id_column_number].appendChild(link);
+                        }}else{{
+                            for(j = 0; j < table.rows[0].cells.length; j++) {{
+                                table.rows[i].cells[j].style.color = '#660001';
+                                        table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
+                            }}
+                        }}
+                    }}
+                }}
+                }});
+                function myFunction() {{
+                var x = document.getElementById("myTopnav");
+                if (x.className === "topnav") {{
+                x.className += " responsive";
+                }} else {{
+                x.className = "topnav";
+                }}
+            }}
+            function zoom(element) {{
+                        var data = element.getAttribute("src");
+                        let w = window.open('about:blank');
+                        let image = new Image();
+                        image.src = data;
+                        setTimeout(function(){{
+                        w.document.write(image.outerHTML);
+                        }}, 0);
+                    }}
+            function autoselect(element) {{
+                    var data = element.getAttribute("id");
+                    document.getElementById(data + "-1").checked = true;
+            }}     
+        </script>
+
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+            <style>
+
+        html {{
+            height:100%;
+        }}
+        
+        .tabbed {{
+            z-index: 0;
+            display:  flex;
+            text-align: left;
+            flex-wrap: wrap;
+            box-shadow: 0 0 20px rgba(186, 99, 228, 0.4);
+            font-size: 12px;
+            font-family: "Trebuchet MS", Helvetica, sans-serif;
+            }}
+            .tabbed > input {{
+            display: none;
+            }}
+            .tabbed > input:checked + label {{
+            font-size: 14px;
+            text-align: center;
+            color: white;
+            background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
+            }}
+            .tabbed > input:checked + label + div {{
+            color:darkslateblue;
+            display: block;
+            }}
+            .tabbed > label {{
+            background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
+            color: white;
+            text-align: center;
+            display: block;
+            order: 1;
+            flex-grow: 1;
+            padding: .3%;
+            }}
+            .tabbed > div {{
+            order: 2;
+            flex-basis: 100%;
+            display: none;
+            padding: 10px;
+            overflow-x: auto;
+            }}
+
+            /* For presentation only */
+            .container {{
+            width: 100%;
+            margin: 0 auto;
+            background-color: black;
+            box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
+            }}
+
             .tabbed {{
-               display:  flex;
-               text-align: left;
-               flex-wrap: wrap;
-               box-shadow: 0 0 20px rgba(186, 99, 228, 0.4);
-               font-size: 12px;
-               font-family: "Trebuchet MS", Helvetica, sans-serif;
-             }}
-             .tabbed > input {{
-               display: none;
-             }}
-             .tabbed > input:checked + label {{
-               font-size: 14px;
-               text-align: center;
-               color: white;
-               background-image: linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90);
-             }}
-             .tabbed > input:checked + label + div {{
-               color:darkslateblue;
-               display: block;
-             }}
-             .tabbed > label {{
-               background-image: linear-gradient(to left, #fffeea,  #333333, #333333 ,#333333 ,#333333 , #333333, #fffeea);
-               color: white;
-               text-align: center;
-               display: block;
-               order: 1;
-               flex-grow: 1;
-               padding: .3%;
-             }}
-             .tabbed > div {{
-               order: 2;
-               flex-basis: 100%;
-               display: none;
-               padding: 10px;
-               overflow-x: auto;
-             }}
-
-             /* For presentation only */
-             .container {{
-               width: 100%;
-               margin: 0 auto;
-               background-color: black;
-               box-shadow: 0 0 20px rgba(400, 99, 228, 0.4);
-             }}
-
-             .tabbed {{
-               border: 1px solid;
-             }}
-
-             hr {{
-               background-color: white;
-               height: 5px;
-               border: 0;
-               margin: 10px 0 0;
-             }}
-             
-             hr + * {{
-               margin-top: 10px;
-             }}
-             
-             hr + hr {{
-               margin: 0 0;
-             }}
-
-            .mystyle {{
-                font-size: 12pt;
-                font-family: "Trebuchet MS", Helvetica, sans-serif;
-                border-collapse: collapse;
-                border: 2px solid black;
-                margin:auto;
-                box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-                background-color: #fffffa;
+            border: 1px solid;
             }}
 
-            .mystyle body {{
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-                table-layout: auto;
-                position:relative;
-            }}
-
-            #slide{{
-              width:100%;
-              height:auto;
-            }}
-
-            #myInput, #myInput2, #myInput3 {{
-              background-image: url('https://cdn4.iconfinder.com/data/icons/sapphire-storm-1/32/color-web3-18-256.png');
-              background-position: 2px 4px;
-              background-repeat: no-repeat;
-              background-size: 25px 30px;
-              width: 40%;
-              height:auto;
-              font-weight: bold;
-              font-size: 12px;
-              padding: 11px 20px 12px 40px;
-              box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
-            }}
-
-            body {{
-              background-color: black;
-              height: 100%;
-              background-repeat:  repeat-y;
-              background-position: right;
-              background-size:  contain;
-              background-attachment: initial;
-              opacity:.93;
-            }}
-
-            h4 {{
-              font-family:monospace;
-            }}
-
-            @keyframes slide {{
-              0% {{
-                transform:translateX(-25%);
-              }}
-              100% {{
-                transform:translateX(25%);
-              }}
-            }}
-
-            .mystyle table {{
-                table-layout: auto;
-                width: 100%;
-                height: 100%;
-                position:relative;
-                border-collapse: collapse;
-            }}
-
-            tr:hover {{background-color:grey;}}
-
-            .mystyle td {{
-                font-size: 12px;
-                position:relative;
-                padding: 5px;
-                width:10%;
-                color: black;
-                border-left: 1px solid #333;
-                border-right: 1px solid #333;
-                background: #fffffa;
-                text-align: center;
-            }}
-
-           table.mystyle td:first-child {{ text-align: left; }}   
-
-            table.mystyle thead {{
-                background: grey;
-                font-size: 14px;
-                position:relative;
-                border: 1px solid black;
-            }}
-
-            table.mystyle thead th {{
-                line-height: 200%;
-                font-size: 14px;
-                font-weight: normal;
-                color: #fffffa;
-                text-align: center;
-                transition:transform 0.25s ease;
-            }}
-
-            table.mystyle thead th:hover {{
-                -webkit-transform:scale(1.01);
-                transform:scale(1.01);
-            }}
-
-            table.mystyle thead th:first-child {{
-              border-left: none;
-            }}
-
-            .topnav {{
-              overflow: hidden;
-              background-color: black;
-              opacity: 0.9;
-            }}
-
-            .topnav a {{
-              float: right;
-              display: block;
-              color: #333333;
-              text-align: center;
-              padding: 12px 15px;
-              text-decoration: none;
-              font-size: 12px;
-              position: relative;
-              border: 1px solid #6c3;
-              font-family: "Trebuchet MS", Helvetica, sans-serif;
-            }}
-
-            #summary{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             cursor: pointer;
-             padding: .1%;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
+            hr {{
+            background-color: white;
+            height: 5px;
+            border: 0;
+            margin: 10px 0 0;
             }}
             
-            #logo{{
-             box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-             position: relative;
-             cursor: pointer;
-             border-style: outset;
-             border-radius: 1px;
-             border-width: 1px;
-            }}
-
-            .topnav a.active {{
-              background-color: #333333;
-              color: white;
-              font-weight: lighter;
-            }}
-
-            .topnav .icon {{
-              display: none;
-            }}
-
-            @media screen and (max-width: 600px) {{
-              .topnav a:not(:first-child) {{display: none;}}
-              .topnav a.icon {{
-                color: #DBDB40;
-                float: right;
-                display: block;
-              }}
-            }}
-
-            @media screen and (max-width: 600px) {{
-              .topnav.responsive {{position: relative;}}
-              .topnav.responsive .icon {{
-                position: absolute;
-                right: 0;
-                top: 0;
-              }}
-              .topnav.responsive a {{
-                float: none;
-                display: block;
-                text-align: left;
-              }}
-            }}
-
-            * {{
-              box-sizing: border-box;
-            }}
-
-            img {{
-              vertical-align: middle;
-            }}
-
-            .containers {{
-              position: relative;
-            }}
-
-            .mySlides {{
-              display:none;
-              width:90%;
-            }}
-
-            #slideshow {{
-              cursor: pointer;
-              margin:.01% auto;
-              position: relative;
-              height: 55%;
-            }}
-
-            #ps{{
-              height: 10%;
-              margin-top: 0%;
-              margin-bottom: 90%;
-              background-position: center;
-              background-repeat: no-repeat;
-              background-blend-mode: saturation;
-            }}
-
-            #slideshow > div {{
-              position: relative;
-              width: 90%;
-            }}
-
-       		#download {{
-                background-color: #333333;
-                border: none;
-                color: white;
-                font-size: 12px;
-                cursor: pointer;
-			}}
-
-			#download:hover {{
-			  background-color: RoyalBlue;
-			}}
-
-            .glow {{
-                font-size: 15px;
-                color: white;
-                text-align: center;
-                -webkit-animation: glow 1s ease-in-out infinite alternate;
-                -moz-animation: glow 1s ease-in-out infinite alternate;
-                animation: glow 1s ease-in-out infinite alternate;
-            }}
-
-            @-webkit-keyframes glow {{
-                from {{
-                text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
-                }}
-                
-                to {{
-                text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
-                }}
-            }}
-
-            .reportHeadingDiv {{
-                background-color: #333333; 
-                text-align: center;
-            }}
-
-            .reportDiv {{
-                overflow-x: auto;
-                align:center;
-                text-align: center;
-            }}
-
-            #report{{
-                box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
-                overflow-x: auto;
-                min-width:100%;
+            hr + * {{
+            margin-top: 10px;
             }}
             
-            </style>
-          <body bgcolor="#FFFFED">
-    	  	<div class="topnav" id="myTopnav">
-    		  <a href="result.html" class="active">Home</a>
-    		  <a href="https://"""
-            + cloudname.upper()
-            + """.perfectomobile.com" target="_blank" class="active">"""
-            + cloudname.upper()
-            + """ Cloud</a>
-              <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
-              <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
-    		  <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
-    		  <a href="javascript:void(0);" aria-label="first link" class="icon" onclick="myFunction()">
-    			<i class="fa fa-bars"></i>
-    		  </a>
-    		</div>
+            hr + hr {{
+            margin: 0 0;
+            }}
 
-            <div style="text-align: center">
-                
-                <div class="container">
-                    <div class="tabbed">
-                        <input type="radio" id="tabbed-tab-1-1" onClick='autoselect(this)' name="tabbed-tab-1" checked><label for="tabbed-tab-1-1">Users</label>
-                        <div>
-                            <div class="tabbed">
-                                <input type="radio" id="tabbed-tab-1-1-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-1-1">List</label>
-                                <div align="center">
-                                
-                                <a href="https://"""
-            + cloudname.upper()
-            + """.perfectomobile.com" target="_blank" class="site-logo">
-                                <img id="logo" src="""
-            + os.environ["company_logo"]
-            + """ style="margin:1%;" alt="Company logo" ></a> 
-            <div class="reportDiv"></p><br>
-                                """
-            + create_summary(user_html, "Users list Status", "status", "user_summary")
-            + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p></div>
-                                <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
-                                <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
-                                </br> </br>
-                                <div style="overflow-x:auto;">
-                                    {table2}
-                                </div>
-                                
-                                </div>
-                             </div>
-                        </div>
-                    <input type="radio" id="tabbed-tab-1-2" onClick='autoselect(this)' name="tabbed-tab-1" checked><label id="tabbed-device" for="tabbed-tab-1-2">Device</label>
+        .mystyle {{
+            font-size: 12pt;
+            font-family: "Trebuchet MS", Helvetica, sans-serif;
+            border-collapse: collapse;
+            border: 2px solid black;
+            margin:auto;
+            box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+            background-color: #fffffa;
+        }}
+
+        .mystyle body {{
+            font-family: "Trebuchet MS", Helvetica, sans-serif;
+            table-layout: auto;
+            position:relative;
+        }}
+
+        #slide{{
+            width:100%;
+            height:auto;
+        }}
+
+        #myInput, #myInput2, #myInput3 {{
+            background-image: url('https://cdn4.iconfinder.com/data/icons/sapphire-storm-1/32/color-web3-18-256.png');
+            background-position: 2px 4px;
+            background-repeat: no-repeat;
+            background-size: 25px 30px;
+            width: 40%;
+            height:auto;
+            font-weight: bold;
+            font-size: 12px;
+            padding: 11px 20px 12px 40px;
+            box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
+            display:none;
+        }}
+
+        body {{
+            background-color: black;
+            height: 100%;
+            background-repeat:  repeat-y;
+            background-position: right;
+            background-size:  contain;
+            background-attachment: initial;
+            opacity:.93;
+        }}
+
+        h4 {{
+            font-family:monospace;
+        }}
+
+        @keyframes slide {{
+            0% {{
+            transform:translateX(-25%);
+            }}
+            100% {{
+            transform:translateX(25%);
+            }}
+        }}
+
+        .mystyle table {{
+            table-layout: auto;
+            width: 100%;
+            height: 100%;
+            position:relative;
+            border-collapse: collapse;
+        }}
+
+        tr:hover {{background-color:grey;}}
+
+        .mystyle td {{
+            font-size: 12px;
+            position:relative;
+            padding: 5px;
+            width:10%;
+            color: black;
+            border-left: 1px solid #333;
+            border-right: 1px solid #333;
+            background: #fffffa;
+            text-align: center;
+        }}
+
+        table.mystyle td:first-child {{ text-align: left; }}   
+
+        table.mystyle thead {{
+            background: grey;
+            font-size: 14px;
+            position:relative;
+            border: 1px solid black;
+        }}
+
+        table.mystyle thead th {{
+            line-height: 200%;
+            font-size: 14px;
+            font-weight: normal;
+            color: #fffffa;
+            text-align: center;
+            transition:transform 0.25s ease;
+        }}
+
+        table.mystyle thead th:hover {{
+            -webkit-transform:scale(1.01);
+            transform:scale(1.01);
+        }}
+
+        table.mystyle thead th:first-child {{
+            border-left: none;
+        }}
+
+        .topnav {{
+            overflow: hidden;
+            background-color: black;
+            opacity: 0.9;
+        }}
+
+        .topnav a {{
+            float: right;
+            display: block;
+            color: #333333;
+            text-align: center;
+            padding: 12px 15px;
+            text-decoration: none;
+            font-size: 12px;
+            position: relative;
+            border: 1px solid #6c3;
+            font-family: "Trebuchet MS", Helvetica, sans-serif;
+        }}
+
+        #summary{{
+            box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+            position: relative;
+            cursor: pointer;
+            padding: .1%;
+            border-style: outset;
+            border-radius: 1px;
+            border-width: 1px;
+        }}
+        
+        #logo{{
+            box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+            position: relative;
+            cursor: pointer;
+            border-style: outset;
+            border-radius: 1px;
+            border-width: 1px;
+        }}
+
+        .topnav a.active {{
+            background-color: #333333;
+            color: white;
+            font-weight: lighter;
+        }}
+
+        .topnav .icon {{
+            display: none;
+        }}
+
+        @media screen and (max-width: 600px) {{
+            .topnav a:not(:first-child) {{display: none;}}
+            .topnav a.icon {{
+            color: #DBDB40;
+            float: right;
+            display: block;
+            }}
+        }}
+
+        @media screen and (max-width: 600px) {{
+            .topnav.responsive {{position: relative;}}
+            .topnav.responsive .icon {{
+            position: absolute;
+            right: 0;
+            top: 0;
+            }}
+            .topnav.responsive a {{
+            float: none;
+            display: block;
+            text-align: left;
+            }}
+        }}
+
+        * {{
+            box-sizing: border-box;
+        }}
+
+        img {{
+            vertical-align: middle;
+        }}
+
+        .containers {{
+            position: relative;
+        }}
+
+        .mySlides {{
+            display:flex;
+            width:90%;
+            padding-bottom: 3%;
+        }}
+
+        #slideshow {{
+            cursor: pointer;
+            margin:.01% auto;
+            position: relative;
+            height: 55%;
+        }}
+
+        #ps{{
+            height: 10%;
+            margin-top: 0%;
+            margin-bottom: 90%;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-blend-mode: saturation;
+        }}
+
+        #slideshow > div {{
+            position: relative;
+            width: 90%;
+        }}
+
+        #download, #download2 {{
+            background-color: #333333;
+            border: none;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            display:none;
+        }}
+
+        #download:hover, #download2:hover{{
+            background-color: RoyalBlue;
+        }}
+
+        .glow {{
+            font-size: 15px;
+            color: white;
+            text-align: center;
+            -webkit-animation: glow 1s ease-in-out infinite alternate;
+            -moz-animation: glow 1s ease-in-out infinite alternate;
+            animation: glow 1s ease-in-out infinite alternate;
+        }}
+
+        @-webkit-keyframes glow {{
+            from {{
+            text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #e60073, 0 0 40px #e60073, 0 0 50px #e60073, 0 0 60px #e60073, 0 0 70px #e60073;
+            }}
+            
+            to {{
+            text-shadow: 0 0 20px #fff, 0 0 30px #ff4da6, 0 0 40px #ff4da6, 0 0 50px #ff4da6, 0 0 60px #ff4da6, 0 0 70px #ff4da6, 0 0 80px #ff4da6;
+            }}
+        }}
+
+        .reportHeadingDiv {{
+            background-color: #333333; 
+            text-align: center;
+        }}
+
+        .reportDiv {{
+            overflow-x: auto;
+            align:center;
+            text-align: center;
+        }}
+
+        #report{{
+            box-shadow: 0 0 80px rgba(200, 112, 1120, 0.4);
+            overflow-x: auto;
+            min-width:100%;
+        }}
+        
+        #myTopnav{{
+            display:none;
+        }}
+        </style>
+        <body bgcolor="#FFFFED">
+        <div class="topnav" id="myTopnav">
+            <a href="result.html" class="active">Home</a>
+            <a href="https://"""
+        + cloudname.upper()
+        + """.perfectomobile.com" target="_blank" class="active">"""
+        + cloudname.upper()
+        + """ Cloud</a>
+            <a href="https://developers.perfectomobile.com" target="_blank" class="active">Docs</a>
+            <a href="https://www.perfecto.io/services/professional-services-implementation" target="_blank" class="active">Professional Services</a>
+            <a href="https://support.perfecto.io/" target="_blank" class="active">Perfecto Support</a>
+            <a href="javascript:void(0);" aria-label="first link" class="icon" onclick="myFunction()">
+            <i class="fa fa-bars"></i>
+            </a>
+        </div>
+
+        <div style="text-align: center">
+            
+            <div class="container">
+                <div class="tabbed">
+                    <input type="radio" id="tabbed-tab-1-1" onClick='autoselect(this)' name="tabbed-tab-1"><label for="tabbed-tab-1-1">Users</label>
                     <div>
                         <div class="tabbed">
-                            <input type="radio" id="tabbed-tab-1-2-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-2-1">List</label>
-                            <div  align="center">
-                            
-                                <a href="https://"""
-            + cloudname.upper()
-            + """.perfectomobile.com" target="_blank" class="site-logo">
-                                <img id="logo" src="""
-            + os.environ["company_logo"]
-            + """ style="margin:1%;" alt="Company logo" ></a> 
-                                <div class="reportDiv">"""
-            + summary
-            + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p></div>
-                                <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                    <a id ="download" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                                   </br> </br>
-                                        <div style="overflow-x:auto;">
-                                            {table}
-                                        </div>
-                                    </br>
-                                    
-                        </div>
-                        <input type="radio" id="tabbed-tab-1-2-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-2-2">Graphs</label>
+                            <input type="radio" id="tabbed-tab-1-1-1" name="tabbed-tab-1-1"><label for="tabbed-tab-1-1-1">List</label>
                             <div align="center">
-
-                                  <div style="overflow-x:auto;height:90%">
-                                    <div class="containers" align="center" id = "slideshow">
-                                        <div class="w3-content w3-section"  style="max-width:90%; max-height:90%;height:90%;width:90%;">
-                                        """
-            + prepare_graph(df, "Manufacturer")
-            + """ alt="Device Status" class="mySlides"  onClick='zoom(this)' id="slide">
-                                        """
-            + prepare_graph(df, "Model")
-            + """ alt="Model" class="mySlides"  onClick='zoom(this)' id="slide">
-                                        """
-            + prepare_graph(df, "OS Version")
-            + """ alt="Version" class="mySlides" onClick='zoom(this)' id="slide">
-                                        """
-            + prepare_graph(df, "Operator")
-            + """ alt="Operator" class="mySlides" onClick='zoom(this)' id="slide">
-                                        """
-            + prepare_graph(df, "Description")
-            + """ alt="Description" class="mySlides"  onClick='zoom(this)' id="slide">
-                                        </div>
-                                    </div>
-                                </div>
-                                    
+                            
+                            <a href="https://"""
+        + cloudname.upper()
+        + """.perfectomobile.com" target="_blank" class="site-logo">
+                            <img id="logo" src="""
+        + os.environ["company_logo"]
+        + """ style="margin:1%;" alt="Company logo" ></a> 
+        <div class="reportDiv"></p><br>
+                            """
+        + create_summary(user_html, "Users list Status", "status", "user_summary")
+        + """ alt='user_summary' id='summary' onClick='zoom(this)'></img></br></p></div>
+                            <input id="myInput2" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;
+                            <a id ="download" href="./get_users_list.xlsx" aria-label="A link to users .xlsx file is present." class="btn"><i class="fa fa-download"></i> Users List</a>
+                            </br> </br>
+                            <div style="overflow-x:auto;">
+                                {table2}
+                            </div>
+                            
+                            </div>
                             </div>
                     </div>
-                </div>
-                        {table3}
+                <input type="radio" id="tabbed-tab-1-2" onClick='autoselect(this)' name="tabbed-tab-1" checked><label id="tabbed-device" for="tabbed-tab-1-2">Device</label>
+                <div>
+                    <div class="tabbed">
+                        <input type="radio" id="tabbed-tab-1-2-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-2-1">List</label>
+                        <div  align="center">
+                        
+                            <a href="https://"""
+        + cloudname.upper()
+        + """.perfectomobile.com" target="_blank" class="site-logo">
+                            <img id="logo" src="""
+        + os.environ["company_logo"]
+        + """ style="margin:1%;" alt="Company logo" ></a> 
+                            <div class="reportDiv">"""
+        + summary
+        + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p></div>
+                            <input id="myInput" aria-label="search" type="text" placeholder="Search..">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                <a id ="download2" href="./get_devices_list.xlsx" aria-label="A link to a .xlsx file is present." class="btn"><i class="fa fa-download"></i> Full Devices List</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                                </br> </br>
+                                    <div style="overflow-x:auto;">
+                                        {table}
+                                    </div>
+                                </br>
+                                
                     </div>
-                    <a target="_blank" style="font-size:12;font-family:"Trebuchet MS", Helvetica, sans-serif;color:powderblue;" href="https://clearbit.com">Logos provided by Clearbit</a>
+                    <input type="radio" id="tabbed-tab-1-2-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-2-2">Graphs</label>
+                        <div align="center">
+
+                                <div style="overflow-x:auto;height:90%">
+                                <div class="containers" align="center" id = "slideshow">
+                                    <div class="w3-content w3-section"  style="max-width:90%; max-height:90%;height:90%;width:90%;">
+                                    """
+        + prepare_graph(df, "Manufacturer")
+        + """ alt="Device Status" class="mySlides"  onClick='zoom(this)' id="slide">
+                                    """
+        + prepare_graph(df, "Model")
+        + """ alt="Model" class="mySlides"  onClick='zoom(this)' id="slide">
+                                    """
+        + prepare_graph(df, "OS Version")
+        + """ alt="Version" class="mySlides" onClick='zoom(this)' id="slide">
+                                    """
+        + prepare_graph(df, "Operator")
+        + """ alt="Operator" class="mySlides" onClick='zoom(this)' id="slide">
+                                    """
+        + prepare_graph(df, "Description")
+        + """ alt="Description" class="mySlides"  onClick='zoom(this)' id="slide">
+                                    </div>
+                                </div>
+                            </div>
+                                
+                        </div>
                 </div>
-              <script>
-             
-              var myIndex = 0;
-              carousel();
+            </div>
+                    {table3}
+                </div>
+                <a target="_blank" style="font-size:12;font-family:"Trebuchet MS", Helvetica, sans-serif;color:powderblue;" href="https://clearbit.com">Logos provided by Clearbit</a>
+            </div>
+            <script>
+            var myIndex = 0;
+            carousel();
 
-              function carousel() {{
-                var i;
-                var x = document.getElementsByClassName("mySlides");
-                for (i = 0; i < x.length; i++) {{
-                  x[i].style.display = "none";
-                }}
-                myIndex++;
-                if (myIndex > x.length) {{myIndex = 1}}
-                x[myIndex-1].style.display = "block";
-                setTimeout(carousel, 2000); // Change image every 2 seconds
-              }}
-              </script>
-          </body>
-        </html>
-        """
-        )
+            function carousel() {{
+            var i;
+            var x = document.getElementsByClassName("mySlides");
+            for (i = 0; i < x.length; i++) {{
+                x[i].style.display = "none";
+            }}
+            myIndex++;
+            if (myIndex > x.length) {{myIndex = 1}}
+            x[myIndex-1]topnavdisplay = "block";
+            setTimeout(carousel, 2000); // Change image every 2 seconds
+            }}
+            </>
+        </body>
+    </html>
+    """
+    )
 
-        # OUTPUT AN HTML FILE
-        clean_repo = os.environ["clean_repo"]
-        with open(os.path.join(TEMP_DIR, "output", "result.html"), "w") as f:
-            if "NA" != clean_repo:
-                heading = (
-                    """<input type="radio" onClick='autoselect(this)' id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
-                            <div>
-                            <div class="tabbed">
-                                <input type="radio" id="tabbed-tab-1-3-1" name="tabbed-tab-1-1" checked><label for="tabbed-tab-1-3-1">List</label>
-                                <div align="center">
-                            <b><h4><p style="color:white">"""
-                    + cloudname.upper()
-                    + """ Media Repository Cleanup Status for files older than """
-                    + str(day)
-                    + """ days: Total - """
-                    + str(table3.shape[0])
-                    + """</p></font></h4>
-                             <input id="myInput3" aria-label="search" type="text" placeholder="Search.."></br> </br>
-                            <div style="overflow-x:auto;"></b>"""
+    # OUTPUT AN HTML FILE
+    clean_repo = os.environ["clean_repo"]
+    with open(os.path.join(TEMP_DIR, "output", "result.html"), "w") as f:
+        if "NA" != clean_repo:
+            heading = (
+                """<input type="radio" onClick='autoselect(this)' id="tabbed-tab-1-3" name="tabbed-tab-1"><label for="tabbed-tab-1-3">Repository</label>
+                        <div>
+                        <div class="tabbed">
+                            <input type="radio" id="tabbed-tab-1-3-1" name="tabbed-tab-1-1" ><label for="tabbed-tab-1-3-1">List</label>
+                            <div align="center">
+                        <b><h4><p style="color:white">"""
+                + cloudname.upper()
+                + """ Media Repository Cleanup Status for files older than """
+                + str(day)
+                + """ days: Total - """
+                + str(table3.shape[0])
+                + """</p></font></h4>
+                            <input id="myInput3" aria-label="search" type="text" placeholder="Search.."></br> </br>
+                        <div style="overflow-x:auto;"></b>"""
+            )
+            f.write(
+                html_string.format(
+                    table=df.to_html(
+                        classes="mystyle", table_id="devicetable", index=False
+                    ),
+                    table2=user_html.to_html(
+                        classes="mystyle",
+                        table_id="usertable",
+                        justify="justify-all",
+                        index=False,
+                    ),
+                    table3=heading
+                    + table3.to_html(
+                        classes="mystyle", table_id="repotable", index=False
+                    )
+                    + "</div></div></div></div></br>",
                 )
+            )
+        else:
+            try:
                 f.write(
                     html_string.format(
                         table=df.to_html(
@@ -1543,43 +1581,24 @@ def prepare_html(user_html, table3, day):
                             justify="justify-all",
                             index=False,
                         ),
-                        table3=heading
-                        + table3.to_html(
-                            classes="mystyle", table_id="repotable", index=False
-                        )
-                        + "</div></div></div></div></br>",
+                        table3="",
                     )
                 )
-            else:
-                try:
-                    f.write(
-                        html_string.format(
-                            table=df.to_html(
-                                classes="mystyle", table_id="devicetable", index=False
-                            ),
-                            table2=user_html.to_html(
-                                classes="mystyle",
-                                table_id="usertable",
-                                justify="justify-all",
-                                index=False,
-                            ),
-                            table3="",
-                        )
+            except:
+                f.write(
+                    html_string.format(
+                        table=df.to_html(
+                            classes="mystyle", table_id="devicetable", index=False
+                        ),
+                        table2="",
+                        table3="",
                     )
-                except:
-                    f.write(
-                        html_string.format(
-                            table=df.to_html(
-                                classes="mystyle", table_id="devicetable", index=False
-                            ),
-                            table2="",
-                            table3="",
-                        )
-                    )
-        webbrowser.open(
-            "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
-        )
-        print("Results: file://" + os.path.join(TEMP_DIR, "output", "result.html"))
+                )
+    webbrowser.open(
+        "file://" + os.path.join(TEMP_DIR, "output", "result.html"), new=0
+    )
+    print("Results: file://" + os.path.join(TEMP_DIR, "output", "result.html"))
+    return returnBoolean
 
 
 def send_request_repo(url, content):
@@ -1919,7 +1938,7 @@ def main():
             "--device_status",
             type=str,
             metavar="Different types of Device Connection status",
-            help="Different types of Device Connection status. Values: all. This will showcase all the device status like Available, Disconnected, un-available & Busy. Note: Only Available devices will be shown by default",
+            help="Different types of Device Connection status. Values: all. This will showcase all the device status like Available, disconnected, unavailable & Busy. Note: Only Available devices will be shown by default",
             nargs="?",
         )
         parser.add_argument(
@@ -2116,18 +2135,35 @@ def main():
         #     sys.exit(-1)
         #Dont add the below to threading as it will freeze if issues found.
         user_html = get_json_to_xlsx(RESOURCE_TYPE_USERS, "list", 'get_users_list.xlsx')
+        get_dev_list = []
         if args["device_status"]:
-            #             may require for debug single threads
-            #             get_list("list;connected;false;green;Available")
-            #             get_list("list;connected;true;red;Busy")
-            #             get_list("list;disconnected;;red;Disconnected")
-            #             get_list("list;unavailable;;red;Un-available")
-            get_dev_list = [
-                "list;connected;true;red;Busy",
-                "list;disconnected;;red;Disconnected",
-                "list;unavailable;;red;Un-available",
-                "list;connected;false;green;Available",
-            ]
+            os.environ["device_status"] = " with " + args["device_status"].lower() + " status"
+            if "all" in args["device_status"].lower():
+                #             may require for debug single threads
+                #             get_list("list;connected;false;green;Available")
+                #             get_list("list;connected;true;red;Busy")
+                #             get_list("list;disconnected;;red;disconnected")
+                #             get_list("list;unavailable;;red;unavailable")
+                get_dev_list = [
+                    "list;connected;true;red;Busy",
+                    "list;disconnected;;red;disconnected",
+                    "list;unavailable;;red;unavailable",
+                    "list;connected;false;green;Available",
+                ]
+            elif "disconnected".lower() in args["device_status"].lower():
+                get_dev_list = [
+                    "list;disconnected;;red;disconnected"
+                ]
+            elif "unavailable".lower() in args["device_status"].lower():
+                get_dev_list = [
+                   "list;unavailable;;red;unavailable"
+                ]
+            elif "notavailable" in args["device_status"].lower():
+                get_dev_list = [
+                    "list;disconnected;;red;disconnected",
+                    "list;unavailable;;red;unavailable"
+                ]
+                
             try:
                 procs = []
                 for li in get_dev_list:
@@ -2139,17 +2175,18 @@ def main():
                 for proc in procs:
                     proc.terminate()
             except Exception:
-                proc.terminate()
-                print(traceback.format_exc())
-                sys.exit(-1)
+                    print(traceback.format_exc())
+                    proc.terminate()    
+                    sys.exit(-1)
         else:
+            os.environ["device_status"] = ""
             if not args["device_list_parameters"]:
                 os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
             get_list("list;connected;false;green;Available")
         if "NA" != clean_repo:
-            prepare_html(user_html, repo_html, day)
+            bool = prepare_html(user_html, repo_html, day)
         else:
-            prepare_html(user_html, "", "")
+            bool = prepare_html(user_html, "", "")
         print("--- Completed in : %s seconds ---" % (time.time() - start_time))
         # Keeps refreshing page with expected arguments with a sleep of provided seconds
         while "false" not in os.environ["perfecto_actions_refresh"]:
@@ -2163,6 +2200,10 @@ def main():
                 os.system("taskkill /f /im perfectoactions.exe")
         except:
             pass
+        if(bool):
+            if args["device_status"].lower() in ["disconnected","notavailable","unavailable"]:
+                raise Exception("There are some devices which are " + args["device_status"].lower())
+            
     except Exception as e:
         raise Exception("Oops!", e)
         sys.exit(-1)
