@@ -30,6 +30,7 @@ import numpy as np
 import pandas
 import pylab as pl
 import requests
+import tzlocal
 from colorama import init
 from openpyxl import Workbook
 from openpyxl.reader.excel import load_workbook
@@ -44,6 +45,7 @@ RESOURCE_TYPE = "handsets"
 RESOURCE_TYPE_USERS = "users"
 RESOURCE_TYPE_CRADLES = "cradles"
 REPOSITORY_RESOURCE_TYPE = "repositories/media"
+RESOURCE_TYPE_RESERVATIONS = "reservations"
 
 
 def send_request(url):
@@ -184,7 +186,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
 
 def send_request_with_xml_response(url):
     """send request"""
-    print("Attempting url: " + str(url))
+    print("Attempting url: \n" + str(url))
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     xmldoc = minidom.parseString(decoded)
@@ -223,7 +225,7 @@ def send_cradles_request_to_xlsx(url, command, filename):
 
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
-    print("Attempting User list API: " + str(url))
+    print("Attempting User list API: \n" + str(url))
     try:
         response = send_request(url)
         print("response: " + str(response))
@@ -267,6 +269,31 @@ def get_url(resource, resource_id, operation):
     url += "?" + query
     return url
 
+
+def flatten_json(nested_json, exclude=[""]):
+    """Flatten json object with nested keys into a single level.
+        Args:
+            nested_json: A nested json object.
+            exclude: Keys to exclude from output.
+        Returns:
+            The flattened json object if successful, None otherwise.
+    """
+    out = {}
+
+    def flatten(x, name="", exclude=exclude):
+        if type(x) is dict:
+            for a in x:
+                if a not in exclude:
+                    flatten(x[a], name + a + "/")
+        elif type(x) is list:
+            i = 0
+            for a in x:
+                flatten(a, name + str(i) + "/")
+                i += 1
+        else:
+            out[name[:-1]] = x
+    flatten(nested_json)
+    return out
 
 def getregex_output(response, pattern1, pattern2):
     """regex"""
@@ -329,6 +356,20 @@ def get_device_list_response(resource, command, status, in_use):
     xmldoc = send_request_with_xml_response(url)
     return xmldoc
 
+def get_reservations_list_response(resource, command, end, admin):
+    """get_reservations_list_response"""
+    url = get_url(resource, "", command)
+    # url += "&responseFormat=xml"
+    url += "&startTime=" + str(int((time.mktime(datetime.datetime.now().timetuple()))) *  1000)
+    if end != "":
+        endTime = datetime.datetime.fromtimestamp(int(time.mktime(datetime.datetime.now().timetuple()))) + datetime.timedelta(days=int(end))
+        url += "&endTime=" + str(int(endTime.timestamp()) * 1000)
+    if admin != "":
+        url += "&admin=" + admin
+    print("Attempting get reservations list API: \n" + url)
+    response = send_request(url)
+    decoded = response.read().decode("utf-8")
+    return decoded
 
 def get_xml_to_xlsx(resource, command, filename):
     """get_xml_to_xlsx"""
@@ -404,9 +445,7 @@ def create_reservation(resource, resource_id, operation):
         if ":" in token: 
             user = token.split(":")[0]
             pwd = token.split(":")[1]
-            query = urllib.parse.urlencode(
-                {"operation": operation, "user": user, "password": pwd}
-            )
+            query = urllib.parse.urlencode                                                                                                                                                                             
         else:
             raise Exception(
                 "Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!"
@@ -466,7 +505,7 @@ def perform_actions(deviceid_color):
                 + device_id
                 )
                 try:
-                    response = send_request(create_reservation("reservations", device_id, "create"))
+                    response = send_request(create_reservation(RESOURCE_TYPE_RESERVATIONS, device_id, "create"))
                     decoded = response.read().decode("utf-8")
                     print(decoded)
                     desc = "Reserved"
@@ -787,7 +826,7 @@ def prepare_graph(df, column):
         return "<img "
 
 
-def prepare_html(user_html, table3, day):
+def prepare_html(user_html, table3, day, delete_reserve_df):
     """ prepare_html """
     print(colored("\nFinal Devices list:", "magenta"))
     # copies all device status to final summary
@@ -1162,7 +1201,7 @@ def prepare_html(user_html, table3, day):
             background-image: url('https://cdn4.iconfinder.com/data/icons/sapphire-storm-1/32/color-web3-18-256.png');
             background-position: 2px 4px;
             background-repeat: no-repeat;
-            background-size: 25px 30px;
+            background-size: 25px 15px;
             width: 40%;
             height:auto;
             font-weight: bold;
@@ -1170,6 +1209,7 @@ def prepare_html(user_html, table3, day):
             padding: 11px 20px 12px 40px;
             box-shadow: 0 0 80px rgba(2, 112, 0, 0.4);
             display:none;
+            height: 20px;
         }}
 
         body {{
@@ -1465,6 +1505,9 @@ def prepare_html(user_html, table3, day):
                             <img id="logo" src="""
         + os.environ["company_logo"]
         + """ style="margin:1%;" alt="Company logo" ></a> 
+        <div style="overflow-x:auto;">
+                                {table4}</br></p>
+                            </div>
                             <div class="reportDiv">"""
         + summary
         + """ alt='summary' id='summary' onClick='zoom(this)'></img> </br></p></div>
@@ -1475,7 +1518,6 @@ def prepare_html(user_html, table3, day):
                                         {table}
                                     </div>
                                 </br>
-                                
                     </div>
                     <input type="radio" id="tabbed-tab-1-2-2" name="tabbed-tab-1-1"><label for="tabbed-tab-1-2-2">Graphs</label>
                         <div align="center">
@@ -1566,6 +1608,7 @@ def prepare_html(user_html, table3, day):
                         classes="mystyle", table_id="repotable", index=False
                     )
                     + "</div></div></div></div></br>",
+                    table4=delete_reserve_df,
                 )
             )
         else:
@@ -1582,6 +1625,7 @@ def prepare_html(user_html, table3, day):
                             index=False,
                         ),
                         table3="",
+                        table4=delete_reserve_df,
                     )
                 )
             except:
@@ -1592,6 +1636,7 @@ def prepare_html(user_html, table3, day):
                         ),
                         table2="",
                         table3="",
+                        table4=""
                     )
                 )
     webbrowser.open(
@@ -1647,11 +1692,12 @@ def sendAPI(resource_type, resource_key, operation):
     url = get_url(str(resource_type), resource_key, operation)
     #new repo doesnt seem to require admin for now
     map = send_request_for_repository(url, "", resource_key)
-    if operation == "delete" and map["completionCode"] == "notOwner":
-        admin = os.environ["repo_admin"]
-        if "true" in admin.lower():
-            url += "&admin=" + "true"
-        map = send_request_for_repository(url, "", resource_key)
+    if "completionCode" in map:
+        if operation == "delete" and map["completionCode"] == "notOwner":
+            admin = os.environ["repo_admin"]
+            if "true" in admin.lower():
+                url += "&admin=" + "true"
+            map = send_request_for_repository(url, "", resource_key)
     return map
 
 def sendAPI_repo(resource_type, resource_key, operation):
@@ -1873,6 +1919,116 @@ def deleteOlderFiles(resource_type, delete, admin, repo_paths, days):
     sys.stdout.flush()
     return df
 
+def parse_XML(xml, df_cols): 
+    xtree = ETree.parse(xml)
+    xroot = xtree.getroot()
+    rows = []
+    for node in xroot: 
+        res = []
+        res.append(node.attrib.get(df_cols[0]))
+        for el in df_cols[1:]: 
+            if node is not None and node.find(el) is not None:
+                res.append(node.find(el).text)
+            else: 
+                res.append(None)
+        rows.append({df_cols[i]: res[i] 
+                     for i, _ in enumerate(df_cols)})  
+    return pandas.DataFrame(rows, columns=df_cols)
+
+def reserve_limiter(resource_type, limit, list, end, admin):
+    user = 'reservedTo'
+    deviceId = 'resourceId'
+    reservationid = 'id'
+    startTime = 'startTime/millis'
+    endTime = 'endTime/millis'
+    status = 'status'
+    cols = [user, deviceId, reservationid, status, startTime, endTime]  
+    response = get_reservations_list_response(resource_type, list, end, admin)
+    print("Reservations list API response: \n" + response)
+    executions = json.loads(response)
+    count = len(executions['reservations'])
+    html = """<div class="tabbed">
+          <label for="tabbed-tab-1-2-3" style="font-size: 17px;background-image:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90) !important;">List of deleted reservations beyond """ + limit + """ per user</label></div></>
+          <div style="color: white;font-size: 15px;">"""
+    if count > 0 :
+        ori_df = pandas.DataFrame([flatten_json(x) for x in executions['reservations']],index=range(count),columns=cols)
+        ori_df[startTime] = pandas.to_datetime(ori_df[startTime], unit="ms")
+        ori_df[startTime] = (
+            ori_df[startTime].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
+        )
+        ori_df[startTime] = ori_df[startTime].dt.strftime("%d/%m/%Y %H:%M:%S")
+        ori_df[endTime] = pandas.to_datetime(ori_df[endTime], unit="ms")
+        ori_df[endTime] = (
+            ori_df[endTime].dt.tz_localize("utc").dt.tz_convert(tzlocal.get_localzone())
+        )
+        ori_df[endTime] = ori_df[endTime].dt.strftime("%d/%m/%Y %H:%M:%S")
+        print(ori_df)
+        pandas.set_option("display.max_columns", None)
+        pandas.set_option("display.max_colwidth", 100)
+        pandas.set_option("colheader_justify", "center")
+        deleted_df = pandas.DataFrame(columns=cols)
+        i = 0
+        for user_name in ori_df[user].unique():
+            pandas.options.mode.chained_assignment = None
+            df = ori_df[ori_df[user] == user_name] 
+            df = df[df[status].isin(['SCHEDULED', 'STARTED'])] 
+            df=df.sort_values([startTime,endTime])
+            df[startTime] = pandas.to_datetime(df[startTime])
+            df[endTime] = pandas.to_datetime(df[endTime])
+            temp_df = df[[startTime,endTime]]
+            print("\n full table of user: " + str(user_name))
+            print(temp_df)
+            temp_df = temp_df.melt(var_name = 'status',value_name = 'time').sort_values('time')
+            # if there are more than 2 violations, delete the reservation.
+            while(temp_df['time'].shape[0] > 0):
+                if(temp_df['time'].shape[0] > 1):
+                    temp_df['counter'] = np.where(temp_df['status'].eq(startTime),1,-1).cumsum()
+                    # temp_df['counter'] = temp_df['status'].map({startTime:1,endTime:-1}).cumsum()
+                temp_df = temp_df[temp_df['counter'] > int(str(limit)) ]  
+                temp_df = temp_df[temp_df['status'] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
+                print((temp_df))
+                if(temp_df['time'].shape[0] > 0):
+                    new_df = df[df[startTime] == temp_df['time'].iloc[0]]
+                    new_df = new_df.sort_values([endTime], ascending=[False])
+                    print("\n violation for user: " + str(user_name) +  "\n")
+                    print(new_df)
+                    df.drop(df[df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
+                    # delete each reservation
+                    reservation_id = str(new_df[reservationid].iloc[0])
+                    print("id: " + reservation_id + " will be deleted now.")
+                    map = sendAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete")
+                    print("Delete API output of id: " + reservation_id + "\n " + str(map))
+                    try:
+                        status = map["status"]
+                        if("Success" in status): 
+                            pass
+                        else:
+                            raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
+                    except Exception as e:
+                        raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
+                    deleted_df.loc[i] = new_df.iloc[0] 
+                    ori_df.drop(ori_df[ori_df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
+                    temp_df.drop(temp_df[temp_df['time'] == new_df[startTime].iloc[0]].head(1).index, inplace = True) 
+                    new_df.drop(new_df.index, inplace=True)
+                    i=i+1
+        
+        print("\n remaining  reservations:\n")
+        print(ori_df.to_string(index=False))
+        if(deleted_df.shape[0] > 0):
+            deleted_df = deleted_df.drop('status', axis=1)
+            print("\n Deleted reservations:")
+            print(deleted_df.to_string(index=False))
+            deleted_df = deleted_df.sort_values(by=user)
+            deleted_df.style.set_properties(**{"text-align": "left"})
+            sys.stdout.flush()
+            html += deleted_df.to_html(
+                            classes="mystyle", table_id="repotable", index=False)
+        else:
+            html += """No reservations were deleted!"""
+    else:
+        html += """No matching reservations were found!"""
+    html += "</div>"
+    return html
 
 def create_dir(directory, delete):
     """
@@ -1896,6 +2052,7 @@ def main():
     """
     try:
         start_time = time.time()
+        delete_reserve_df = ""
         freeze_support()
         init()
         #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
@@ -2043,11 +2200,11 @@ def main():
             if "reserve" in args["actions"]:
                 reserve = args["actions"]
                 try:
-                    reserve = reserve.split("|")[0]
+                    reserve = reserve.split("reserve:")[1]
                     os.environ["RESERVE"] = reserve.split(":")[0]
                     try:
-                        if (int(reserve.split(":")[1].split(";")[0])):
-                            os.environ["RESERVE_TIME"] = reserve.split(":")[1].split(";")[0]
+                        if (int(reserve.split(":")[0].split(";")[0])):
+                            os.environ["RESERVE_TIME"] = reserve.split(":")[0].split(";")[0]
                             print("Reserve time:" + os.environ["RESERVE_TIME"])
                     except:
                         print("Wrong reservation time. defaulting to 15.")
@@ -2055,6 +2212,28 @@ def main():
                         pass
                 except IndexError as e:
                     raise Exception( "Begin with reserve parameter with a colon seperator followed by reservation time in minutes. Minimum default time is 15 minutes. E.g. reserve:15 ")
+            if "reserve_limit" in args["actions"]:
+                reserve_limit = args["actions"]
+                os.environ["reserve_limit_days"] = ""
+                try:
+                    reserve_limit = reserve_limit.split("reserve_limit:")[1]
+                    if (int(reserve_limit.split(":")[0].split("|")[0].split(";")[0])):
+                        os.environ["reserve_limit_user"] = reserve_limit.split(":")[0].split("|")[0].split(";")[0]
+                        print("reserve limit user: " + os.environ["reserve_limit_user"])
+                except:
+                    raise Exception( "Begin with reserve_limit parameter with a colon seperator followed by reservation limit. E.g: reserve_limit:2 will limit reservations to 2 per user at any point in time." )
+                try:
+                            reserve_admin = reserve_limit.split(":")[0].split("|")[1].split(";")[0]
+                except:
+                    raise Exception( "Provide true if you have reservation administrator role added to your perfecto user. Default (false). This provides the ability to track reservations of other users." )
+                try:
+                    if(len(reserve_limit.split(":")[0].split("|")) > 2):
+                        os.environ["reserve_limit_days"] = reserve_limit.split(":")[0].split("|")[2].split(";")[0]
+                        print("reserve limit days: " + os.environ["reserve_limit_days"])
+                except:
+                    raise Exception( "Provide optional reserve limit in days. E.g: reserve_limit:2|4 will limit reservations to 2 per user beginning now to within the next 4 days" )
+
+                delete_reserve_df = reserve_limiter(RESOURCE_TYPE_RESERVATIONS, os.environ["reserve_limit_user"], "list", os.environ["reserve_limit_days"], reserve_admin)
             if "clean_repo" in args["actions"]:
                 clean_repo = args["actions"]
             else:
@@ -2184,9 +2363,9 @@ def main():
                 os.environ["DEVICE_LIST_PARAMETERS"] = "Available Devices only"
             get_list("list;connected;false;green;available")
         if "NA" != clean_repo:
-            bool = prepare_html(user_html, repo_html, day)
+            bool = prepare_html(user_html, repo_html, day, delete_reserve_df)
         else:
-            bool = prepare_html(user_html, "", "")
+            bool = prepare_html(user_html, "", "", delete_reserve_df)
         print("--- Completed in : %s seconds ---" % (time.time() - start_time))
         # Keeps refreshing page with expected arguments with a sleep of provided seconds
         while "false" not in os.environ["perfecto_actions_refresh"]:
