@@ -28,7 +28,7 @@ setup(
      keywords = ['Perfecto', 'appium', 'selenium', 'testing', 'api', 'automation'],
      url="https://github.com/PerfectoMobileSA/Device_actions_reporter",
      install_requires=[
-             'requests','configparser','termcolor', 'pandas','matplotlib', 'colorama', 'openpyxl', 'xlrd', 'jinja2', 'tzlocal', 'ipython', 'xlwt'
+             'DateTimeRange', 'requests','configparser','termcolor', 'pandas','matplotlib', 'colorama', 'openpyxl', 'xlrd', 'jinja2', 'tzlocal', 'ipython', 'xlwt'
       ],
      packages=find_packages(),
      include_package_data=True,

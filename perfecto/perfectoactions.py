@@ -1700,6 +1700,14 @@ def sendAPI(resource_type, resource_key, operation):
             map = send_request_for_repository(url, "", resource_key)
     return map
 
+def deleteReserveAPI(resource_type, resource_key, operation, admin):
+    url = get_url(str(resource_type), resource_key, operation)
+    if "true" in admin.lower():
+        url += "&admin=" + "true"
+    print("Delete API url: \n" + url)
+    map = send_request_for_repository(url, "", operation)
+    return map
+
 def sendAPI_repo(resource_type, resource_key, operation):
     url = get_url(str(resource_type), "", operation)
     print("\nRepository API Raw url: \n" + url)
@@ -1978,14 +1986,14 @@ def reserve_limiter(resource_type, limit, list, end, admin):
             temp_df = df[[startTime,endTime]]
             print("\n full table of user: " + str(user_name))
             print(temp_df)
-            temp_df = temp_df.melt(var_name = 'status',value_name = 'time').sort_values('time')
+            temp_df = temp_df.melt(var_name = status,value_name = 'time').sort_values('time')
             # if there are more than 2 violations, delete the reservation.
             while(temp_df['time'].shape[0] > 0):
                 if(temp_df['time'].shape[0] > 1):
-                    temp_df['counter'] = np.where(temp_df['status'].eq(startTime),1,-1).cumsum()
+                    temp_df['counter'] = np.where(temp_df[status].eq(startTime),1,-1).cumsum()
                     # temp_df['counter'] = temp_df['status'].map({startTime:1,endTime:-1}).cumsum()
                 temp_df = temp_df[temp_df['counter'] > int(str(limit)) ]  
-                temp_df = temp_df[temp_df['status'] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
+                temp_df = temp_df[temp_df[status] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
                 print((temp_df))
                 if(temp_df['time'].shape[0] > 0):
                     new_df = df[df[startTime] == temp_df['time'].iloc[0]]
@@ -1996,16 +2004,16 @@ def reserve_limiter(resource_type, limit, list, end, admin):
                     # delete each reservation
                     reservation_id = str(new_df[reservationid].iloc[0])
                     print("id: " + reservation_id + " will be deleted now.")
-                    map = sendAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete")
-                    print("Delete API output of id: " + reservation_id + "\n " + str(map))
-                    try:
-                        status = map["status"]
-                        if("Success" in status): 
-                            pass
-                        else:
-                            raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
-                    except Exception as e:
-                        raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
+                    # map = deleteReserveAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete", admin)
+                    # print("Delete API output of id: " + reservation_id + "\n " + str(map))
+                    # try:
+                    #     delete_status = map["status"]
+                    #     if("Success" in delete_status): 
+                    #         pass
+                    #     else:
+                    #         raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
+                    # except Exception as e:
+                    #     raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
                     deleted_df.loc[i] = new_df.iloc[0] 
                     ori_df.drop(ori_df[ori_df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
                     temp_df.drop(temp_df[temp_df['time'] == new_df[startTime].iloc[0]].head(1).index, inplace = True) 
@@ -2015,7 +2023,8 @@ def reserve_limiter(resource_type, limit, list, end, admin):
         print("\n remaining  reservations:\n")
         print(ori_df.to_string(index=False))
         if(deleted_df.shape[0] > 0):
-            deleted_df = deleted_df.drop('status', axis=1)
+            deleted_df = deleted_df.drop(status, axis=1)
+            deleted_df.columns = ['Reserved To', 'Device ID', 'Reservation Id',	'Start time', 'End time']
             print("\n Deleted reservations:")
             print(deleted_df.to_string(index=False))
             deleted_df = deleted_df.sort_values(by=user)

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pandas
 import tzlocal
+from datetimerange import DateTimeRange
 
 import perfecto.perfectoactions as actions
 
@@ -27,19 +28,10 @@ status = 'status'
 #             ['gthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00']
 #             ])
 
-ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startTime, endTime], index=range(7), \
-    data=[['gthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
-            ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
-            ['gthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
-            ['gthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-            ['gthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
-            ['gthomas',9182381092,'6','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-            ['gthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00']
-            ])
-
+# hadas sample
 # ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startTime, endTime], index=range(7), \
 #     data=[['gthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
-#             ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 07:00:00','2020-12-03 13:00:00'],
+#             ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
 #             ['gthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
 #             ['gthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
 #             ['gthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
@@ -47,22 +39,34 @@ ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startT
 #             ['gthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00']
 #             ])
 
-# ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startTime, endTime], index=range(14), \
+
+# ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startTime, endTime], index=range(8), \
 #     data=[['gthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
-#             ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
-#             ['gthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
-#             ['gthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-#             ['gthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
-#             ['gthomas',9182381092,'6','STARTED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-#             ['gthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00'],
-#             ['sthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
-#             ['sthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
-#             ['sthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
-#             ['sthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-#             ['sthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
-#             ['sthomas',9182381092,'6','STARTED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
-#             ['sthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00']
+#             ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
+#             ['gthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 11:00:00'],
+#             ['gthomas',9182381092,'4','SCHEDULED','2020-12-03 08:00:00','2020-12-03 11:00:00'],
+#             ['gthomas',9182381092,'5','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
+#             ['gthomas',9182381092,'6','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
+#             ['gthomas',9182381092,'7', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 11:00:00'],
+#             ['gthomas',9182381092,'8','SCHEDULED','2020-12-03 08:00:00','2020-12-03 11:00:00'],
 #             ])
+
+ori_df = pandas.DataFrame(columns=[user, deviceId, reservationid, status, startTime, endTime], index=range(14), \
+    data=[['gthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
+            ['gthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
+            ['gthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
+            ['gthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
+            ['gthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
+            ['gthomas',9182381092,'6','STARTED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
+            ['gthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00'],
+            ['sthomas',9182381092,'1','SCHEDULED','2020-12-03 07:00:00','2020-12-03 10:00:00'],
+            ['sthomas',9182381092,'2','SCHEDULED','2020-12-03 09:00:00','2020-12-03 13:00:00'],
+            ['sthomas',9182381092,'3', 'SCHEDULED','2020-12-03 08:00:00','2020-12-03 10:59:00'],
+            ['sthomas',9182381092,'4','SCHEDULED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
+            ['sthomas',9182381092,'5','SCHEDULED','2020-12-03 11:00:00','2020-12-03 14:00:00'],
+            ['sthomas',9182381092,'6','STARTED','2020-12-03 12:00:00','2020-12-03 16:00:00'],
+            ['sthomas',9182381092,'7','SCHEDULED','2020-12-03 15:00:00','2020-12-03 18:00:00']
+            ])
 
 def reserve(ori_df, limit):
     user = 'user'
@@ -101,38 +105,58 @@ def reserve(ori_df, limit):
         
         
         temp_df = temp_df.melt(var_name = 'status',value_name = 'time').sort_values('time')
-        # if there are more than 2 violations, delete the reservation.
+        # if there are more than expected violations, delete the reservation.
         while(temp_df['time'].shape[0] > 0):
             if(temp_df['time'].shape[0] > 1):
                 temp_df['counter'] = np.where(temp_df['status'].eq(startTime),1,-1).cumsum()
                 # temp_df['counter'] = temp_df['status'].map({startTime:1,endTime:-1}).cumsum()
-            temp_df = temp_df[temp_df['counter'] > int(str(limit)) ]  
+                temp_df = temp_df[temp_df['counter'] > int(str(limit))]  
+                # temp_df = temp_df.groupby(['status','time'],as_index=False).agg({'counter': 'sum'})
             temp_df = temp_df[temp_df['status'] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
             print((temp_df))
             if(temp_df['time'].shape[0] > 0):
-                new_df = df[df[startTime] == temp_df['time'].iloc[0]]
+                new_startTime = temp_df['time'].iloc[0]
+                new_df = df[df[startTime] == new_startTime]
                 new_df = new_df.sort_values([endTime], ascending=[False])
                 print("\n violation for user: " + str(user_name) +  "\n")
                 print(new_df)
-                df.drop(df[df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
-                # delete each reservation
-                reservation_id = str(new_df[reservationid].iloc[0])
-                print("id: " + reservation_id + " will be deleted now.")
-                # map = sendAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete")
-                # print("Delete API output of id: " + reservation_id + "\n " + str(map))
-                # try:
-                #     status = map["status"]
-                #     if("Success" in status): 
-                #         pass
-                #     else:
-                #         raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
-                # except Exception as e:
-                #     raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
-                deleted_df.loc[i] = new_df.iloc[0] 
-                ori_df.drop(ori_df[ori_df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
-                temp_df.drop(temp_df[temp_df['time'] == new_df[startTime].iloc[0]].head(1).index, inplace = True) 
-                new_df.drop(new_df.index, inplace=True)
-                i=i+1
+                if(temp_df['counter'].iloc[0] > (int(str(limit)) )):       
+                    bool = False              
+                    while(new_df.shape[0] > 0) :
+                        time_range = DateTimeRange( new_df[startTime].iloc[0],  new_df[endTime].iloc[0])
+                        count = 0
+                        if(new_df.shape[0] > 0):
+                            ori_df = ori_df.reset_index(drop=True)
+                            for index, row in ori_df.iterrows():
+                                x = DateTimeRange(ori_df[startTime].iloc[index], ori_df[endTime].iloc[index])
+                                if(time_range.is_intersection(x)):
+                                    count+=1
+                        else:
+                            break;
+                        if(count > (int(str(limit)))):
+                            df.drop(df[df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
+                            # delete each reservation
+                            reservation_id = str(new_df[reservationid].iloc[0])
+                            print("id: " + reservation_id + " will be deleted now.")
+                            # map = sendAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete")
+                            # print("Delete API output of id: " + reservation_id + "\n " + str(map))
+                            # try:
+                            #     status = map["status"]
+                            #     if("Success" in status): 
+                            #         pass
+                            #     else:
+                            #         raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
+                            # except Exception as e:
+                            #     raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
+                            deleted_df.loc[i] = new_df.iloc[0] 
+                            ori_df.drop(ori_df[ori_df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
+                            new_df.drop(new_df[new_df[reservationid] == reservation_id].head(1).index, inplace=True)
+                            # new_df.drop(new_df.index, inplace=True)
+                            i=i+1
+                        else:
+                            break
+                    temp_df.drop(temp_df[temp_df['time'] == new_startTime].head(1).index, inplace = True) 
+                            
     
     print("\n remaining  reservations:\n")
     print(ori_df.to_string(index=False))
@@ -143,4 +167,4 @@ def reserve(ori_df, limit):
         deleted_df = deleted_df.sort_values(by=user)
         deleted_df.style.set_properties(**{"text-align": "left"})
 
-reserve(ori_df, "2")
+reserve(ori_df, "1")
