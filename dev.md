@@ -6,7 +6,7 @@ Increase the version in setup.py and run the following to upload to test pypi: <
 
     python3 -m pip install --user --upgrade setuptools wheel twine
     
-    pipreqs .
+    pipreqs . --force
     python3 setup.py install
     rm -rf build dist
     python3 setup.py clean --all

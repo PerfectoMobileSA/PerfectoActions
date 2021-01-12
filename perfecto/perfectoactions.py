@@ -32,6 +32,7 @@ import pylab as pl
 import requests
 import tzlocal
 from colorama import init
+from datetimerange import DateTimeRange
 from openpyxl import Workbook
 from openpyxl.reader.excel import load_workbook
 from openpyxl.styles import Alignment
@@ -499,7 +500,7 @@ def perform_actions(deviceid_color):
             phoneNumber = "NA"
         if "green" in color:
             reserve = os.environ["RESERVE"]
-            if "reserve" in reserve:
+            if "True" in reserve:
                 print(
                 "Reserving device: "
                 + device_id
@@ -534,6 +535,8 @@ def perform_actions(deviceid_color):
                             + str(phoneNumber)
                             + ",,,, "
                             + str(status)
+                            + ", lastExecAt="
+                            + str(timeofExec)
                         )
                     final_string = re.sub(r"^'|'$", "", final_string)
                     print(final_string)
@@ -780,13 +783,13 @@ def create_summary(df, title, column, name):
             legend=True,
             x=df[column].unique,
             fontsize=7,
-            pctdistance=1.2,
+            pctdistance=1.2
         )
         pl.ylabel("")
         status = []
         for i in range(len(df[column].value_counts().sort_index().to_frame())) :
             status.append(df[column].value_counts().sort_index().to_frame().iloc[i].name)
-        ax1.legend(labels=status, bbox_to_anchor=(1,0.5), loc="best")
+        ax1.legend(labels=status, prop={'size': 7}, bbox_to_anchor=(1,0.5), loc="best")
         # plot table
         ax2 = pl.subplot(122, facecolor="#fffffa")
         ax2.patch.set_facecolor("white")
@@ -1013,6 +1016,7 @@ def prepare_html(user_html, table3, day, delete_reserve_df):
             $("#myInput").css('display', 'inline-block');
             $("#myInput2").css('display', 'inline-block');
             $("#myInput3").css('display', 'inline-block');
+            $("#myInput4").css('display', 'inline-block');
             
             $("#myInput").on("keyup", function() {{
             var value = $(this).val().toLowerCase();
@@ -1033,6 +1037,14 @@ def prepare_html(user_html, table3, day, delete_reserve_df):
             $("#myInput3").on("keyup", function() {{
             var value = $(this).val().toLowerCase();
             $("#repotable tbody tr").filter(function() {{
+                $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+            }});
+            }});
+        }});
+        $(document).ready(function(){{
+            $("#myInput4").on("keyup", function() {{
+            var value = $(this).val().toLowerCase();
+            $("#reservetable tbody tr").filter(function() {{
                 $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
             }});
             }});
@@ -1197,7 +1209,7 @@ def prepare_html(user_html, table3, day, delete_reserve_df):
             height:auto;
         }}
 
-        #myInput, #myInput2, #myInput3 {{
+        #myInput, #myInput2, #myInput3, #myInput4 {{
             background-image: url('https://cdn4.iconfinder.com/data/icons/sapphire-storm-1/32/color-web3-18-256.png');
             background-position: 2px 4px;
             background-repeat: no-repeat;
@@ -1943,7 +1955,7 @@ def parse_XML(xml, df_cols):
                      for i, _ in enumerate(df_cols)})  
     return pandas.DataFrame(rows, columns=df_cols)
 
-def reserve_limiter(resource_type, limit, list, end, admin):
+def reserve_limiter(resource_type, limit, list, end, admin, skip_list, include_list, delete):
     user = 'reservedTo'
     deviceId = 'resourceId'
     reservationid = 'id'
@@ -1955,8 +1967,13 @@ def reserve_limiter(resource_type, limit, list, end, admin):
     print("Reservations list API response: \n" + response)
     executions = json.loads(response)
     count = len(executions['reservations'])
+    label = ""
+    if(str(delete).lower() == "true"):
+        label = "List of deleted reservations"
+    else:
+        label = "List of reservation violations"
     html = """<div class="tabbed">
-          <label for="tabbed-tab-1-2-3" style="font-size: 17px;background-image:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90) !important;">List of deleted reservations beyond """ + limit + """ per user</label></div></>
+          <label for="tabbed-tab-1-2-3" style="font-size: 17px;background-image:linear-gradient(to left, #bfee90, #333333, black,  #333333, #bfee90) !important;">""" + label + """ beyond """ + limit + """ per user</label></div>
           <div style="color: white;font-size: 15px;">"""
     if count > 0 :
         ori_df = pandas.DataFrame([flatten_json(x) for x in executions['reservations']],index=range(count),columns=cols)
@@ -1977,63 +1994,95 @@ def reserve_limiter(resource_type, limit, list, end, admin):
         deleted_df = pandas.DataFrame(columns=cols)
         i = 0
         for user_name in ori_df[user].unique():
-            pandas.options.mode.chained_assignment = None
-            df = ori_df[ori_df[user] == user_name] 
-            df = df[df[status].isin(['SCHEDULED', 'STARTED'])] 
-            df=df.sort_values([startTime,endTime])
-            df[startTime] = pandas.to_datetime(df[startTime])
-            df[endTime] = pandas.to_datetime(df[endTime])
-            temp_df = df[[startTime,endTime]]
-            print("\n full table of user: " + str(user_name))
-            print(temp_df)
-            temp_df = temp_df.melt(var_name = status,value_name = 'time').sort_values('time')
-            # if there are more than 2 violations, delete the reservation.
-            while(temp_df['time'].shape[0] > 0):
-                if(temp_df['time'].shape[0] > 1):
-                    temp_df['counter'] = np.where(temp_df[status].eq(startTime),1,-1).cumsum()
-                    # temp_df['counter'] = temp_df['status'].map({startTime:1,endTime:-1}).cumsum()
-                temp_df = temp_df[temp_df['counter'] > int(str(limit)) ]  
-                temp_df = temp_df[temp_df[status] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
-                print((temp_df))
-                if(temp_df['time'].shape[0] > 0):
-                    new_df = df[df[startTime] == temp_df['time'].iloc[0]]
-                    new_df = new_df.sort_values([endTime], ascending=[False])
-                    print("\n violation for user: " + str(user_name) +  "\n")
-                    print(new_df)
-                    df.drop(df[df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
-                    # delete each reservation
-                    reservation_id = str(new_df[reservationid].iloc[0])
-                    print("id: " + reservation_id + " will be deleted now.")
-                    # map = deleteReserveAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete", admin)
-                    # print("Delete API output of id: " + reservation_id + "\n " + str(map))
-                    # try:
-                    #     delete_status = map["status"]
-                    #     if("Success" in delete_status): 
-                    #         pass
-                    #     else:
-                    #         raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
-                    # except Exception as e:
-                    #     raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
-                    deleted_df.loc[i] = new_df.iloc[0] 
-                    ori_df.drop(ori_df[ori_df[reservationid] == new_df[reservationid].iloc[0]].head(1).index, inplace = True) 
-                    temp_df.drop(temp_df[temp_df['time'] == new_df[startTime].iloc[0]].head(1).index, inplace = True) 
-                    new_df.drop(new_df.index, inplace=True)
-                    i=i+1
+            if(user_name in include_list.split(",") or include_list == ""):
+                pandas.options.mode.chained_assignment = None
+                df = ori_df[ori_df[user] == user_name] 
+                df = df[df[status].isin(['SCHEDULED', 'STARTED'])] 
+                df=df.sort_values([startTime,endTime])
+                df[startTime] = pandas.to_datetime(df[startTime])
+                df[endTime] = pandas.to_datetime(df[endTime])
+                # reducing a second from endtime so that it doesnt create an unexpected overlap situation.
+                df[endTime] = df[endTime] - timedelta(seconds=1)
+                temp_df = df[[startTime,endTime]]
+                print("\n full table of user: " + str(user_name))
+                print(temp_df)
+                
+                temp_df = temp_df.melt(var_name = 'status',value_name = 'time').sort_values('time')
+                # if there are more than expected violations, delete the reservation.
+                while(temp_df['time'].shape[0] > 0):
+                    if(temp_df['time'].shape[0] > 1):
+                        temp_df['counter'] = np.where(temp_df['status'].eq(startTime),1,-1).cumsum()
+                        # temp_df['counter'] = temp_df['status'].map({startTime:1,endTime:-1}).cumsum()
+                        temp_df = temp_df[temp_df['counter'] > int(str(limit))]  
+                    temp_df = temp_df[temp_df['status'] == startTime].sort_values(['time'], ascending=[False]).sort_values(['counter'], ascending=[False])
+                    print((temp_df))
+                    if(temp_df['time'].shape[0] > 0):
+                        new_startTime = temp_df['time'].iloc[0]
+                        new_df = df[df[startTime] == new_startTime]
+                        new_df = new_df.sort_values([endTime], ascending=[False])
+                        print("\n violation for user: " + str(user_name) +  "\n")
+                        print(new_df)
+                        if(temp_df['counter'].iloc[0] > (int(str(limit)) )):       
+                            bool = False              
+                            while(new_df.shape[0] > 0) :
+                                time_range = DateTimeRange( new_df[startTime].iloc[0],  new_df[endTime].iloc[0])
+                                count = 0
+                                if(new_df.shape[0] > 0):
+                                    df = df.reset_index(drop=True)
+                                    for index, row in df.iterrows():
+                                        x = DateTimeRange(df[startTime].iloc[index], df[endTime].iloc[index])
+                                        if(time_range.is_intersection(x)):
+                                            count+=1
+                                else:
+                                    break;
+                                if(count > (int(str(limit)))):
+                                    reservation_id = str(new_df[reservationid].iloc[0])
+                                    if(new_df[user].iloc[0] not in skip_list.split(",")):
+                                        if(str(delete).lower() == "true"):
+                                            # delete each reservation
+                                            print("id: " + reservation_id + " will be deleted now.")
+                                            map = deleteReserveAPI(RESOURCE_TYPE_RESERVATIONS, reservation_id, "delete", "true")
+                                            print("Delete API output of id: " + reservation_id + "\n " + str(map))
+                                            try:
+                                                delete_status = map["status"]
+                                                if("Success" in delete_status):  
+                                                    pass
+                                                else:
+                                                    raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map.items())    
+                                            except Exception as e:
+                                                raise Exception("Unable to delete reservation: " + reservation_id + " Response: " + map['errorMessage'])  
+                                        deleted_df.loc[i] = new_df.iloc[0] 
+                                        i=i+1
+                                        ori_df.drop(ori_df[ori_df[reservationid] == reservation_id].head(1).index, inplace = True) 
+                                    df.drop(df[df[reservationid] == reservation_id].head(1).index, inplace = True) 
+                                    new_df.drop(new_df[new_df[reservationid] == reservation_id].head(1).index, inplace=True)
+                                else:
+                                    break
+                            temp_df.drop(temp_df[temp_df['time'] == new_startTime].head(1).index, inplace = True) 
         
         print("\n remaining  reservations:\n")
+        ori_df[endTime] = pandas.to_datetime(ori_df[endTime], format="%d/%m/%Y %H:%M:%S")
+        ori_df[endTime] = ori_df[endTime] + timedelta(seconds=1) # increasing a second to match as per reservation UI
         print(ori_df.to_string(index=False))
         if(deleted_df.shape[0] > 0):
             deleted_df = deleted_df.drop(status, axis=1)
-            deleted_df.columns = ['Reserved To', 'Device ID', 'Reservation Id',	'Start time', 'End time']
-            print("\n Deleted reservations:")
+            deleted_df[endTime] = deleted_df[endTime] + timedelta(seconds=1)
+            if(str(delete).lower() == "true"):
+                print("\n Deleted reservations:")
+            else:
+                print("\n The following reservations will be deleted:")
             print(deleted_df.to_string(index=False))
             deleted_df = deleted_df.sort_values(by=user)
             deleted_df.style.set_properties(**{"text-align": "left"})
+            deleted_df.columns = ['Reserved To', 'Device ID', 'Reservation Id',	'Start time', 'End time']
+            deleted_df = deleted_df.drop('Reservation Id', 1)
             sys.stdout.flush()
+            html += """</p><input id="myInput4" aria-label="search" type="text" placeholder="Search.."></p> """
             html += deleted_df.to_html(
-                            classes="mystyle", table_id="repotable", index=False)
+                            classes="mystyle", table_id="reservetable", index=False)
         else:
-            html += """No reservations were deleted!"""
+            
+            html += """There were no violations in reservations!"""
     else:
         html += """No matching reservations were found!"""
     html += "</div>"
@@ -2063,7 +2112,7 @@ def main():
         start_time = time.time()
         delete_reserve_df = ""
         freeze_support()
-        init()
+        # init()
         #     """fix Python SSL CERTIFICATE_VERIFY_FAILED"""
         if not os.environ.get("PYTHONHTTPSVERIFY", "") and getattr(
             ssl, "_create_unverified_context", None
@@ -2206,11 +2255,11 @@ def main():
                 reboot = "True"
             if "cleanup:true" in args["actions"]:
                 cleanup = "True"
-            if "reserve" in args["actions"]:
+            if "reserve:" in args["actions"]:
                 reserve = args["actions"]
                 try:
                     reserve = reserve.split("reserve:")[1]
-                    os.environ["RESERVE"] = reserve.split(":")[0]
+                    os.environ["RESERVE"] = "True"
                     try:
                         if (int(reserve.split(":")[0].split(";")[0])):
                             os.environ["RESERVE_TIME"] = reserve.split(":")[0].split(";")[0]
@@ -2222,7 +2271,9 @@ def main():
                 except IndexError as e:
                     raise Exception( "Begin with reserve parameter with a colon seperator followed by reservation time in minutes. Minimum default time is 15 minutes. E.g. reserve:15 ")
             if "reserve_limit" in args["actions"]:
+                print("args:"  + str(args))
                 reserve_limit = args["actions"]
+                # reserve_limit = "reserve_limit:1|false||genesist@perfectomobile.com,hadass@perfectomobile.com|1"
                 os.environ["reserve_limit_days"] = ""
                 try:
                     reserve_limit = reserve_limit.split("reserve_limit:")[1]
@@ -2232,17 +2283,41 @@ def main():
                 except:
                     raise Exception( "Begin with reserve_limit parameter with a colon seperator followed by reservation limit. E.g: reserve_limit:2 will limit reservations to 2 per user at any point in time." )
                 try:
-                            reserve_admin = reserve_limit.split(":")[0].split("|")[1].split(";")[0]
+                    if(len(reserve_limit.split(":")[0].split("|")) > 1):
+                        if(str(reserve_limit.split(":")[0].split("|")[1].split(";")[0]).lower() =="true"):
+                            delete = reserve_limit.split(":")[0].split("|")[1].split(";")[0]
+                        else:
+                            delete = "false"
+                    else:
+                        delete = "false"
                 except:
-                    raise Exception( "Provide true if you have reservation administrator role added to your perfecto user. Default (false). This provides the ability to track reservations of other users." )
+                    raise Exception( "Provide true to delete the reservations. default is false. E.g: reserve_limit:2|true will delete reservations to 2 per user at any point in time." )
                 try:
                     if(len(reserve_limit.split(":")[0].split("|")) > 2):
-                        os.environ["reserve_limit_days"] = reserve_limit.split(":")[0].split("|")[2].split(";")[0]
-                        print("reserve limit days: " + os.environ["reserve_limit_days"])
+                        os.environ["reserve_limit_skip"] = reserve_limit.split(":")[0].split("|")[2].split(";")[0]
+                        print("reserve limit skip users: " + os.environ["reserve_limit_skip"])
+                    else:
+                        os.environ["reserve_limit_skip"] = ""
                 except:
-                    raise Exception( "Provide optional reserve limit in days. E.g: reserve_limit:2|4 will limit reservations to 2 per user beginning now to within the next 4 days" )
-
-                delete_reserve_df = reserve_limiter(RESOURCE_TYPE_RESERVATIONS, os.environ["reserve_limit_user"], "list", os.environ["reserve_limit_days"], reserve_admin)
+                    raise Exception( "Provide optional users list which needs to be skipped while limiting reservation with , seperator. E.g: reserve_limit:2|true|email@abc.com,cmain@abc.com will limit reservations to 2 and exclude email@abc.com,cmain@abc.com only")
+                try:
+                    if(len(reserve_limit.split(":")[0].split("|")) > 3):
+                            include_list = reserve_limit.split(":")[0].split("|")[3].split(";")[0]
+                            print("reserve limit include users: " + include_list)
+                    else:
+                        include_list = ""
+                except:
+                    raise Exception("Provide list of users that should be included while limiting reservation with , seperator. E.g: reserve_limit:2|true||email@abc.com,cmain@abc.com will limit reservations to 2 and include email@abc.com,cmain@abc.com only" )
+                try:
+                    if(len(reserve_limit.split(":")[0].split("|")) > 4):
+                        os.environ["reserve_limit_days"] = reserve_limit.split(":")[0].split("|")[4].split(";")[0]
+                        print("reserve limit days: " + os.environ["reserve_limit_days"])
+                    else:
+                        os.environ["reserve_limit_days"] = ""
+                except:
+                    raise Exception( "Provide optional reserve limit in days. E.g: reserve_limit:2|true|||4 will limit reservations to 2 per user beginning now to within the next 4 days" )
+                
+                delete_reserve_df = reserve_limiter(RESOURCE_TYPE_RESERVATIONS, os.environ["reserve_limit_user"], "list", os.environ["reserve_limit_days"], "true", os.environ["reserve_limit_skip"], include_list, delete)
             if "clean_repo" in args["actions"]:
                 clean_repo = args["actions"]
             else:
@@ -2383,7 +2458,7 @@ def main():
         devlist.close()
         devlist.terminate()
         if(bool):
-            if args["device_status"].lower() in ["disconnected","notavailable","unavailable"]:
+            if str(args["device_status"]).lower() in ["disconnected","notavailable","unavailable"]:
                 print("There are some devices which are " + args["device_status"].lower())
                 sys.exit(-1)
             
