@@ -25,6 +25,7 @@ build/
 *.log
 *.out
 sdist/
+.code-workspace.code-workspace
 
 # PyInstaller
 *.manifest

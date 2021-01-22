@@ -1071,14 +1071,14 @@ def prepare_html(user_html, table3, day, delete_reserve_df):
                                             table.rows[i].cells[j].style.backgroundColor = '#FFC2B5';
                                     }}
                                 }}
-                            var txt = table.rows[i].cells[device_id_column_number].innerHTML;
+                            var deviceId = table.rows[i].cells[device_id_column_number].innerHTML;
                             var url = 'https://"""
         + cloudname.upper()
-        + """.perfectomobile.com/nexperience/main.jsp?applicationName=Interactive&id=' + txt;
+        + """.app.perfectomobile.com/lab/devices';
                             var row = $('<tr></tr>')
                             var link = document.createElement("a");
                             link.href = url;
-                            link.innerHTML = txt;
+                            link.innerHTML = deviceId;
                             link.target = "_blank";
                             table.rows[i].cells[device_id_column_number].innerHTML = "";
                             table.rows[i].cells[device_id_column_number].appendChild(link);
