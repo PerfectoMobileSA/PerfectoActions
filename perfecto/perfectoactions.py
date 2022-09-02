@@ -59,7 +59,13 @@ def send_request(url):
     ):
         response = urllib.request.urlopen(url)
     else:
-        response = urllib.request.urlopen(url.replace(" ", "%20"))
+        if "open" in url:
+            print("Url request for device open")
+            response = urllib.request.urlopen(url.replace(" ", "%20"),timeout=20)
+            print("Url request for device open completed")
+        else:
+            response = urllib.request.urlopen(url.replace(" ", "%20"))
+        
     #    rc = response.getcode()
     #    print("rc =", rc)
     return response
@@ -673,19 +679,20 @@ def perform_actions(deviceid_color):
         sys.stdout.flush()
         return final_string
     except Exception as e:
-        raise Exception("Oops!", e)
+        print("Exception was caught: " + str(e))
+        #raise Exception("Oops!", e)
         # TODO : Dont forget to increase coma in both if else conditions if a new column is added
-        if not os.path.isfile(os.path.join(TEMP_DIR, "results", device_id + ".txt")):
+        '''if not os.path.isfile(os.path.join(TEMP_DIR, "results", device_id + ".txt")):
             if "True" in get_network_settings:
                 final_string = (
                     "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,,,,"
                 )
             else:
-                final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,"
+                    final_string = "status=ERROR" + ",deviceId='" + device_id + "',,,,,,,"
             f = open(file, "w+")
             f.write(str(final_string))
             f.close()
-        return final_string
+        return final_string'''
 
 
 def get_list(get_dev_list):
@@ -721,8 +728,9 @@ def get_list(get_dev_list):
             except Exception:
                 pool.close()
                 pool.terminate()
+                print("Printing exception trace:")
                 print(traceback.format_exc())
-                sys.exit(-1)
+                #sys.exit(-1)
 
 
 def fetch_details(i, exp_number, result, exp_list):
