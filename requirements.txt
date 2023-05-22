@@ -1,5 +1,5 @@
 DateTimeRange==1.0.0
-requests==2.22.0
+requests==2.31.0
 tzlocal==2.1
 colorama==0.4.4
 Image==1.5.33
