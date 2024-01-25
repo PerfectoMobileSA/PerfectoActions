@@ -193,7 +193,7 @@ def convertjsonToXls(json_text, dict_keys, filename):
 
 def send_request_with_xml_response(url):
     """send request"""
-    print("Attempting url: \n" + str(url))
+    # print("Attempting url: \n" + str(url))
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     xmldoc = minidom.parseString(decoded)
@@ -232,10 +232,10 @@ def send_cradles_request_to_xlsx(url, command, filename):
 
 def send_jsonrequest_to_xlsx(url, filename):
     """send_request_to_xlsx"""
-    print("Attempting User list API: \n" + str(url))
+    # print("Attempting User list API: \n" + str(url))
     try:
         response = send_request(url)
-        print("response: " + str(response))
+        # print("response: " + str(response))
         decoded = response.read().decode("utf-8")
         if any(["=list" in url, "=users" in url]):
             filename = os.path.join(TEMP_DIR, "output", filename)
@@ -373,7 +373,7 @@ def get_reservations_list_response(resource, command, end, admin):
         url += "&endTime=" + str(int(endTime.timestamp()) * 1000)
     if admin != "":
         url += "&admin=" + admin
-    print("Attempting get reservations list API: \n" + url)
+    # print("Attempting get reservations list API: \n" + url)
     response = send_request(url)
     decoded = response.read().decode("utf-8")
     return decoded
@@ -458,7 +458,7 @@ def create_reservation(resource, resource_id, operation):
                 "Please pass your perfecto credentials in the format user:password as -s parameter value. Avoid using special characters such as :,@. in passwords!"
             )
     url += "?" + query
-    print(url)
+    # print(url)
     return url
 
 def perform_actions(deviceid_color):
@@ -514,7 +514,7 @@ def perform_actions(deviceid_color):
                 try:
                     response = send_request(create_reservation(RESOURCE_TYPE_RESERVATIONS, device_id, "create"))
                     decoded = response.read().decode("utf-8")
-                    print(decoded)
+                    # print(decoded)
                     desc = "Reserved"
                     status += "RS:OK;"
                 except Exception as e:

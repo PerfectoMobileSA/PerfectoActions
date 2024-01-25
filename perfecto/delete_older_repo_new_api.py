@@ -78,8 +78,8 @@ def retrieve_repository_items(page, artifactType):
         api_url, params=payload, headers={
             "PERFECTO_AUTHORIZATION": os.environ["securityToken"]}
     )
-    print(str(api_url))
-    print(str(payload))
+    #print(str(api_url))
+    # print(str(payload))
     return r.content
 
 
@@ -97,7 +97,7 @@ def delete_repository_items(artifactType):
         api_url, headers={
             "PERFECTO_AUTHORIZATION": os.environ["securityToken"]}
     )
-    print(str(api_url))
+    #print(str(api_url))
     return r.content
 
 
@@ -145,7 +145,7 @@ def manageRepo(value, DAYS, delete, artifactType=None):
             + str(page)
         )
         executions = retrieve_repository_items(page, artifactType)
-        print("Output:\n" + str(executions))
+        # print("Output:\n" + str(executions))
         # Loads JSON string into JSON object
         executions = json.loads(executions)
         if "{'userMessage': 'Failed decoding the offline token:" in str(executions):

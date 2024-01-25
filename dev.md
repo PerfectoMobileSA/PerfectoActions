@@ -11,7 +11,8 @@ Increase the version in setup.py and run the following to upload to test pypi: <
     rm -rf build dist
     python3 setup.py clean --all
     python3 setup.py sdist bdist_wheel
-    python3 -m twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/* -r testpypi
+    python3 -m twine upload --repository testpypi dist/*
+    pip install -i https://test.pypi.org/simple/ perfectoactions==1.0.83
     
     ** below is applicable only for pushing the package to main pypi:
     rm -rf build dist
