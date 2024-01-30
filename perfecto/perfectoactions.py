@@ -1724,13 +1724,13 @@ def deleteReserveAPI(resource_type, resource_key, operation, admin):
     url = get_url(str(resource_type), resource_key, operation)
     if "true" in admin.lower():
         url += "&admin=" + "true"
-    print("Delete API url: \n" + url)
+    # print("Delete API url: \n" + url)
     map = send_request_for_repository(url, "", operation)
     return map
 
 def sendAPI_repo(resource_type, resource_key, operation):
     url = get_url(str(resource_type), "", operation)
-    print("\nRepository API Raw url: \n" + url)
+    # print("\nRepository API Raw url: \n" + url)
     return send_request_for_repository(url, "", resource_key)
 
 
